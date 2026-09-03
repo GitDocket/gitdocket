@@ -1,0 +1,9 @@
+# Per-checkout Docket state (active task, cache). Never committed.
+.docket/
+
+# macOS metadata
+.DS_Store
+
+# Node/Bun
+node_modules/
+dist/

@@ -1,0 +1,13 @@
+project: DEMO
+bundle: docket/
+
+ids:
+  scheme: sequential
+  decision_prefix: DEC
+
+workflow:
+  states: [todo, in-progress, blocked, in-review, done, closed]
+
+git:
+  trailer: Task
+  branch_prefix: task/

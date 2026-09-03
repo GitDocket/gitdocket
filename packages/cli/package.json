@@ -1,0 +1,25 @@
+{
+  "name": "@docket/cli",
+  "version": "0.0.2",
+  "private": true,
+  "type": "module",
+  "description": "Local-first Markdown docs and work tracking from the terminal.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/GitDocket/gitdocket.git",
+    "directory": "packages/cli"
+  },
+  "homepage": "https://gitdocket.com",
+  "engines": {
+    "bun": ">=1.3.14"
+  },
+  "bin": {
+    "docket": "./src/index.ts"
+  },
+  "dependencies": {
+    "@docket/core": "workspace:*",
+    "@docket/web": "workspace:*",
+    "commander": "^14.0.3"
+  }
+}

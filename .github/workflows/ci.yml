@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  checks:
+    name: Bun 1.3.14 / ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - run: bun --version
+      - run: bun install --frozen-lockfile
+      - run: bun audit --audit-level high
+      - run: bunx biome ci .
+      - run: bunx tsc --noEmit
+      - run: bun test
+      - name: Lint the public example bundle
+        run: bun ../../packages/cli/src/index.ts lint
+        working-directory: examples/basic
+      - name: Check the public example index
+        run: bun ../../packages/cli/src/index.ts index --check
+        working-directory: examples/basic
+      - name: Lint the private source bundle when present
+        if: ${{ hashFiles('docket.yaml') != '' }}
+        run: bun run docket lint
+      - name: Check the private source index when present
+        if: ${{ hashFiles('docket.yaml') != '' }}
+        run: bun run docket index --check

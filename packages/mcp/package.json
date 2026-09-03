@@ -1,0 +1,25 @@
+{
+  "name": "@docket/mcp",
+  "version": "0.0.2",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/GitDocket/gitdocket.git",
+    "directory": "packages/mcp"
+  },
+  "homepage": "https://gitdocket.com",
+  "engines": {
+    "bun": ">=1.3.14"
+  },
+  "description": "MCP server exposing narrow GitDocket operations to coding agents.",
+  "bin": {
+    "docket-mcp": "./src/index.ts"
+  },
+  "dependencies": {
+    "@docket/core": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "zod": "^4.5.4"
+  }
+}
