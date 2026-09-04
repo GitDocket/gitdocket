@@ -170,6 +170,7 @@ describe("publication candidate and preflight", () => {
     expect(workflow).toContain(
       "github-release:\n    needs: registry\n    runs-on: ubuntu-latest\n    permissions:\n      contents: write",
     );
+    expect(workflow).not.toContain("registry-url:");
   });
 
   test("classifies absent, partial, complete, and conflicting registry states", () => {

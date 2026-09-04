@@ -1,12 +1,12 @@
 {
   "schema": 1,
-  "sourceCommit": "6e0211189ef5a2e486ace20e7ec9e5e631f27984",
+  "sourceCommit": "348d60b6858d2322080aaa7abfeb64ed653b6bb8",
   "manifestPath": "release/public-export.json",
   "files": {
     ".github/dependabot.yml": "d62ce2587ea2aa1a03c7e75b2b039107dd0c5f76ed3a3c53e21245627847c2fb",
     ".github/workflows/ci.yml": "a22bc1f2e4afb7554067abe27b2c05ac26f800824145ea31fdde6a31e0a26afd",
     ".github/workflows/dependency-audit.yml": "43fd51fe12e5571c697c7d6c97483d1b386d3ec7306c69142a558b42fb056e2d",
-    ".github/workflows/publish.yml": "acd8289df71815917ffda4e319c4eae451f4856ee8b8e15d6ed33c28730389e2",
+    ".github/workflows/publish.yml": "a3264883f97facb0a4bfc99cbc67e6e4bd458e501805c084e463afc50f0cfbc9",
     ".gitignore": "2cf6ff42cae7c2ceb3dd83aa182909c9715314e5b5decc39eb4f615349906a62",
     "CONTRIBUTING.md": "3beb0d9e8337f0e26a67cfc0ee2df8ea86adc7a67ff24607f542a193c1107c8d",
     "LICENSE": "f566cfc74461676075d1ee32904576bf15a76f280ceb78f9c5987b6a19db576d",
@@ -142,7 +142,7 @@
     "scripts/release-contract.test.ts": "0a6a23eed0e7e0eacfdd5881dc6b5ccaf1311595af4f0517d6cf082cf7fe67ff",
     "scripts/release-contract.ts": "680eec99d24c08689ce62b55beea640980eb9c670f82d320874cc270c673b65f",
     "scripts/release-pack.ts": "b53dd43330914b0fecc04134e9bffe862e58951f12c439ebe1dffeabf5e8655d",
-    "scripts/release-publication.test.ts": "3f896df63d9d95fdeaaa3366b3c043879db76fd76583838bc321f2fca418aba1",
+    "scripts/release-publication.test.ts": "38883e65f2f5df21d532f16504a6c9beb768b050110bc78115ba6fea68eff052",
     "scripts/release-publication.ts": "e8ca4b0bb9e1c94fdaca4e4c3ed9c15f18a890cb37ec582d8be3f6e2d29e0d56",
     "scripts/release-publish.ts": "fcf0bf81fed74cbe3ff9445f0175649b463ff258d0798c3b0676c067420774ca",
     "scripts/release-rehearse.test.ts": "5a4741beacf61428e1f2bca46f2c56501f71e28d3bce9f0f158aede7cb89545c",
