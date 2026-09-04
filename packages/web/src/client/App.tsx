@@ -3,7 +3,10 @@
 // Inline field edits round-trip through the server's
 // core-ops endpoints.
 
-import { REENTRY_CONTEXT_V1_FORMAT, type StateOfPlayView } from "@docket/core";
+import {
+  REENTRY_CONTEXT_V1_FORMAT,
+  type StateOfPlayView,
+} from "@gitdocket/core";
 import {
   type ReactNode,
   useCallback,

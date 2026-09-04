@@ -1,7 +1,6 @@
 {
-  "name": "@docket/cli",
-  "version": "0.0.2",
-  "private": true,
+  "name": "@gitdocket/cli",
+  "version": "0.1.0",
   "type": "module",
   "description": "Local-first Markdown docs and work tracking from the terminal.",
   "license": "Apache-2.0",
@@ -17,9 +16,17 @@
   "bin": {
     "docket": "./src/index.ts"
   },
+  "files": [
+    "src/**/*.ts",
+    "!src/**/*.test.ts"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "dependencies": {
-    "@docket/core": "workspace:*",
-    "@docket/web": "workspace:*",
+    "@gitdocket/core": "workspace:*",
+    "@gitdocket/web": "workspace:*",
     "commander": "^14.0.3"
   }
 }

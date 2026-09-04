@@ -29,7 +29,7 @@ import {
   upgradeHookBlock,
   upgradeWorkflowFile,
   WORKFLOWS_DIR,
-} from "@docket/core";
+} from "@gitdocket/core";
 import { AGENT_ADAPTERS, renderTargetSkillStub } from "./agent-adapters";
 import { resolveHooksDir } from "./init";
 

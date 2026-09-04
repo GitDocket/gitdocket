@@ -2,7 +2,7 @@
 // promise: what the linter sees is what the renderer shows). Internal .md
 // links are rewritten to SPA hash routes so the wiki graph stays navigable.
 
-import { resolveLink } from "@docket/core";
+import { resolveLink } from "@gitdocket/core";
 import type { Root } from "hast";
 import rehypeStringify from "rehype-stringify";
 import remarkFrontmatter from "remark-frontmatter";

@@ -45,7 +45,7 @@ export interface ContextPacket {
 /**
  * Build the packet for a work item. `commits` is the task's trailer-matched
  * history, newest first — callers with a repo get it from `scanActivity`
- * (`@docket/core/cache`); repo-less callers pass `[]`.
+ * (`@gitdocket/core/cache`); repo-less callers pass `[]`.
  */
 export async function buildContextPacket(
   store: FileStore,

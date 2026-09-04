@@ -10,7 +10,7 @@ import {
   findRepoRoot,
   LocalFileStore,
   parseConfig,
-} from "@docket/core";
+} from "@gitdocket/core";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { createDocketServer } from "./server";
 

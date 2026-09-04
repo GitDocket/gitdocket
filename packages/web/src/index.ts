@@ -1,4 +1,4 @@
-// @docket/web — the renderer surface: Hono API over core + React SPA.
+// @gitdocket/web — the renderer surface: Hono API over core + React SPA.
 
 export { type Assets, createApp } from "./app";
 export { renderMarkdown } from "./render";

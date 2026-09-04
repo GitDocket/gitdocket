@@ -5,7 +5,7 @@ import { afterEach, beforeAll, describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { parseConfig } from "@docket/core";
+import { parseConfig } from "@gitdocket/core";
 import type { Assets } from "./app";
 import { buildAssets, startServe } from "./serve";
 

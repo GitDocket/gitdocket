@@ -1,7 +1,6 @@
 {
-  "name": "@docket/web",
-  "version": "0.0.2",
-  "private": true,
+  "name": "@gitdocket/web",
+  "version": "0.1.0",
   "type": "module",
   "license": "Apache-2.0",
   "repository": {
@@ -17,8 +16,19 @@
   "exports": {
     ".": "./src/index.ts"
   },
+  "files": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "src/**/*.css",
+    "!src/**/*.test.ts",
+    "!src/**/*.test.tsx"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "dependencies": {
-    "@docket/core": "workspace:*",
+    "@gitdocket/core": "workspace:*",
     "hono": "^4.13.5",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",

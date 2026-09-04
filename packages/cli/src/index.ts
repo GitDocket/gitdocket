@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 
-// docket — first thin client over @docket/core. Every command is a core
+// docket — first thin client over @gitdocket/core. Every command is a core
 // call plus formatting; agents pass --json, humans get columns.
 
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
@@ -37,9 +37,9 @@ import {
   verifyStatus,
   type WorkItem,
   type WorkItemType,
-} from "@docket/core";
-import { scanActivity, taskLinkedCommitsSince } from "@docket/core/cache";
-import { deriveRepositoryOverview } from "@docket/core/orientation";
+} from "@gitdocket/core";
+import { scanActivity, taskLinkedCommitsSince } from "@gitdocket/core/cache";
+import { deriveRepositoryOverview } from "@gitdocket/core/orientation";
 import { Command } from "commander";
 import { trailerlessSince } from "./freshness";
 import { refreshIndex } from "./indexing";
@@ -474,7 +474,7 @@ program
   .action(async (opts: { port: string; watch?: boolean; commit?: boolean }) => {
     const { root, config } = await ctx();
     // Lazy: keeps react/hono out of every other command's startup.
-    const { startServe } = await import("@docket/web");
+    const { startServe } = await import("@gitdocket/web");
     try {
       const server = await startServe(root, config, {
         port: Number(opts.port),

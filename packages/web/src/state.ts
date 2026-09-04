@@ -10,8 +10,12 @@ import {
   type DocketConfig,
   LocalFileStore,
   loadBundle,
-} from "@docket/core";
-import { buildCache, scanActivity, scanRepoMarkers } from "@docket/core/cache";
+} from "@gitdocket/core";
+import {
+  buildCache,
+  scanActivity,
+  scanRepoMarkers,
+} from "@gitdocket/core/cache";
 
 export interface RepoState {
   bundle: Bundle;

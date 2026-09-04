@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { LocalFileStore, loadBundle, parseConfig } from "@docket/core";
+import { LocalFileStore, loadBundle, parseConfig } from "@gitdocket/core";
 import { scanRepoMarkers } from "./verify";
 
 let root: string;

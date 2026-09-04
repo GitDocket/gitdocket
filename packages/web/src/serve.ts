@@ -7,7 +7,7 @@
 import { watch } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { DocketConfig } from "@docket/core";
+import type { DocketConfig } from "@gitdocket/core";
 import { type Assets, createApp, localRequestBoundary } from "./app";
 import { createCommitter } from "./commit";
 import { createRepoContext } from "./state";

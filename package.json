@@ -1,5 +1,5 @@
 {
-  "name": "docket-monorepo",
+  "name": "gitdocket-monorepo",
   "private": true,
   "license": "Apache-2.0",
   "repository": {
@@ -24,6 +24,8 @@
   "scripts": {
     "docket": "bun packages/cli/src/index.ts",
     "export-public": "bun scripts/export-public.ts",
+    "release:pack": "bun scripts/release-pack.ts",
+    "release:publish": "bun scripts/release-publish.ts",
     "sync-shipped": "bun scripts/sync-shipped.ts",
     "dev": "bun packages/cli/src/index.ts serve --watch",
     "test": "bun test",

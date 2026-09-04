@@ -1,5 +1,5 @@
-// @docket/mcp — the auto-approvable agent surface. Every tool is a
-// narrow, named, zod-validated mirror of a @docket/core op; none executes
+// @gitdocket/mcp — the auto-approvable agent surface. Every tool is a
+// narrow, named, zod-validated mirror of a @gitdocket/core op; none executes
 // shell and none takes a filesystem path — ids only, files reached solely
 // through core's FileStore rooted at the bundle. That containment is what
 // makes allowlisting the whole server (`mcp__docket`) safe. Read tools carry
@@ -23,8 +23,8 @@ import {
   setStatus,
   WORK_ITEM_TYPES,
   type WorkItem,
-} from "@docket/core";
-import { deriveRepositoryOverview } from "@docket/core/orientation";
+} from "@gitdocket/core";
+import { deriveRepositoryOverview } from "@gitdocket/core/orientation";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 

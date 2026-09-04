@@ -5,7 +5,7 @@ import { join } from "node:path";
 import type {
   OverviewExecutionSummary,
   OverviewModel,
-} from "@docket/core/overview";
+} from "@gitdocket/core/overview";
 import { renderOverview } from "./overview";
 
 const CLI = join(import.meta.dir, "index.ts");

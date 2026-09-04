@@ -11,20 +11,20 @@
       },
     },
     "packages/cli": {
-      "name": "@docket/cli",
-      "version": "0.0.2",
+      "name": "@gitdocket/cli",
+      "version": "0.1.0",
       "bin": {
         "docket": "./src/index.ts",
       },
       "dependencies": {
-        "@docket/core": "workspace:*",
-        "@docket/web": "workspace:*",
+        "@gitdocket/core": "workspace:*",
+        "@gitdocket/web": "workspace:*",
         "commander": "^14.0.3",
       },
     },
     "packages/core": {
-      "name": "@docket/core",
-      "version": "0.0.2",
+      "name": "@gitdocket/core",
+      "version": "0.1.0",
       "dependencies": {
         "remark-frontmatter": "^5.0.0",
         "remark-parse": "^11.0.0",
@@ -35,22 +35,22 @@
       },
     },
     "packages/mcp": {
-      "name": "@docket/mcp",
-      "version": "0.0.2",
+      "name": "@gitdocket/mcp",
+      "version": "0.1.0",
       "bin": {
         "docket-mcp": "./src/index.ts",
       },
       "dependencies": {
-        "@docket/core": "workspace:*",
+        "@gitdocket/core": "workspace:*",
         "@modelcontextprotocol/sdk": "^1.30.0",
         "zod": "^4.5.4",
       },
     },
     "packages/web": {
-      "name": "@docket/web",
-      "version": "0.0.2",
+      "name": "@gitdocket/web",
+      "version": "0.1.0",
       "dependencies": {
-        "@docket/core": "workspace:*",
+        "@gitdocket/core": "workspace:*",
         "hono": "^4.13.5",
         "react": "^19.2.8",
         "react-dom": "^19.2.8",
@@ -95,13 +95,13 @@
 
     "@biomejs/cli-win32-x64": ["@biomejs/cli-win32-x64@2.5.11", "", { "os": "win32", "cpu": "x64" }, "sha512-QSQr/KjOgXA7OzXJUWS+oguKyAZ3Q0l/lnlDGbu397eKo83atuWUjBPJrsqbKNF6CARGw8XXJLGzpHC8Ryhd4Q=="],
 
-    "@docket/cli": ["@docket/cli@workspace:packages/cli"],
+    "@gitdocket/cli": ["@gitdocket/cli@workspace:packages/cli"],
 
-    "@docket/core": ["@docket/core@workspace:packages/core"],
+    "@gitdocket/core": ["@gitdocket/core@workspace:packages/core"],
 
-    "@docket/mcp": ["@docket/mcp@workspace:packages/mcp"],
+    "@gitdocket/mcp": ["@gitdocket/mcp@workspace:packages/mcp"],
 
-    "@docket/web": ["@docket/web@workspace:packages/web"],
+    "@gitdocket/web": ["@gitdocket/web@workspace:packages/web"],
 
     "@hono/node-server": ["@hono/node-server@1.19.15", "", { "peerDependencies": { "hono": "^4" } }, "sha512-Za2ai6TLdKjUvnur+eenO6nuYYipVAEhyCAdaV8IRvmU9kK8crOZUSYvIXn72E4f8fJqyAbpcJuTsYYmZp9Deg=="],
 

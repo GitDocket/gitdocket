@@ -11,7 +11,7 @@ import {
   DOCKET_WORKFLOWS,
   PROMPT_ROUTING_FIXTURES,
   renderDocketSection,
-} from "@docket/core";
+} from "@gitdocket/core";
 import {
   AGENT_ADAPTERS,
   type AgentAdapter,

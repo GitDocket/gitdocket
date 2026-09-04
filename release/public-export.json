@@ -3,6 +3,7 @@
   "paths": [
     ".github/dependabot.yml",
     ".github/workflows/ci.yml",
+    ".github/workflows/publish.yml",
     ".gitignore",
     "CONTRIBUTING.md",
     "LICENSE",
@@ -127,6 +128,8 @@
     "release/public-export.json",
     "scripts/export-public.test.ts",
     "scripts/export-public.ts",
+    "scripts/release-pack.ts",
+    "scripts/release-publish.ts",
     "scripts/sync-shipped.ts",
     "site/README.md",
     "site/_headers",

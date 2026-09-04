@@ -6,7 +6,7 @@ import {
   InMemoryFileStore,
   parseConfig,
   READY_QUEUE_DESCRIPTION,
-} from "@docket/core";
+} from "@gitdocket/core";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { createDocketServer } from "./server";

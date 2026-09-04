@@ -32,7 +32,7 @@ import {
   renderWorkflow,
   scaffoldFiles,
   workflowPath,
-} from "@docket/core";
+} from "@gitdocket/core";
 import {
   AGENT_ADAPTERS,
   AGENT_TARGETS,
@@ -271,7 +271,7 @@ export async function runInit(
         "claude",
         ".mcp.json",
         "skip",
-        "docket-mcp not on PATH — install @docket/mcp, then rerun `docket init --agent claude`",
+        "docket-mcp not on PATH — install @gitdocket/mcp, then rerun `docket init --agent claude`",
       );
     } else {
       const mcp = mergeMcpJson(await readIfPresent(mcpPath));
@@ -296,7 +296,7 @@ export async function runInit(
         "codex",
         rel,
         "skip",
-        "docket-mcp not on PATH — install @docket/mcp, then rerun `docket init --agent codex`",
+        "docket-mcp not on PATH — install @gitdocket/mcp, then rerun `docket init --agent codex`",
       );
     } else {
       const existing = await readIfPresent(path);

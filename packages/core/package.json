@@ -1,7 +1,6 @@
 {
-  "name": "@docket/core",
-  "version": "0.0.2",
-  "private": true,
+  "name": "@gitdocket/core",
+  "version": "0.1.0",
   "type": "module",
   "description": "The typed file-and-graph engine behind GitDocket.",
   "license": "Apache-2.0",
@@ -19,6 +18,15 @@
     "./cache": "./src/cache.ts",
     "./orientation": "./src/orientation.ts",
     "./overview": "./src/overview.ts"
+  },
+  "files": [
+    "src/**/*.ts",
+    "src/**/*.json",
+    "!src/**/*.test.ts"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   },
   "dependencies": {
     "remark-frontmatter": "^5.0.0",

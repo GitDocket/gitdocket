@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { parseConfig } from "@docket/core";
+import { parseConfig } from "@gitdocket/core";
 import type { Hono } from "hono";
 import { createApp } from "./app";
 import { createRepoContext } from "./state";

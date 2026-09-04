@@ -21,9 +21,9 @@ import {
   setRank,
   setStatus,
   type WorkItem,
-} from "@docket/core";
-import { gitCheckpoint, taskLinkedCommitsSince } from "@docket/core/cache";
-import { deriveOverview, epicNeedsCleanup } from "@docket/core/overview";
+} from "@gitdocket/core";
+import { gitCheckpoint, taskLinkedCommitsSince } from "@gitdocket/core/cache";
+import { deriveOverview, epicNeedsCleanup } from "@gitdocket/core/overview";
 import { Hono } from "hono";
 import type { Committer } from "./commit";
 import { renderMarkdown } from "./render";

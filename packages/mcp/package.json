@@ -1,7 +1,6 @@
 {
-  "name": "@docket/mcp",
-  "version": "0.0.2",
-  "private": true,
+  "name": "@gitdocket/mcp",
+  "version": "0.1.0",
   "type": "module",
   "license": "Apache-2.0",
   "repository": {
@@ -17,8 +16,16 @@
   "bin": {
     "docket-mcp": "./src/index.ts"
   },
+  "files": [
+    "src/**/*.ts",
+    "!src/**/*.test.ts"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "dependencies": {
-    "@docket/core": "workspace:*",
+    "@gitdocket/core": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "zod": "^4.5.4"
   }

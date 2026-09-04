@@ -1,4 +1,4 @@
-// @docket/core — the engine. Every surface (CLI, web, MCP, App) is a thin
+// @gitdocket/core — the engine. Every surface (CLI, web, MCP, App) is a thin
 // client over this library; there is exactly one write path.
 
 export {

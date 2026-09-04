@@ -7,8 +7,8 @@ import {
   type DocketConfig,
   type LocalFileStore,
   renderIndex,
-} from "@docket/core";
-import { buildCache, scanActivity } from "@docket/core/cache";
+} from "@gitdocket/core";
+import { buildCache, scanActivity } from "@gitdocket/core/cache";
 import { scanRepoMarkers } from "./verify";
 
 export interface IndexRefreshResult {

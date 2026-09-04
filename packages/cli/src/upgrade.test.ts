@@ -16,7 +16,7 @@ import {
   renderAgentSkillStub,
   renderDocketSection,
   type ShippedHistory,
-} from "@docket/core";
+} from "@gitdocket/core";
 import { AGENT_ADAPTERS, renderTargetSkillStub } from "./agent-adapters";
 import { runUpgrade } from "./upgrade";
 

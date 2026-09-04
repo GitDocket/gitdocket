@@ -1,6 +1,6 @@
 // SQLite cache: disposable, derived, gitignored — files stay the
 // source of truth. bun:sqlite makes this module Bun-only, so it ships as the
-// `@docket/core/cache` subpath and the main entry stays runtime-portable.
+// `@gitdocket/core/cache` subpath and the main entry stays runtime-portable.
 // Callers with a repo (the CLI) pass in git-derived activity rows.
 
 import type { Database } from "bun:sqlite";

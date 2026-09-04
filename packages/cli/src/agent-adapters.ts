@@ -3,7 +3,7 @@
 // the exact host operation used to satisfy that optional intent.
 
 import { join } from "node:path";
-import { renderAgentSkillStub, type WorkflowDef } from "@docket/core";
+import { renderAgentSkillStub, type WorkflowDef } from "@gitdocket/core";
 
 export const AGENT_TARGETS = ["claude", "codex"] as const;
 export type AgentTarget = (typeof AGENT_TARGETS)[number];

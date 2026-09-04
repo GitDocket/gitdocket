@@ -1,5 +1,8 @@
-import { REENTRY_CONTEXT_V1_FORMAT, type StateOfPlayView } from "@docket/core";
-import type { OverviewModel } from "@docket/core/overview";
+import {
+  REENTRY_CONTEXT_V1_FORMAT,
+  type StateOfPlayView,
+} from "@gitdocket/core";
+import type { OverviewModel } from "@gitdocket/core/overview";
 
 const ageLine = (context: StateOfPlayView): string =>
   `as of ${context.asOf.slice(0, 7)}, ${
