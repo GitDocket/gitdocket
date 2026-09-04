@@ -3,6 +3,7 @@
   "paths": [
     ".github/dependabot.yml",
     ".github/workflows/ci.yml",
+    ".github/workflows/dependency-audit.yml",
     ".github/workflows/publish.yml",
     ".gitignore",
     "CONTRIBUTING.md",
@@ -126,6 +127,10 @@
     "packages/web/src/serve.ts",
     "packages/web/src/state.ts",
     "release/public-export.json",
+    "scripts/audit-dependencies.test.ts",
+    "scripts/audit-dependencies.ts",
+    "scripts/ci-dependency-changes.test.ts",
+    "scripts/ci-dependency-changes.ts",
     "scripts/export-public.test.ts",
     "scripts/export-public.ts",
     "scripts/release-pack.ts",

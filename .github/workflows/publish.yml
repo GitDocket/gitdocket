@@ -27,7 +27,6 @@ jobs:
       - run: bun --version
       - run: npm --version
       - run: bun install --frozen-lockfile
-      - run: bun audit --audit-level high
       - run: bunx biome ci .
       - run: bunx tsc --noEmit
       - run: bun test
@@ -37,5 +36,7 @@ jobs:
       - name: Check the public example index
         run: bun ../../packages/cli/src/index.ts index --check
         working-directory: examples/basic
+      - name: Audit dependencies
+        run: bun run audit:dependencies
       - run: bun run release:pack
       - run: bun run release:publish

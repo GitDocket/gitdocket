@@ -22,6 +22,7 @@
     "qs": "6.16.0"
   },
   "scripts": {
+    "audit:dependencies": "bun scripts/audit-dependencies.ts",
     "docket": "bun packages/cli/src/index.ts",
     "export-public": "bun scripts/export-public.ts",
     "release:pack": "bun scripts/release-pack.ts",
