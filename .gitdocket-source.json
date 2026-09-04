@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "sourceCommit": "8eba231d2e9321e1f63595ca8840e25320b9942b",
+  "sourceCommit": "ddeb505f5ee0b32e96ff7981c718bbcfa7d4d8cd",
   "manifestPath": "release/public-export.json",
   "files": {
     ".github/dependabot.yml": "d62ce2587ea2aa1a03c7e75b2b039107dd0c5f76ed3a3c53e21245627847c2fb",
@@ -9,14 +9,14 @@
     ".gitignore": "6a1896bd328244782e1ca5dc19f2bb8ec01ee66c90c0d8edd1cccb241594d35a",
     "CONTRIBUTING.md": "3beb0d9e8337f0e26a67cfc0ee2df8ea86adc7a67ff24607f542a193c1107c8d",
     "LICENSE": "f566cfc74461676075d1ee32904576bf15a76f280ceb78f9c5987b6a19db576d",
-    "README.md": "30bc4fec043c8b3c6fc9551817a15fdf08acd420e6ab9d85862c974ac2a47b6b",
+    "README.md": "b7eebfacd5447a3c7fda354f4cc466692038a58239d6d43564dbe3f9e4abfcab",
     "SECURITY.md": "0992c3af2e2734a50e7625d25b70607e7e2b0b014b31e96128730a5b65d00c4c",
     "biome.json": "ca8318d761617fa2f75691a9ca67ae084762ba93cb895d8c04c9d26913333825",
     "bun.lock": "59282648affedf1a812b37fdfd3a1a88c05873f6d174d5feb93c0ba87c061c2f",
     "docs/agents.md": "ee7d074971d2581f9b574344c9e67cd8a7fd89c3a9dc28df9b93e0f300382e1f",
     "docs/cli.md": "8e8aa41f64b3478d0f6b58e8c51f86dcc36a283f6872904ca98b103e71beb5dc",
     "docs/concepts.md": "f9e5f7888d32a29f18485f4f8265cef884fac242f35dfe0d58124818f9e9cdf3",
-    "docs/getting-started.md": "3b7d70a87402b733e3a87f6ee80a6fb6c71a59118587ddeee1d13984f7953f73",
+    "docs/getting-started.md": "572dbc8afb099a7f2548987b1d0ae5427f0d828a317e4f33108ac46302885d46",
     "docs/serve.md": "9fe64afdf2d2a10a0b8c60d2e6797544e9d2a7e94f18f08a59eccea5ebd04708",
     "examples/basic/docket.yaml": "6a73a2cbb06a29fd02adb3640ab367dedd8a325ad443f5729da7e296a80774fb",
     "examples/basic/docket/decisions/DEC-1-files-are-source-of-truth.md": "70cb67b479f6a2c63bc63c18935833ed23ecf992a35ae25f2a6b6dea8de72d76",
@@ -137,7 +137,7 @@
     "site/_headers": "d9b63a1742632e9ea6168278ef3df614f654ac3a851c552389fc0bc907dd0fce",
     "site/assets/gitdocket-home.png": "800141a876293b97a60e5d009222ee79d1a9873dbe00d816f7937079296a39eb",
     "site/favicon.svg": "bbc7836e006628834f13ef508ceb0c4fdf51aab4cf02b5f472273bad3ce74939",
-    "site/index.html": "5a7fd36252460e47eea1d8e2c926a0df9d3e60eded3e5805d2f97b891c4f9c21",
+    "site/index.html": "ed2d0e76069a4f9eaf3e86b7440b9fc7cd7bfe4b55b5ab4449313dff0898aeed",
     "site/styles.css": "cacb4b02f8aa8391b88cbc66a551dda136c0b92da895f26bd820a93c9eff1380",
     "tsconfig.json": "5ae5ea3e277a2ce6f22fc0adfdeade48225e5241913d61135104f6cd37994bba"
   }

@@ -4,7 +4,7 @@ GitDocket keeps project documentation and work tracking together as linked Markd
 
 It is for teams that want durable, reviewable project context without moving the source of truth into a hosted tracker. Files remain authoritative; GitDocket derives readiness, indexes, activity, and browser views from them.
 
-> GitDocket is preparing its first public preview. The source interface may still change, and registry packages are not published yet.
+> GitDocket 0.1.0 is a public preview. File formats and commands are tested, but the compatibility surface may still change as external use provides evidence.
 
 ![GitDocket task board showing synthetic todo and completed work](site/assets/gitdocket-home.png)
 
@@ -16,19 +16,16 @@ It is for teams that want durable, reviewable project context without moving the
 
 Windows has not yet passed the release gate and is not supported in the first preview.
 
-## Install from source
+## Install
 
-Until registry publication, use a source checkout:
+Install the CLI and MCP server from npm with Bun:
 
 ```sh
-git clone https://github.com/GitDocket/gitdocket.git
-cd gitdocket
-bun install --frozen-lockfile
-bun link --global --cwd packages/cli
-bun link --global --cwd packages/mcp
+bun add --global @gitdocket/cli @gitdocket/mcp
+docket --version
 ```
 
-The published-package command will replace this temporary source-install path after it passes the clean registry proof.
+The version command should report `0.1.0`. Both packages require Bun 1.3.14 or newer; the installed binaries remain `docket` and `docket-mcp`.
 
 ## Quickstart
 

@@ -2,17 +2,16 @@
 
 GitDocket runs locally against a repository. It writes Markdown and generated project files into that repository; no hosted account or database is required.
 
-## 1. Install the preview from source
+## 1. Install GitDocket
 
-Install Bun 1.3.14 or newer on macOS or Linux, clone GitDocket, and register its two command-line binaries:
+Install Bun 1.3.14 or newer on macOS or Linux, then install the CLI and MCP server from npm:
 
 ```sh
-git clone https://github.com/GitDocket/gitdocket.git
-cd gitdocket
-bun install --frozen-lockfile
-bun link --global --cwd packages/cli
-bun link --global --cwd packages/mcp
+bun add --global @gitdocket/cli @gitdocket/mcp
+docket --version
 ```
+
+The version command should report `0.1.0`. The package names live under the `@gitdocket` scope; the commands remain `docket` and `docket-mcp`.
 
 ## 2. Initialize a project
 
