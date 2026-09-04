@@ -6,7 +6,7 @@
     <title>GitDocket — project memory for humans and coding agents</title>
     <meta
       name="description"
-      content="GitDocket gives humans and coding agents one durable project memory: linked Markdown, deterministic project state, and versioned workflows in your repository."
+      content="GitDocket keeps project context, decisions, work, and agent workflows together in your Git repository."
     />
     <meta property="og:type" content="website" />
     <meta property="og:title" content="GitDocket" />
@@ -17,10 +17,11 @@
     <meta property="og:url" content="https://gitdocket.com/" />
     <meta
       property="og:image"
-      content="https://gitdocket.com/assets/gitdocket-home.png"
+      content="https://gitdocket.com/assets/product-home.jpg"
     />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preload" href="/assets/product-home.jpg" as="image" />
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
@@ -30,23 +31,22 @@
         <span>GitDocket</span>
       </a>
       <nav aria-label="Primary navigation">
+        <a href="#product">Product</a>
         <a href="#how-it-works">How it works</a>
-        <a href="#workflows">Workflows</a>
         <a href="https://github.com/GitDocket/gitdocket">GitHub</a>
         <a href="https://github.com/GitDocket/gitdocket/tree/main/docs">Docs</a>
       </nav>
     </header>
 
     <main id="top">
-      <section class="hero shell">
+      <section class="hero shell" aria-labelledby="hero-title">
         <div class="hero-copy">
-          <p class="eyebrow">Project memory for humans and coding agents</p>
-          <h1>Give your agent the whole project, not just the next prompt.</h1>
+          <p class="eyebrow">Project memory, checked into Git</p>
+          <h1 id="hero-title">Give your agent the whole project.</h1>
           <p class="lede">
-            GitDocket keeps plans, decisions, documentation, and work in one
-            linked Markdown graph. Your agent can understand what matters,
-            carry an outcome through completion, and leave the project easier
-            for the next person—or agent—to pick up.
+            GitDocket keeps context, decisions, work, and operating rules in one
+            linked Markdown graph—so humans and coding agents can pick up where
+            the project actually is.
           </p>
           <div class="actions">
             <a
@@ -54,228 +54,237 @@
               href="https://github.com/GitDocket/gitdocket#install-from-source"
               >Install the preview</a
             >
-            <a class="button" href="#how-it-works">See how it works</a>
+            <a class="button quiet" href="https://github.com/GitDocket/gitdocket"
+              >View on GitHub</a
+            >
           </div>
-          <p class="support">Local-first · plain Markdown · reviewed through Git</p>
-        </div>
-
-        <aside class="prompt-window" aria-label="Example requests for a GitDocket-aware coding agent">
-          <div class="window-bar">
-            <span></span><span></span><span></span>
-            <p>Ask your coding agent</p>
-          </div>
-          <div class="prompt-list">
-            <p><span>&gt;</span> Catch me up. What changed, what is moving, and what is ready next?</p>
-            <p><span>&gt;</span> Run the launch epic from top to bottom.</p>
-            <p><span>&gt;</span> Groom the backlog and show me what has gone stale.</p>
-            <p><span>&gt;</span> Check whether the docs have drifted from the code.</p>
-          </div>
-          <p class="window-note">The project carries the context and operating rules with it.</p>
-        </aside>
-      </section>
-
-      <section class="problem shell" aria-labelledby="problem-title">
-        <p class="eyebrow">The context gap</p>
-        <h2 id="problem-title">Agents can write code. Projects are harder.</h2>
-        <div class="problem-grid">
-          <p class="problem-lede">
-            The hard part is knowing why the work exists, what depends on what,
-            which decisions still apply, and what “finished” means. That context
-            is usually scattered across a tracker, docs, chat, and someone’s head.
-          </p>
-          <ul class="outcomes" aria-label="GitDocket outcomes">
-            <li><span>01</span> Return to a project without reconstructing it from scratch.</li>
-            <li><span>02</span> Delegate an outcome without giving up control of the process.</li>
-            <li><span>03</span> Catch stale work and documentation drift before they become archaeology.</li>
+          <ul class="proof-line" aria-label="Product properties">
+            <li>Local-first</li>
+            <li>Plain Markdown</li>
+            <li>Reviewed through Git</li>
           </ul>
         </div>
-      </section>
 
-      <section class="model" id="how-it-works" aria-labelledby="model-title">
-        <div class="shell">
-          <p class="eyebrow">A concrete mental model</p>
-          <h2 id="model-title">Memory, facts, judgment, and proof.</h2>
-          <p class="section-intro">
-            GitDocket adds a small project-operating layer to the repository you
-            already have. Each part has one job.
-          </p>
-
-          <div class="model-grid">
-            <article>
-              <p class="model-number">01</p>
-              <h3>The graph holds memory</h3>
-              <p>
-                Plans, specs, decisions, tasks, and epics are linked Markdown.
-                The context stays readable without GitDocket and moves with the code.
-              </p>
-            </article>
-            <article>
-              <p class="model-number">02</p>
-              <h3>The engine derives facts</h3>
-              <p>
-                Readiness, status transitions, search, indexes, and activity come
-                from deterministic commands—not an agent’s best guess.
-              </p>
-            </article>
-            <article>
-              <p class="model-number">03</p>
-              <h3>Workflows guide judgment</h3>
-              <p>
-                Versioned procedures tell an agent how to pick up, supervise,
-                verify, groom, and close work without hiding the important choices.
-              </p>
-            </article>
-            <article>
-              <p class="model-number">04</p>
-              <h3>Git keeps the proof</h3>
-              <p>
-                Commits link implementation to tasks. Outcomes and reconciled docs
-                make the repository the durable record of what actually happened.
-              </p>
-            </article>
+        <figure class="browser-shot hero-shot">
+          <div class="browser-bar" aria-hidden="true">
+            <span></span><span></span><span></span>
+            <small>Project re-entry</small>
           </div>
-        </div>
-      </section>
-
-      <section class="language shell" aria-labelledby="language-title">
-        <div class="language-heading">
-          <p class="eyebrow">Talk at the right altitude</p>
-          <h2 id="language-title">Commands for facts. Requests for outcomes.</h2>
-        </div>
-        <div class="language-columns">
-          <article>
-            <p class="column-label">Deterministic CLI</p>
-            <pre><code>docket overview
-docket ready
-docket search "release gate"
-docket lint</code></pre>
-            <p>
-              Use narrow commands when you need a trustworthy answer or a precise
-              state change. JSON output gives agents the same facts.
-            </p>
-          </article>
-          <article class="agent-requests">
-            <p class="column-label">Agent workflows</p>
-            <blockquote>“Run the launch epic to completion.”</blockquote>
-            <blockquote>“Groom the backlog.”</blockquote>
-            <blockquote>“Refresh the state of play.”</blockquote>
-            <p>
-              Ask for the real outcome. The checked-in workflow supplies the
-              procedure, guardrails, verification, and stopping condition.
-            </p>
-          </article>
-        </div>
-      </section>
-
-      <section class="workflows" id="workflows" aria-labelledby="workflows-title">
-        <div class="shell">
-          <p class="eyebrow">More than task tracking</p>
-          <h2 id="workflows-title">The project can explain how to operate itself.</h2>
-
-          <article class="feature feature-epic">
-            <div class="feature-copy">
-              <p class="feature-kicker">Epic supervision</p>
-              <h3>Hand over the outcome, not every next step.</h3>
-              <p>
-                Ask an agent to run a named epic through completion. It reads the
-                dependency graph, selects only ready work, isolates parallel changes
-                when that is safe, and verifies each result before moving on.
-              </p>
-              <p>
-                It stops only when the epic is proven complete or one concrete
-                blocker needs you—and returns a single receipt of the work.
-              </p>
-            </div>
-            <ol class="epic-flow" aria-label="Epic supervision flow">
-              <li><span>1</span><div><strong>Read the graph</strong><small>Acceptance criteria, dependencies, current Git state</small></div></li>
-              <li><span>2</span><div><strong>Run ready work</strong><small>Parallel only when isolation and write boundaries are safe</small></div></li>
-              <li><span>3</span><div><strong>Verify and integrate</strong><small>One accepted result at a time</small></div></li>
-              <li><span>4</span><div><strong>Close with evidence</strong><small>Outcomes, reconciled docs, commits, final receipt</small></div></li>
-            </ol>
-          </article>
-
-          <div class="feature-pair">
-            <article class="feature compact">
-              <p class="feature-kicker">Backlog grooming</p>
-              <h3>Find work that no longer tells the truth.</h3>
-              <p>
-                Audit stalled tasks, broken dependencies, incomplete outcomes, and
-                inconsistent epic links. GitDocket proposes the cleanup first;
-                mechanical fixes can be applied without silently reprioritizing or
-                closing work.
-              </p>
-              <p class="feature-result"><span>Result</span> A backlog you can trust before asking what is next.</p>
-            </article>
-
-            <article class="feature compact">
-              <p class="feature-kicker">Documentation freshness</p>
-              <h3>Ask what recent work made untrue.</h3>
-              <p>
-                Sweep commits since the last review, inspect high-risk changes that
-                bypassed a tracked task, and rotate through older reference docs.
-                The watermark makes the next review bounded instead of endless.
-              </p>
-              <p class="feature-result"><span>Result</span> Documentation that stays connected to reality.</p>
-            </article>
-          </div>
-        </div>
-      </section>
-
-      <section class="proof shell" aria-labelledby="proof-title">
-        <div class="proof-copy">
-          <p class="eyebrow">One project, two useful views</p>
-          <h2 id="proof-title">Readable as files. Useful as a system.</h2>
-          <p>
-            Humans can browse the project locally. Agents can consume the same
-            state through structured commands. Both work from the Markdown and Git
-            history already in the repository.
-          </p>
-          <pre><code>docket init --agent codex
-docket overview
-docket serve</code></pre>
-        </div>
-        <figure>
           <img
-            src="/assets/gitdocket-home.png"
-            alt="GitDocket local web interface showing project context and tracked work"
-            width="1280"
-            height="720"
+            src="/assets/product-home.jpg"
+            alt="GitDocket Home for the synthetic Harbor project, summarizing recent progress, the next task, and an important product decision"
+            width="1440"
+            height="900"
+            fetchpriority="high"
           />
-          <figcaption>The browser interface runs only on your computer.</figcaption>
+          <figcaption>
+            Return to a project and see what changed, what matters, and what is
+            ready next.
+          </figcaption>
         </figure>
       </section>
 
+      <section class="signal shell" aria-label="Why GitDocket">
+        <p>Less reconstruction.</p>
+        <p>Clearer delegation.</p>
+        <p>Durable decisions.</p>
+      </section>
+
+      <section class="tour" id="product" aria-labelledby="tour-title">
+        <div class="shell">
+          <div class="section-heading">
+            <p class="eyebrow">See the project, not another dashboard</p>
+            <h2 id="tour-title">One source of truth. Several useful views.</h2>
+            <p>
+              The interface stays thin because the repository already holds the
+              facts. Each view answers a concrete question.
+            </p>
+          </div>
+
+          <article class="story story-wide">
+            <div class="story-copy">
+              <p class="story-number">01</p>
+              <p class="story-kicker">Track the work</p>
+              <h3>See flow, priority, and blockers at a glance.</h3>
+              <p>
+                The board is a live view of Markdown tasks. Status changes follow
+                the same rules whether a human or an agent makes them.
+              </p>
+            </div>
+            <figure class="browser-shot">
+              <div class="browser-bar" aria-hidden="true">
+                <span></span><span></span><span></span>
+                <small>Board</small>
+              </div>
+              <img
+                src="/assets/product-board.jpg"
+                alt="GitDocket board for the Harbor public beta, with tasks organized into todo, in-progress, blocked, review, and done columns"
+                width="1440"
+                height="900"
+                loading="lazy"
+                decoding="async"
+              />
+              <figcaption>
+                Ready work stays distinct from active work and honest blockers.
+              </figcaption>
+            </figure>
+          </article>
+
+          <div class="story-pair">
+            <article class="story">
+              <div class="story-copy">
+                <p class="story-number">02</p>
+                <p class="story-kicker">Know what finished means</p>
+                <h3>Keep context, criteria, and proof together.</h3>
+                <p>
+                  A task carries its dependency state, acceptance criteria,
+                  working log, and linked Git activity.
+                </p>
+              </div>
+              <figure class="browser-shot">
+                <div class="browser-bar" aria-hidden="true">
+                  <span></span><span></span><span></span>
+                  <small>Tracked task</small>
+                </div>
+                <img
+                  src="/assets/product-task.jpg"
+                  alt="A GitDocket task showing status, priority, dependency, context, checked acceptance criteria, log, and a linked commit"
+                  width="1440"
+                  height="900"
+                  loading="lazy"
+                  decoding="async"
+                />
+                <figcaption>
+                  The work item and the evidence that completes it stay connected.
+                </figcaption>
+              </figure>
+            </article>
+
+            <article class="story">
+              <div class="story-copy">
+                <p class="story-number">03</p>
+                <p class="story-kicker">Follow the why</p>
+                <h3>Decisions remain readable in context.</h3>
+                <p>
+                  Specs, decisions, tasks, and reference docs form one navigable
+                  graph instead of drifting across tools.
+                </p>
+              </div>
+              <figure class="browser-shot">
+                <div class="browser-bar" aria-hidden="true">
+                  <span></span><span></span><span></span>
+                  <small>Linked decision</small>
+                </div>
+                <img
+                  src="/assets/product-decision.jpg"
+                  alt="A GitDocket decision page showing its context, accepted decision, consequences, and nearby project documentation"
+                  width="1440"
+                  height="900"
+                  loading="lazy"
+                  decoding="async"
+                />
+                <figcaption>
+                  The rationale remains beside the work that depends on it.
+                </figcaption>
+              </figure>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="mechanics shell" id="how-it-works" aria-labelledby="mechanics-title">
+        <div class="section-heading compact-heading">
+          <p class="eyebrow">A small operating layer</p>
+          <h2 id="mechanics-title">Files hold memory. The engine keeps facts honest.</h2>
+        </div>
+        <ol class="mechanics-grid">
+          <li>
+            <span>01</span>
+            <h3>Link the project</h3>
+            <p>Plans, specs, decisions, tasks, and epics stay readable Markdown.</p>
+          </li>
+          <li>
+            <span>02</span>
+            <h3>Derive the state</h3>
+            <p>Readiness, transitions, indexes, and activity come from deterministic commands.</p>
+          </li>
+          <li>
+            <span>03</span>
+            <h3>Run the outcome</h3>
+            <p>Checked-in workflows guide agents through pickup, verification, and closure.</p>
+          </li>
+          <li>
+            <span>04</span>
+            <h3>Keep the receipt</h3>
+            <p>Commits link implementation to the task and its reconciled documentation.</p>
+          </li>
+        </ol>
+      </section>
+
+      <section class="workflows" aria-labelledby="workflows-title">
+        <div class="shell workflow-layout">
+          <div>
+            <p class="eyebrow">Ask for the outcome</p>
+            <h2 id="workflows-title">The project carries its operating rules.</h2>
+          </div>
+          <div class="workflow-list">
+            <article>
+              <code>Run the launch epic.</code>
+              <p>Supervise ready work, verify each result, and stop on one concrete blocker.</p>
+            </article>
+            <article>
+              <code>Groom the backlog.</code>
+              <p>Find stale tasks and broken dependencies before reprioritizing anything.</p>
+            </article>
+            <article>
+              <code>Check the docs for drift.</code>
+              <p>Review recent commits against the project knowledge they may have changed.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
       <section class="trust shell" aria-labelledby="trust-title">
-        <p class="eyebrow">Practical trust</p>
-        <h2 id="trust-title">Automation you can inspect and interrupt.</h2>
+        <div class="section-heading compact-heading">
+          <p class="eyebrow">Practical trust</p>
+          <h2 id="trust-title">Inspectable by design.</h2>
+        </div>
         <div class="trust-grid">
           <article>
-            <h3>No second source of truth</h3>
-            <p>Markdown and Git stay authoritative. The local cache can be deleted and rebuilt.</p>
+            <h3>No second database</h3>
+            <p>Markdown and Git remain authoritative. The cache is disposable.</p>
           </article>
           <article>
-            <h3>No hidden project policy</h3>
-            <p>Agent procedures live in the repository, where the team can read, review, and version them.</p>
+            <h3>No hidden policy</h3>
+            <p>Agent procedures live in the repository for the team to review.</p>
           </article>
           <article>
             <h3>No fake certainty</h3>
-            <p>Facts come from the engine. Judgment stays explicit. Blockers are reported instead of worked around invisibly.</p>
+            <p>Facts come from the engine. Judgment and blockers stay explicit.</p>
           </article>
         </div>
       </section>
 
-      <section class="closing shell">
+      <section class="closing shell" aria-labelledby="closing-title">
         <div>
           <p class="eyebrow">Public preview</p>
-          <h2>Make the repository easier to return to—and safer to hand off.</h2>
+          <h2 id="closing-title">Make the next handoff easier.</h2>
           <p>
-            Start with a project you already have. Initialization is additive and
-            leaves existing Markdown untouched until you review it.
+            Start with the repository you already have. Initialization is
+            additive and leaves existing Markdown untouched until you review it.
           </p>
         </div>
         <div class="closing-actions">
-          <a class="button primary" href="https://github.com/GitDocket/gitdocket#install-from-source">Install from source</a>
-          <a class="text-link" href="https://github.com/GitDocket/gitdocket/tree/main/docs/getting-started.md">Read the quickstart <span aria-hidden="true">→</span></a>
+          <a
+            class="button primary"
+            href="https://github.com/GitDocket/gitdocket#install-from-source"
+            >Install from source</a
+          >
+          <a
+            class="text-link"
+            href="https://github.com/GitDocket/gitdocket/tree/main/docs/getting-started.md"
+            >Read the quickstart <span aria-hidden="true">→</span></a
+          >
         </div>
       </section>
     </main>

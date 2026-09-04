@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "sourceCommit": "545b25c951a64ba26ab0bacfc1a67a13e46f33aa",
+  "sourceCommit": "da5efa46102e1a658d787ff447002359f07e6c03",
   "manifestPath": "release/public-export.json",
   "files": {
     ".github/dependabot.yml": "d62ce2587ea2aa1a03c7e75b2b039107dd0c5f76ed3a3c53e21245627847c2fb",
@@ -128,7 +128,7 @@
     "packages/web/src/serve.test.ts": "f93f1a77e6cd88161b1f7ed30ea89d9ca4ef5a37e4f96548779f34f60f518aa0",
     "packages/web/src/serve.ts": "e28f96725c7a49f828457599e6b07ed28483b72a90c8b1a7117c7dbecbecdc3a",
     "packages/web/src/state.ts": "00911ce650826704317a2243704401dd6d93584c4b38afea45e7af444368a43a",
-    "release/public-export.json": "2ce956a8ca4b4037ba4a73737dd8cb0ae922e8917081f2fcefd6b6ffcf938525",
+    "release/public-export.json": "ddf60928bc96474b3bd432993a7cbb3edffc34734daf31732d388102c2c59410",
     "scripts/audit-dependencies.test.ts": "293b85d78765ffaa224b82ec5a4bbac6865a6d5d58e66bdabeba69562eb7f594",
     "scripts/audit-dependencies.ts": "878330775690cb38338cb3ec5feed627a3311b6f9ac5b71b434ea8d1dccdf353",
     "scripts/ci-dependency-changes.test.ts": "aaa3391a64d774896fbe56f1b29f27198aa0e17a3ca2992b559d262219a30d67",
@@ -138,12 +138,16 @@
     "scripts/release-pack.ts": "b53dd43330914b0fecc04134e9bffe862e58951f12c439ebe1dffeabf5e8655d",
     "scripts/release-publish.ts": "57caa973d4fe6f7baa9a7696e4b037ab3e7379a11cf398d8becc6910f33fa226",
     "scripts/sync-shipped.ts": "d7b536d0ed6cb9a7a46f338618603bdd1baf9628ef42041536a0bdbb170e81f5",
-    "site/README.md": "c3b80286604017cfe092ce996d9c4d2ce71be11b704052c9b5d6b2a71b7f3f2c",
+    "site/README.md": "4fa98f6c07b99cd3a5e506df29d4e63083d06fe53ef641886341430e23d942eb",
     "site/_headers": "d9b63a1742632e9ea6168278ef3df614f654ac3a851c552389fc0bc907dd0fce",
     "site/assets/gitdocket-home.png": "800141a876293b97a60e5d009222ee79d1a9873dbe00d816f7937079296a39eb",
+    "site/assets/product-board.jpg": "6981a0ff741eb30292954f78258bb5ded760693631562a09d0d4e0e36912b21c",
+    "site/assets/product-decision.jpg": "6921211faac69c3c05b6370a3222d9b9ea9b4df9f6eb805851a08023763bc7cd",
+    "site/assets/product-home.jpg": "67b1d76f4b47912faee51f1026c414a41c403156ffd4a40b1897764699966902",
+    "site/assets/product-task.jpg": "6c07008c38f402d2cf9a862c799d60c8c59fcfd71a3ae5989ed1ef80c3cc1dc5",
     "site/favicon.svg": "bbc7836e006628834f13ef508ceb0c4fdf51aab4cf02b5f472273bad3ce74939",
-    "site/index.html": "5b3fc4b12ec05f88e470f30befb7b245c57bdaa5b9c06496db75e5c34dfa5899",
-    "site/styles.css": "67cb5afed061bb7afe73616023979eb616334bfe40026982ae23b285d064820c",
+    "site/index.html": "d6bc495a6bfb48feb078c5cdca656f987ac74e425a1ed8479e1fa80357eaacdb",
+    "site/styles.css": "7c85832e15f54cc530395ee2fce7611cee8d4d51a675cabdf79811615344b24b",
     "tsconfig.json": "5ae5ea3e277a2ce6f22fc0adfdeade48225e5241913d61135104f6cd37994bba"
   }
 }
