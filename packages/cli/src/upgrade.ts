@@ -15,6 +15,7 @@ import {
   DOCKET_VERSION,
   DOCKET_WORKFLOWS,
   findRepoRoot,
+  GitWorktreeIdCoordinator,
   hasDocketSection,
   LocalFileStore,
   type Merge3,
@@ -378,11 +379,16 @@ export async function runUpgrade(
   // Agent-first touch: conflicts are leftover judgment work — file them into
   // the repo's own ready queue instead of dropping them on the floor.
   if (opts.fileTask && conflicts.length > 0 && !dryRun) {
-    report.filedTask = await createWorkItem(store, config, {
-      title: `Reconcile docket workflow customizations with ${available}`,
-      description: `docket upgrade left conflict markers in: ${conflicts.join(", ")} — resolve them, keeping local customizations where they still apply.`,
-      tags: ["docket"],
-    });
+    report.filedTask = await createWorkItem(
+      store,
+      config,
+      {
+        title: `Reconcile docket workflow customizations with ${available}`,
+        description: `docket upgrade left conflict markers in: ${conflicts.join(", ")} — resolve them, keeping local customizations where they still apply.`,
+        tags: ["docket"],
+      },
+      new GitWorktreeIdCoordinator(root),
+    );
   }
 
   return report;

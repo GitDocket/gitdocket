@@ -3,4 +3,4 @@
 // lines, workflow `origin:` frontmatter, and the CLI's --version all read it
 // from here.
 
-export const DOCKET_VERSION = "0.1.0";
+export const DOCKET_VERSION = "0.1.1";

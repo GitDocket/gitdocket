@@ -7,6 +7,7 @@ import { stringify as stringifyYaml } from "yaml";
 import { type Bundle, loadBundle } from "./bundle";
 import type { DocketConfig } from "./config";
 import type { FileStore } from "./filestore";
+import type { WorkItemIdCoordinator } from "./id-allocation";
 import { resolveLink } from "./lint";
 import {
   canTransition,
@@ -42,11 +43,17 @@ export function slugify(title: string): string {
 }
 
 /** Next work-item number: max over ids matching `<project>-<n>`, plus one. */
-export function nextId(bundle: Bundle): string {
+export function nextId(
+  bundle: Bundle,
+  knownIds: ReadonlySet<string> = new Set(),
+): string {
   const pattern = new RegExp(`^${bundle.config.project}-(\\d+)$`);
   let max = 0;
-  for (const item of bundle.workItems) {
-    const match = item.fm.id.match(pattern);
+  for (const id of [
+    ...bundle.workItems.map((item) => item.fm.id),
+    ...knownIds,
+  ]) {
+    const match = id.match(pattern);
     if (match?.[1]) max = Math.max(max, Number(match[1]));
   }
   return `${bundle.config.project}-${max + 1}`;
@@ -59,41 +66,54 @@ export async function createWorkItem(
   store: FileStore,
   config: DocketConfig,
   input: CreateInput,
+  coordinator?: WorkItemIdCoordinator,
 ): Promise<{ id: string; path: string }> {
-  const bundle = await loadBundle(store, config);
-  const id = nextId(bundle);
-  if (bundle.byId(id))
-    throw new Error(`id collision on ${id} — bundle has duplicate ids?`);
+  const create = async (
+    knownIds: ReadonlySet<string>,
+  ): Promise<{ id: string; path: string }> => {
+    // Load inside the coordination boundary: another caller may have created
+    // an item while this process waited for the shared lock.
+    const bundle = await loadBundle(store, config);
+    const id = nextId(bundle, knownIds);
+    if (bundle.byId(id) || knownIds.has(id))
+      throw new Error(`id collision on ${id} — bundle has duplicate ids?`);
 
-  const type = input.type ?? "Task";
-  const slug = input.slug ?? slugify(input.title);
-  const dir = type === "Epic" ? "work/epics" : "work/tasks";
-  const path = `${dir}/${id}-${slug}.md`;
+    const type = input.type ?? "Task";
+    const slug = input.slug ?? slugify(input.title);
+    const dir = type === "Epic" ? "work/epics" : "work/tasks";
+    const path = `${dir}/${id}-${slug}.md`;
 
-  const lines = [
-    yamlLine("type", type),
-    yamlLine("title", input.title),
-    ...(input.description ? [yamlLine("description", input.description)] : []),
-    yamlLine("id", id),
-    yamlLine("status", "todo"),
-    ...(input.epic ? [yamlLine("epic", input.epic)] : []),
-    ...(input.dependsOn?.length
-      ? [`depends_on: [${input.dependsOn.join(", ")}]`]
-      : []),
-    yamlLine("priority", input.priority ?? "p2"),
-    ...(input.rank !== undefined ? [yamlLine("rank", input.rank)] : []),
-    ...(input.assignee ? [yamlLine("assignee", input.assignee)] : []),
-    ...(input.tags?.length ? [`tags: [${input.tags.join(", ")}]`] : []),
-    yamlLine("timestamp", new Date().toISOString().replace(/\.\d{3}Z$/, "Z")),
-  ];
+    const lines = [
+      yamlLine("type", type),
+      yamlLine("title", input.title),
+      ...(input.description
+        ? [yamlLine("description", input.description)]
+        : []),
+      yamlLine("id", id),
+      yamlLine("status", "todo"),
+      ...(input.epic ? [yamlLine("epic", input.epic)] : []),
+      ...(input.dependsOn?.length
+        ? [`depends_on: [${input.dependsOn.join(", ")}]`]
+        : []),
+      yamlLine("priority", input.priority ?? "p2"),
+      ...(input.rank !== undefined ? [yamlLine("rank", input.rank)] : []),
+      ...(input.assignee ? [yamlLine("assignee", input.assignee)] : []),
+      ...(input.tags?.length ? [`tags: [${input.tags.join(", ")}]`] : []),
+      yamlLine("timestamp", new Date().toISOString().replace(/\.\d{3}Z$/, "Z")),
+    ];
 
-  const context = input.epic
-    ? `See [epic](${input.epic}).`
-    : "(links to specs/docs here)";
-  const body = `# Context\n\n${context}\n\n# Acceptance Criteria\n\n- [ ] …\n`;
+    const context = input.epic
+      ? `See [epic](${input.epic}).`
+      : "(links to specs/docs here)";
+    const body = `# Context\n\n${context}\n\n# Acceptance Criteria\n\n- [ ] …\n`;
 
-  await store.write(path, `---\n${lines.join("\n")}\n---\n\n${body}`);
-  return { id, path };
+    await store.write(path, `---\n${lines.join("\n")}\n---\n\n${body}`);
+    return { id, path };
+  };
+
+  return coordinator
+    ? coordinator.allocate(config.project, create)
+    : create(new Set());
 }
 
 function splitFrontmatter(source: string): { fm: string; rest: string } {

@@ -18,6 +18,7 @@ import {
   docketIntent,
   findFreshnessWatermark,
   findRepoRoot,
+  GitWorktreeIdCoordinator,
   isTerminalStatus,
   LocalFileStore,
   lintBundle,
@@ -51,6 +52,7 @@ import { scanRepoMarkers } from "./verify";
 interface Ctx {
   root: string;
   store: LocalFileStore;
+  idCoordinator: GitWorktreeIdCoordinator;
   config: DocketConfig;
   bundle: () => Promise<Bundle>;
 }
@@ -63,7 +65,13 @@ async function ctx(): Promise<Ctx> {
   }
   const config = parseConfig(await readFile(join(root, "docket.yaml"), "utf8"));
   const store = new LocalFileStore(join(root, config.bundle));
-  return { root, store, config, bundle: () => loadBundle(store, config) };
+  return {
+    root,
+    store,
+    idCoordinator: new GitWorktreeIdCoordinator(root),
+    config,
+    bundle: () => loadBundle(store, config),
+  };
 }
 
 const row = (w: WorkItem): string =>
@@ -159,11 +167,11 @@ program
       config,
       bundle: b,
     });
-    const { narrative, ...model } = result;
+    const { narrative, git, ...model } = result;
     console.log(
       opts.json
         ? JSON.stringify(result, null, 2)
-        : renderOverview(model, narrative),
+        : renderOverview(model, narrative, git),
     );
   });
 
@@ -553,21 +561,26 @@ task
   .option("--json", "machine-readable output")
   .action(
     async (opts: Record<string, string | undefined> & { json?: boolean }) => {
-      const { store, config } = await ctx();
+      const { store, idCoordinator, config } = await ctx();
       if (opts.rank !== undefined && Number.isNaN(Number(opts.rank)))
         fail(new Error(`rank must be a number, got "${opts.rank}"`));
       try {
-        const result = await createWorkItem(store, config, {
-          title: opts.title as string,
-          type: opts.type as WorkItemType,
-          description: opts.description,
-          epic: opts.epic,
-          dependsOn: opts.deps?.split(",").map((s) => s.trim()),
-          priority: opts.priority as Priority,
-          rank: opts.rank === undefined ? undefined : Number(opts.rank),
-          assignee: opts.assignee,
-          tags: opts.tags?.split(",").map((s) => s.trim()),
-        });
+        const result = await createWorkItem(
+          store,
+          config,
+          {
+            title: opts.title as string,
+            type: opts.type as WorkItemType,
+            description: opts.description,
+            epic: opts.epic,
+            dependsOn: opts.deps?.split(",").map((s) => s.trim()),
+            priority: opts.priority as Priority,
+            rank: opts.rank === undefined ? undefined : Number(opts.rank),
+            assignee: opts.assignee,
+            tags: opts.tags?.split(",").map((s) => s.trim()),
+          },
+          idCoordinator,
+        );
         if (opts.json) console.log(JSON.stringify(result, null, 2));
         else console.log(`created ${result.id} at ${result.path}`);
       } catch (error) {

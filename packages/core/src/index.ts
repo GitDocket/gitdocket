@@ -19,6 +19,11 @@ export {
   READY_QUEUE_DESCRIPTION,
 } from "./engine-semantics";
 export { type FileStore, InMemoryFileStore, LocalFileStore } from "./filestore";
+export {
+  GitWorktreeIdCoordinator,
+  type GitWorktreeIdCoordinatorOptions,
+  type WorkItemIdCoordinator,
+} from "./id-allocation";
 export { applyIndex, INDEX_MARKER, renderIndex } from "./indexmd";
 export {
   ALLOW_RULES,

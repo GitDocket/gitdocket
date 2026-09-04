@@ -181,6 +181,7 @@ interface Concept {
   html: string;
   backlinks: { path: string; title: string | null }[];
   activity: { sha: string; date: string; subject: string }[];
+  unmergedActivity: GitActivityObservation[];
   graph: {
     epic: GraphRef | null;
     deps: GraphRef[];
@@ -387,6 +388,32 @@ interface ActivityEntry {
   subject: string;
 }
 
+interface GitActivityObservation extends ActivityEntry {
+  taskId: string;
+  mergedIntoCurrentHead: false;
+  refs: string[];
+  worktrees: string[];
+}
+
+interface GitWorktreeEvidence {
+  path: string;
+  head: string;
+  ref: string | null;
+  activeTaskId: string | null;
+  dirty: boolean | null;
+  mergedIntoCurrentHead: boolean | null;
+  current: boolean;
+  available: boolean;
+}
+
+interface GitEvidence {
+  status: "available" | "history-unavailable";
+  unmergedActivity: GitActivityObservation[];
+  worktrees: GitWorktreeEvidence[];
+  truncated: boolean;
+  reason?: string;
+}
+
 function DocList({ items }: { items: DocItem[] }) {
   return (
     <ul className="doclist">
@@ -412,6 +439,30 @@ function ActivityFeed({ entries }: { entries: ActivityEntry[] }) {
           {a.subject}
         </li>
       ))}
+    </ul>
+  );
+}
+
+function UnmergedActivityFeed({
+  entries,
+}: {
+  entries: GitActivityObservation[];
+}) {
+  return (
+    <ul className="activity">
+      {entries.map((entry) => {
+        const provenance = [...entry.refs, ...entry.worktrees];
+        return (
+          <li key={`${entry.sha}:${entry.taskId}`}>
+            <code>{entry.sha.slice(0, 7)}</code>
+            <span className="muted"> {entry.date.slice(0, 10)} </span>
+            <code>{entry.taskId}</code> {entry.subject}
+            {provenance.length > 0 && (
+              <span className="muted"> — {provenance.join(", ")}</span>
+            )}
+          </li>
+        );
+      })}
     </ul>
   );
 }
@@ -718,6 +769,7 @@ function DocsShell({
 function ActivityView({ revision }: { revision: string }) {
   const { data, error } = useLiveJson<{
     activity: ActivityEntry[];
+    git: GitEvidence;
     log: string;
   }>("/api/activity", revision);
   if (error) return <ErrorNote message={error} />;
@@ -730,6 +782,62 @@ function ActivityView({ revision }: { revision: string }) {
         <p className="muted">nothing here</p>
       ) : (
         <ActivityFeed entries={data.activity} />
+      )}
+      {data.git.status === "history-unavailable" ? (
+        <p className="muted">
+          Local Git evidence unavailable: {data.git.reason ?? "unknown reason"}
+        </p>
+      ) : (
+        <>
+          {data.git.unmergedActivity.length > 0 && (
+            <section>
+              <h2 className="section-title">Unmerged Git evidence</h2>
+              <UnmergedActivityFeed entries={data.git.unmergedActivity} />
+              {data.git.truncated && (
+                <p className="muted">Additional local evidence was omitted.</p>
+              )}
+            </section>
+          )}
+          {data.git.worktrees.some(
+            (worktree) =>
+              !worktree.current &&
+              (!worktree.available ||
+                worktree.dirty ||
+                worktree.activeTaskId ||
+                worktree.mergedIntoCurrentHead === false),
+          ) && (
+            <section>
+              <h2 className="section-title">
+                Linked worktrees needing attention
+              </h2>
+              <ul>
+                {data.git.worktrees
+                  .filter(
+                    (worktree) =>
+                      !worktree.current &&
+                      (!worktree.available ||
+                        worktree.dirty ||
+                        worktree.activeTaskId ||
+                        worktree.mergedIntoCurrentHead === false),
+                  )
+                  .slice(0, 10)
+                  .map((worktree) => (
+                    <li key={worktree.path}>
+                      <code>{worktree.ref ?? worktree.head.slice(0, 7)}</code>{" "}
+                      {worktree.path}
+                      <span className="muted">
+                        {worktree.activeTaskId
+                          ? ` — active ${worktree.activeTaskId}`
+                          : ""}
+                        {worktree.dirty ? " — dirty" : ""}
+                        {!worktree.available ? " — unavailable" : ""}
+                      </span>
+                    </li>
+                  ))}
+              </ul>
+            </section>
+          )}
+        </>
       )}
     </div>
   );
@@ -875,6 +983,12 @@ function ConceptView({ path, revision }: { path: string; revision: string }) {
               </li>
             ))}
           </ul>
+        </section>
+      )}
+      {concept.unmergedActivity.length > 0 && (
+        <section>
+          <h2 className="section-title">Unmerged Git evidence</h2>
+          <UnmergedActivityFeed entries={concept.unmergedActivity} />
         </section>
       )}
       {concept.backlinks.length > 0 && (

@@ -280,6 +280,15 @@ describe("wiki", () => {
       recentOnly: [],
     });
     expect(body.overview.loose).toBeNull();
+    expect(body.overview.git).toEqual({
+      status: "history-unavailable",
+      checkpoint: null,
+      activity: [],
+      unmergedActivity: [],
+      worktrees: [],
+      truncated: false,
+      reason: "Git history is unavailable from this checkout",
+    });
     expect(body.taskCounts).toBeUndefined();
     expect(body.epics).toBeUndefined();
     expect(body.activity).toBeUndefined();
@@ -477,6 +486,12 @@ No linked decisions.
     const { status, body } = await get("/api/activity");
     expect(status).toBe(200);
     expect(body.activity).toEqual([]); // no git repo under the fixture
+    expect(body.git).toMatchObject({
+      status: "history-unavailable",
+      checkpoint: null,
+      unmergedActivity: [],
+      worktrees: [],
+    });
     expect(body.log).toBe(""); // no log.md either — degrades to feed-only
   });
 

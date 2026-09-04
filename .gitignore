@@ -8,3 +8,5 @@
 node_modules/
 dist/
 release/tarballs/
+release/candidates/
+release/receipts/

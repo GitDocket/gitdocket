@@ -4,7 +4,7 @@ GitDocket keeps project documentation and work tracking together as linked Markd
 
 It is for teams that want durable, reviewable project context without moving the source of truth into a hosted tracker. Files remain authoritative; GitDocket derives readiness, indexes, activity, and browser views from them.
 
-> GitDocket 0.1.0 is a public preview. File formats and commands are tested, but the compatibility surface may still change as external use provides evidence.
+> GitDocket 0.1.1 is a public preview. File formats and commands are tested, but the compatibility surface may still change as external use provides evidence.
 
 ![GitDocket task board showing synthetic todo and completed work](site/assets/gitdocket-home.png)
 
@@ -25,7 +25,7 @@ bun add --global @gitdocket/cli @gitdocket/mcp
 docket --version
 ```
 
-The version command should report `0.1.0`. Both packages require Bun 1.3.14 or newer; the installed binaries remain `docket` and `docket-mcp`.
+The version command should report `0.1.1`. Both packages require Bun 1.3.14 or newer; the installed binaries remain `docket` and `docket-mcp`.
 
 ## Quickstart
 

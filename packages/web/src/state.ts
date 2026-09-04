@@ -13,13 +13,16 @@ import {
 } from "@gitdocket/core";
 import {
   buildCache,
+  type GitEvidence,
   scanActivity,
+  scanGitEvidence,
   scanRepoMarkers,
 } from "@gitdocket/core/cache";
 
 export interface RepoState {
   bundle: Bundle;
   db: Database;
+  git: GitEvidence;
 }
 
 export interface RepoContext {
@@ -48,13 +51,14 @@ export function createRepoContext(
       cached?.state.db.close();
       const bundle = await loadBundle(store, config);
       const db = new Database(":memory:");
+      const git = scanGitEvidence(root, config.git.trailer, bundle.byId);
       buildCache(
         db,
         bundle,
         scanActivity(root, config.git.trailer, bundle.byId),
         await scanRepoMarkers(root, config, bundle),
       );
-      cached = { state: { bundle, db }, at: Date.now() };
+      cached = { state: { bundle, db, git }, at: Date.now() };
       return cached.state;
     },
     invalidate() {

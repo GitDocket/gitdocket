@@ -5,16 +5,27 @@ on:
     tags:
       - "v*"
 
+concurrency:
+  group: gitdocket-release
+  cancel-in-progress: false
+
 permissions:
   contents: read
-  id-token: write
+
+env:
+  RELEASE_HOLDING_TAG: staged
+  RELEASE_PUBLIC_TAG: latest
 
 jobs:
-  publish:
+  preflight:
     if: github.repository == 'GitDocket/gitdocket'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.14
@@ -39,4 +50,84 @@ jobs:
       - name: Audit dependencies
         run: bun run audit:dependencies
       - run: bun run release:pack
-      - run: bun run release:publish
+      - name: Verify the exact candidate and registry state
+        run: >-
+          bun run release:publish -- preflight
+          --output release/receipts/preflight.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-preflight-${{ github.ref_name }}-${{ github.run_attempt }}
+          path: release/receipts/preflight.json
+          if-no-files-found: error
+          retention-days: 90
+
+  registry:
+    needs: preflight
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      RELEASE_ENVIRONMENT: release
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          registry-url: https://registry.npmjs.org/
+          package-manager-cache: false
+      - run: npm install --global npm@11.17.0
+      - run: bun install --frozen-lockfile
+      - run: bun run release:pack
+      - uses: actions/download-artifact@v5
+        with:
+          name: release-preflight-${{ github.ref_name }}-${{ github.run_attempt }}
+          path: release/receipts
+      - name: Publish, verify, smoke, and promote the coordinated set
+        run: >-
+          bun run release:publish -- registry
+          --input release/receipts/preflight.json
+          --output release/receipts/registry.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-registry-receipt-${{ github.ref_name }}-${{ github.run_attempt }}
+          path: release/receipts/registry.json
+          if-no-files-found: error
+          retention-days: 90
+
+  github-release:
+    needs: registry
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - uses: actions/download-artifact@v5
+        with:
+          name: release-registry-receipt-${{ github.ref_name }}-${{ github.run_attempt }}
+          path: release/receipts
+      - name: Create or verify the first-class GitHub Release
+        run: >-
+          bun run release:publish -- github
+          --input release/receipts/registry.json
+          --notes docs/releases/${{ github.ref_name }}.md
+          --output release/receipts/github.json
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-github-receipt-${{ github.ref_name }}-${{ github.run_attempt }}
+          path: release/receipts/github.json
+          if-no-files-found: error
+          retention-days: 90

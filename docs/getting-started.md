@@ -11,7 +11,7 @@ bun add --global @gitdocket/cli @gitdocket/mcp
 docket --version
 ```
 
-The version command should report `0.1.0`. The package names live under the `@gitdocket` scope; the commands remain `docket` and `docket-mcp`.
+The version command should report `0.1.1`. The package names live under the `@gitdocket` scope; the commands remain `docket` and `docket-mcp`.
 
 ## 2. Initialize a project
 

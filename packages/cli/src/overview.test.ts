@@ -197,6 +197,42 @@ describe("renderOverview", () => {
       "Earlier product context — context needs review\n## Product orientation\n\nEarlier structured context.",
     );
   });
+
+  test("adds only actionable unmerged Git evidence to the human briefing", () => {
+    const rendered = renderOverview(
+      {
+        upNext: null,
+        workstreams: { current: [], recentOnly: [] },
+        loose: null,
+        execution: emptyExecution(),
+      },
+      undefined,
+      {
+        status: "available",
+        checkpoint: {
+          revision: "a".repeat(40),
+          time: "2026-09-04T00:00:00Z",
+        },
+        activity: [],
+        unmergedActivity: [
+          {
+            taskId: "DKT-9",
+            sha: "b".repeat(40),
+            date: "2026-09-04T01:00:00Z",
+            subject: "work elsewhere",
+            mergedIntoCurrentHead: false,
+            refs: ["refs/heads/task-9"],
+            worktrees: ["/tmp/task-9"],
+          },
+        ],
+        worktrees: [],
+        truncated: false,
+      },
+    );
+    expect(rendered).toContain("Unmerged Git evidence");
+    expect(rendered).toContain("DKT-9 bbbbbbb work elsewhere");
+    expect(rendered).not.toContain("worktree /tmp/task-9 —");
+  });
 });
 
 describe("docket overview", () => {
@@ -284,6 +320,15 @@ describe("docket overview", () => {
         recentOnly: [],
       },
       loose: null,
+      git: {
+        status: "history-unavailable",
+        checkpoint: null,
+        activity: [],
+        unmergedActivity: [],
+        worktrees: [],
+        truncated: false,
+        reason: "Git history is unavailable from this checkout",
+      },
       execution: {
         ...emptyExecution(),
         inFlight: [

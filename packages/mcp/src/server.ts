@@ -13,6 +13,7 @@ import {
   type DocketConfig,
   docketIntent,
   type FileStore,
+  GitWorktreeIdCoordinator,
   lintBundle,
   loadBundle,
   PRIORITIES,
@@ -57,6 +58,7 @@ export function createDocketServer(
   root?: string,
 ): McpServer {
   const server = new McpServer({ name: "docket", version: DOCKET_VERSION });
+  const idCoordinator = root ? new GitWorktreeIdCoordinator(root) : undefined;
   // Bundles are reloaded per call: files are the source of truth and other
   // clients (CLI, editor, git) mutate them between calls.
   const bundle = (): Promise<Bundle> => loadBundle(store, config);
@@ -183,16 +185,21 @@ export function createDocketServer(
     },
     async (input) =>
       json(
-        await createWorkItem(store, config, {
-          title: input.title,
-          type: input.type,
-          description: input.description,
-          epic: input.epic,
-          dependsOn: input.depends_on,
-          priority: input.priority,
-          assignee: input.assignee,
-          tags: input.tags,
-        }),
+        await createWorkItem(
+          store,
+          config,
+          {
+            title: input.title,
+            type: input.type,
+            description: input.description,
+            epic: input.epic,
+            dependsOn: input.depends_on,
+            priority: input.priority,
+            assignee: input.assignee,
+            tags: input.tags,
+          },
+          idCoordinator,
+        ),
       ),
   );
 

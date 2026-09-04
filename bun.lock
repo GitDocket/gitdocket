@@ -12,7 +12,7 @@
     },
     "packages/cli": {
       "name": "@gitdocket/cli",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "bin": {
         "docket": "./src/index.ts",
       },
@@ -24,7 +24,7 @@
     },
     "packages/core": {
       "name": "@gitdocket/core",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "dependencies": {
         "remark-frontmatter": "^5.0.0",
         "remark-parse": "^11.0.0",
@@ -36,7 +36,7 @@
     },
     "packages/mcp": {
       "name": "@gitdocket/mcp",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "bin": {
         "docket-mcp": "./src/index.ts",
       },
@@ -48,7 +48,7 @@
     },
     "packages/web": {
       "name": "@gitdocket/web",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "dependencies": {
         "@gitdocket/core": "workspace:*",
         "hono": "^4.13.5",

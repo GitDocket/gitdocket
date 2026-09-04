@@ -1,6 +1,6 @@
 {
   "name": "@gitdocket/core",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "description": "The typed file-and-graph engine behind GitDocket.",
   "license": "Apache-2.0",

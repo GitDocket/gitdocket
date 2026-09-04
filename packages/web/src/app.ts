@@ -22,7 +22,7 @@ import {
   setStatus,
   type WorkItem,
 } from "@gitdocket/core";
-import { gitCheckpoint, taskLinkedCommitsSince } from "@gitdocket/core/cache";
+import { taskLinkedCommitsSince } from "@gitdocket/core/cache";
 import { deriveOverview, epicNeedsCleanup } from "@gitdocket/core/overview";
 import { Hono } from "hono";
 import type { Committer } from "./commit";
@@ -314,7 +314,7 @@ export function createApp(
   // Composed home briefing. index.md stays the
   // git-facing artifact; only its hand-written preamble renders here.
   app.get("/api/home", async (c) => {
-    const { bundle, db } = await ctx.state();
+    const { bundle, db, git } = await ctx.state();
 
     const source = await ctx.store.read("index.md").catch(() => "");
     const preamble = homePreamble(source);
@@ -357,22 +357,23 @@ export function createApp(
         })()
       : null;
 
-    const checkpoint = gitCheckpoint(ctx.root);
-
     return c.json({
       project: ctx.config.project,
       preamble: preamble.trim() ? renderMarkdown("index.md", preamble) : "",
       narrative,
-      overview: deriveOverview(bundle, db, {
-        checkpoint,
-        historyAvailable: Boolean(checkpoint),
-        decisionLinks:
-          note?.format === REENTRY_CONTEXT_FORMAT
-            ? note.decisionLinks
-            : note?.format === REENTRY_CONTEXT_V1_FORMAT
-              ? note.assessment.decisionLinks
-              : undefined,
-      }),
+      overview: {
+        ...deriveOverview(bundle, db, {
+          checkpoint: git.checkpoint ?? undefined,
+          historyAvailable: git.status === "available",
+          decisionLinks:
+            note?.format === REENTRY_CONTEXT_FORMAT
+              ? note.decisionLinks
+              : note?.format === REENTRY_CONTEXT_V1_FORMAT
+                ? note.assessment.decisionLinks
+                : undefined,
+        }),
+        git,
+      },
     });
   });
 
@@ -391,7 +392,7 @@ export function createApp(
   // rides alongside — it's a reserved root file the doc sections
   // skip, so this remains its one surface.
   app.get("/api/activity", async (c) => {
-    const { db } = await ctx.state();
+    const { db, git } = await ctx.state();
     const activity = db
       .query(
         `SELECT sha, date, subject, MIN(task_id) AS taskId FROM activity
@@ -401,6 +402,7 @@ export function createApp(
     const source = await ctx.store.read("log.md").catch(() => "");
     return c.json({
       activity,
+      git,
       log: source.trim() ? renderMarkdown("log.md", source) : "",
     });
   });
@@ -413,7 +415,7 @@ export function createApp(
     if (source === undefined)
       return c.json({ error: `not found: ${path}` }, 404);
 
-    const { bundle, db } = await ctx.state();
+    const { bundle, db, git } = await ctx.state();
     const concept = bundle.concepts.find((k) => k.path === path);
     const backlinks = db
       .query(
@@ -492,6 +494,9 @@ export function createApp(
       html: renderMarkdown(path, source),
       backlinks: backlinks.map((b) => ({ path: b.from_path, title: b.title })),
       activity,
+      unmergedActivity: id
+        ? git.unmergedActivity.filter((entry) => entry.taskId === id)
+        : [],
       graph,
       verification,
     });

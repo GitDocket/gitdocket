@@ -7,8 +7,9 @@ import { Database } from "bun:sqlite";
 import type { Bundle } from "./bundle";
 import {
   buildCache,
-  gitCheckpoint,
+  type GitEvidence,
   scanActivity,
+  scanGitEvidence,
   taskLinkedCommitsSince,
 } from "./cache";
 import type { DocketConfig } from "./config";
@@ -25,6 +26,7 @@ import {
 
 export type RepositoryOverview = OverviewModel & {
   narrative?: StateOfPlayView;
+  git: GitEvidence;
 };
 
 export interface RepositoryOverviewInput {
@@ -43,6 +45,17 @@ export async function deriveRepositoryOverview({
 }: RepositoryOverviewInput): Promise<RepositoryOverview> {
   const db = new Database(":memory:");
   try {
+    const git = root
+      ? scanGitEvidence(root, config.git.trailer, bundle.byId)
+      : {
+          status: "history-unavailable" as const,
+          checkpoint: null,
+          activity: [],
+          unmergedActivity: [],
+          worktrees: [],
+          truncated: false,
+          reason: "repository root was not provided",
+        };
     buildCache(
       db,
       bundle,
@@ -50,10 +63,9 @@ export async function deriveRepositoryOverview({
     );
     const source = await store.read(STATE_OF_PLAY_PATH).catch(() => undefined);
     const note = source ? parseStateOfPlay(source).note : undefined;
-    const checkpoint = root ? gitCheckpoint(root) : undefined;
     const model = deriveOverview(bundle, db, {
-      checkpoint,
-      historyAvailable: Boolean(checkpoint),
+      checkpoint: git.checkpoint ?? undefined,
+      historyAvailable: git.status === "available",
       decisionLinks:
         note?.format === REENTRY_CONTEXT_FORMAT
           ? note.decisionLinks
@@ -69,7 +81,7 @@ export async function deriveRepositoryOverview({
             : undefined,
         )
       : undefined;
-    return narrative ? { narrative, ...model } : model;
+    return narrative ? { narrative, ...model, git } : { ...model, git };
   } finally {
     db.close();
   }
