@@ -52,12 +52,16 @@ describe("renderWorkflow", () => {
     const authority = pickup.body.indexOf("Pickup authority requires");
     const resolve = pickup.body.indexOf("Resolve the target and command");
     const start = pickup.body.indexOf("Start through the engine");
+    const preserve = pickup.body.indexOf(
+      "Preserve a retained epic-manager identity",
+    );
     const rename = pickup.body.indexOf("Best-effort rename");
     const handoff = pickup.body.indexOf("Hand off context");
     expect(authority).toBeGreaterThan(-1);
     expect(resolve).toBeGreaterThan(authority);
     expect(start).toBeGreaterThan(resolve);
-    expect(rename).toBeGreaterThan(start);
+    expect(preserve).toBeGreaterThan(start);
+    expect(rename).toBeGreaterThan(preserve);
     expect(handoff).toBeGreaterThan(rename);
     expect(pickup.description).toContain("explicitly tracked Docket work only");
     expect(pickup.body).toContain("docket task start <ID> --json");
@@ -71,6 +75,15 @@ describe("renderWorkflow", () => {
     expect(pickup.body).toContain("substitute the top ready item");
     expect(pickup.body).toContain("mutate `.docket/active-task`");
     expect(pickup.body).toContain("suggestedSessionTitle");
+    expect(pickup.body).toContain(
+      "task belongs to the same epic, a different epic, or no epic",
+    );
+    expect(pickup.body).toContain(
+      "explicit user request to repurpose this session for the picked task",
+    );
+    expect(pickup.body).toContain(
+      "a newly supervised epic replaces it through the epic workflow",
+    );
     expect(pickup.body).toContain("continue silently");
   });
 
@@ -105,6 +118,19 @@ describe("renderWorkflow", () => {
     );
     expect(epic.body).toContain(
       "Before returning, ask the native adapter to reapply the retained manager title",
+    );
+    expect(epic.body).toContain("lifetime of the session");
+    expect(epic.body).toContain(
+      "including after epic completion or a blocker receipt",
+    );
+    expect(epic.body).toContain(
+      "Another explicitly supervised epic replaces it",
+    );
+    expect(epic.body).toContain(
+      "Merely starting or resuming another task is not such a request",
+    );
+    expect(epic.body).toContain(
+      "do not release that retained identity when the workflow returns",
     );
     expect(epic.body).toContain("docket ready --json");
     expect(epic.body).toContain(ENGINE_SEMANTICS.readiness);
@@ -293,9 +319,15 @@ describe("composeManagedSection", () => {
       "permitted only for explicit next-Docket-task or backlog selection",
     );
     expect(result.content).toContain("`suggestedSessionTitle`");
+    expect(result.content).toContain(
+      "A retained epic-manager identity takes precedence",
+    );
     expect(result.content).toContain("Unsupported hosts continue normally");
     expect(result.content).toContain("**Epic supervision**");
     expect(result.content).toContain("the `docket-epic` workflow");
+    expect(result.content).toContain(
+      "manager identity remains sticky for that calling session",
+    );
     expect(result.content).toContain("mandatory serial path");
     expect(result.content).toContain(
       "for “what's next,” status, orientation, or an ordinary review",

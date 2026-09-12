@@ -1,0 +1,329 @@
+{
+  "description": "Captured from the 0.2.0 tool surface via tools/list on 2026-09-12. Illustrative IDs in descriptions are normalized to HBR/ADR; schemas are otherwise unchanged. Connect to your installed server for its exact contract.",
+  "tools": [
+    {
+      "name": "overview",
+      "title": "Orient and review",
+      "description": "Read-only orientation — answer what is happening or what comes next from the shared Docket overview.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "ready",
+      "title": "List ready tasks",
+      "description": "Ready is derived, never written: a task is ready only when its stored status is `todo` and every dependency resolves to `done`; an unknown dependency blocks it. The ready queue puts ranked tasks first by ascending `rank`; rank ties and the unranked tail use priority (`p0` through `p3`), then ascending task ID as the stable fallback.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "task_list",
+      "title": "List work items",
+      "description": "All work items, optionally filtered by status or type.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "description": "filter by status",
+            "type": "string",
+            "enum": [
+              "todo",
+              "in-progress",
+              "blocked",
+              "in-review",
+              "done",
+              "closed"
+            ]
+          },
+          "type": {
+            "description": "Task or Epic",
+            "type": "string",
+            "enum": ["Epic", "Task"]
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000
+          },
+          "offset": {
+            "default": 0,
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "task_get",
+      "title": "Get a work item or decision",
+      "description": "Full markdown source and parsed frontmatter for one id (aliases resolve).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "e.g. HBR-14 or ADR-2"
+          }
+        },
+        "required": ["id"],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "lint",
+      "title": "Lint the bundle",
+      "description": "Conformance errors (parse failures, schema violations, duplicate ids, unresolvable depends_on) plus practice warnings (missing epic specs, broken links, stale statuses, freshness nag). Empty array means clean.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "search",
+      "title": "Search the bundle",
+      "description": "Ranked text search across every file in the bundle — tokenized multi-term queries, title/id matches boosted, best hits first; hits carry the owning concept's id plus its link neighborhood (outbound links and backlinks).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "minLength": 1
+          },
+          "limit": {
+            "default": 20,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "required": ["query"],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "source_page",
+      "title": "Read a source page",
+      "description": "Explicit bounded retrieval of exact bundle Markdown, including log.md. Returns source hash, line range and a continuation cursor; changed sources reject old cursors.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "maxChars": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 32768
+          },
+          "cursor": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "sourceHash": {
+                "type": "string"
+              },
+              "offset": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": ["path", "sourceHash", "offset"]
+          }
+        },
+        "required": ["path"],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "task_create",
+      "title": "Create a work item",
+      "description": "Create a Task or Epic with the next numbered id; the file lands under work/ as a conformant concept.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "type": {
+            "default": "Task",
+            "type": "string",
+            "enum": ["Epic", "Task"]
+          },
+          "description": {
+            "description": "one-sentence description",
+            "type": "string"
+          },
+          "epic": {
+            "description": "bundle-absolute link, e.g. /work/epics/HBR-2-….md",
+            "type": "string"
+          },
+          "depends_on": {
+            "description": "dependency ids",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "priority": {
+            "default": "p2",
+            "type": "string",
+            "enum": ["p0", "p1", "p2", "p3"]
+          },
+          "assignee": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["title"],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "set_status",
+      "title": "Change a work item's status",
+      "description": "Move a work item through the state machine (invalid transitions are rejected). A disposition note is required when moving to closed; other transitions may optionally append a dated Log entry.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "to": {
+            "type": "string",
+            "enum": [
+              "todo",
+              "in-progress",
+              "blocked",
+              "in-review",
+              "done",
+              "closed"
+            ]
+          },
+          "note": {
+            "description": "dated Log entry; required when `to` is `closed`",
+            "type": "string"
+          }
+        },
+        "required": ["id", "to"],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "append_log",
+      "title": "Append a Log entry",
+      "description": "Add a dated entry under an item's # Log section (newest first), creating the section if needed.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "entry": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["id", "entry"],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    }
+  ]
+}

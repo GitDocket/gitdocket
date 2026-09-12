@@ -25,7 +25,13 @@ describe("state ⇄ query", () => {
   });
 
   test("round-trips filters and grouping", () => {
-    const state = { epic: "DKT-9", tag: "web", assignee: "agent", group: true };
+    const state = {
+      ...DEFAULT_BOARD,
+      epic: "DKT-9",
+      tag: "web",
+      assignee: "agent",
+      group: true,
+    };
     expect(parseBoardState(boardStateQuery(state))).toEqual(state);
   });
 
@@ -77,4 +83,15 @@ describe("groupByEpic", () => {
   test("no cards means no lanes", () => {
     expect(groupByEpic([])).toEqual([]);
   });
+});
+
+test("workflow visibility and empty-column preference survive shareable URLs without filtering inventory", () => {
+  const state = {
+    ...DEFAULT_BOARD,
+    visibility: "completed" as const,
+    collapseEmpty: true,
+  };
+  expect(parseBoardState(boardStateQuery(state))).toEqual(state);
+  expect(filterCards(CARDS, state)).toEqual(CARDS);
+  expect(parseBoardState("view=unknown").visibility).toBe("active");
 });

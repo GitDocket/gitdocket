@@ -3,298 +3,56 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>GitDocket — project memory for humans and coding agents</title>
-    <meta
-      name="description"
-      content="GitDocket keeps project context, decisions, work, and agent workflows together in your Git repository."
-    />
+    <title>GitDocket — turn project context into verified work</title>
+    <meta name="description" content="Run a scoped epic with your coding agent. Keep project knowledge, verified work, and a reviewable receipt together in Git." />
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="GitDocket" />
-    <meta
-      property="og:description"
-      content="Give your coding agent the whole project—not just the next prompt."
-    />
-    <meta property="og:url" content="https://gitdocket.com/" />
-    <meta
-      property="og:image"
-      content="https://gitdocket.com/assets/product-home.jpg"
-    />
+    <meta property="og:title" content="GitDocket — turn project context into verified work" />
+    <meta property="og:description" content="Run a scoped epic with your coding agent. Keep project knowledge, verified work, and a reviewable receipt together in Git." />
+    <meta property="og:image" content="https://gitdocket.com/assets/current-home.jpg" />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <link rel="preload" href="/assets/product-home.jpg" as="image" />
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
+    <a class="skip-link" href="#main">Skip to content</a>
     <header class="shell nav">
-      <a class="brand" href="#top" aria-label="GitDocket home">
-        <span class="mark" aria-hidden="true">GD</span>
-        <span>GitDocket</span>
-      </a>
-      <nav aria-label="Primary navigation">
-        <a href="#product">Product</a>
-        <a href="#how-it-works">How it works</a>
-        <a href="https://github.com/GitDocket/gitdocket">GitHub</a>
-        <a href="https://github.com/GitDocket/gitdocket/tree/main/docs">Docs</a>
-      </nav>
+      <a class="brand" href="/" aria-label="GitDocket home"><span class="mark" aria-hidden="true">GD</span>GitDocket</a>
+      <nav aria-label="Primary navigation"><a href="/#product">Product</a><a href="/#workflow">Workflow</a><a href="/docs/">Docs</a><a href="https://github.com/GitDocket/gitdocket">GitHub</a></nav>
     </header>
-
-    <main id="top">
+    <main id="main" tabindex="-1">
       <section class="hero shell" aria-labelledby="hero-title">
-        <div class="hero-copy">
-          <p class="eyebrow">Project memory, checked into Git</p>
-          <h1 id="hero-title">Give your agent the whole project.</h1>
-          <p class="lede">
-            GitDocket keeps context, decisions, work, and operating rules in one
-            linked Markdown graph—so humans and coding agents can pick up where
-            the project actually is.
-          </p>
-          <div class="actions">
-            <a
-              class="button primary"
-              href="https://github.com/GitDocket/gitdocket#install-from-source"
-              >Install the preview</a
-            >
-            <a class="button quiet" href="https://github.com/GitDocket/gitdocket"
-              >View on GitHub</a
-            >
-          </div>
-          <ul class="proof-line" aria-label="Product properties">
-            <li>Local-first</li>
-            <li>Plain Markdown</li>
-            <li>Reviewed through Git</li>
-          </ul>
-        </div>
-
-        <figure class="browser-shot hero-shot">
-          <div class="browser-bar" aria-hidden="true">
-            <span></span><span></span><span></span>
-            <small>Project re-entry</small>
-          </div>
-          <img
-            src="/assets/product-home.jpg"
-            alt="GitDocket Home for the synthetic Harbor project, summarizing recent progress, the next task, and an important product decision"
-            width="1440"
-            height="900"
-            fetchpriority="high"
-          />
-          <figcaption>
-            Return to a project and see what changed, what matters, and what is
-            ready next.
-          </figcaption>
+        <p class="eyebrow">For humans and coding agents</p>
+        <h1 id="hero-title">Turn project context<br class="desktop-break" /> into verified work.</h1>
+        <p class="lede">Ask your coding agent to run a scoped epic. Docket keeps the tasks, project knowledge, and verified outcomes together in Git—ready for your review and the next session.</p>
+        <div class="actions"><a class="button primary" href="/docs/">Get started</a><a class="button quiet" href="#workflow">See the workflow <span aria-hidden="true">↓</span></a></div>
+        <p class="proof-line">Local-first <span>·</span> Plain Markdown <span>·</span> Reviewed through Git</p>
+      </section>
+      <section class="product shell" id="product" aria-labelledby="product-title">
+        <div class="section-intro"><div><p class="eyebrow">Pick up where you left off</p><h2 id="product-title">The project, in context.</h2></div><p>See what changed, what matters, and what’s ready next. The interface reads the same files your agent works with.</p></div>
+        <figure class="product-shot">
+          <a href="/assets/current-home.jpg" aria-label="Open the full-size current Home screenshot"><img src="/assets/current-home.jpg" alt="Current GitDocket Home: Home and Board lead the navigation; a project re-entry note summarizes the completed Harbor guide, and a compact board shows feedback ready next." width="1440" height="1000" decoding="async" /></a>
+          <figcaption>Current development UI · Synthetic Harbor project · <a href="/assets/current-home.jpg">View full size</a></figcaption>
         </figure>
+        <details class="board-preview"><summary>Explore the current Board view</summary><figure class="product-shot"><a href="/assets/current-board.jpg" aria-label="Open the full-size current Board screenshot"><img src="/assets/current-board.jpg" alt="Current Harbor Board with one todo task, two done tasks, collapsed empty columns, and filtering controls." width="1440" height="700" loading="lazy" decoding="async" /></a><figcaption>Filter the work and collapse empty columns to keep the next step visible.</figcaption></figure></details>
       </section>
-
-      <section class="signal shell" aria-label="Why GitDocket">
-        <p>Less reconstruction.</p>
-        <p>Clearer delegation.</p>
-        <p>Durable decisions.</p>
-      </section>
-
-      <section class="tour" id="product" aria-labelledby="tour-title">
+      <section class="workflow" id="workflow" aria-labelledby="workflow-title">
         <div class="shell">
-          <div class="section-heading">
-            <p class="eyebrow">See the project, not another dashboard</p>
-            <h2 id="tour-title">One source of truth. Several useful views.</h2>
-            <p>
-              The interface stays thin because the repository already holds the
-              facts. Each view answers a concrete question.
-            </p>
-          </div>
-
-          <article class="story story-wide">
-            <div class="story-copy">
-              <p class="story-number">01</p>
-              <p class="story-kicker">Track the work</p>
-              <h3>See flow, priority, and blockers at a glance.</h3>
-              <p>
-                The board is a live view of Markdown tasks. Status changes follow
-                the same rules whether a human or an agent makes them.
-              </p>
-            </div>
-            <figure class="browser-shot">
-              <div class="browser-bar" aria-hidden="true">
-                <span></span><span></span><span></span>
-                <small>Board</small>
-              </div>
-              <img
-                src="/assets/product-board.jpg"
-                alt="GitDocket board for the Harbor public beta, with tasks organized into todo, in-progress, blocked, review, and done columns"
-                width="1440"
-                height="900"
-                loading="lazy"
-                decoding="async"
-              />
-              <figcaption>
-                Ready work stays distinct from active work and honest blockers.
-              </figcaption>
-            </figure>
-          </article>
-
-          <div class="story-pair">
-            <article class="story">
-              <div class="story-copy">
-                <p class="story-number">02</p>
-                <p class="story-kicker">Know what finished means</p>
-                <h3>Keep context, criteria, and proof together.</h3>
-                <p>
-                  A task carries its dependency state, acceptance criteria,
-                  working log, and linked Git activity.
-                </p>
-              </div>
-              <figure class="browser-shot">
-                <div class="browser-bar" aria-hidden="true">
-                  <span></span><span></span><span></span>
-                  <small>Tracked task</small>
-                </div>
-                <img
-                  src="/assets/product-task.jpg"
-                  alt="A GitDocket task showing status, priority, dependency, context, checked acceptance criteria, log, and a linked commit"
-                  width="1440"
-                  height="900"
-                  loading="lazy"
-                  decoding="async"
-                />
-                <figcaption>
-                  The work item and the evidence that completes it stay connected.
-                </figcaption>
-              </figure>
-            </article>
-
-            <article class="story">
-              <div class="story-copy">
-                <p class="story-number">03</p>
-                <p class="story-kicker">Follow the why</p>
-                <h3>Decisions remain readable in context.</h3>
-                <p>
-                  Specs, decisions, tasks, and reference docs form one navigable
-                  graph instead of drifting across tools.
-                </p>
-              </div>
-              <figure class="browser-shot">
-                <div class="browser-bar" aria-hidden="true">
-                  <span></span><span></span><span></span>
-                  <small>Linked decision</small>
-                </div>
-                <img
-                  src="/assets/product-decision.jpg"
-                  alt="A GitDocket decision page showing its context, accepted decision, consequences, and nearby project documentation"
-                  width="1440"
-                  height="900"
-                  loading="lazy"
-                  decoding="async"
-                />
-                <figcaption>
-                  The rationale remains beside the work that depends on it.
-                </figcaption>
-              </figure>
-            </article>
-          </div>
+          <p class="eyebrow">A repeatable loop</p><h2 id="workflow-title">Finish the work. Keep the knowledge.</h2>
+          <p class="example-prompt">“Run the welcome-guide epic through completion.”</p>
+          <ol class="steps">
+            <li><span>01</span><h3>Read &amp; choose</h3><p>Read project context and select a scoped task with completed dependencies.</p></li>
+            <li><span>02</span><h3>Build &amp; verify</h3><p>Make the change and check it against the task’s acceptance criteria.</p></li>
+            <li><span>03</span><h3>Close &amp; carry forward</h3><p>Reconcile docs, record Git-linked evidence, and leave the next step ready.</p></li>
+          </ol>
+          <p class="workflow-note">Your agent follows the checked-in procedures, reviews the whole epic, and returns a completion receipt or a concrete blocker. You direct the work and review the result.</p>
+          <a class="text-link" href="/docs/mcp/#demo">Inspect a scripted run with real CLI evidence <span aria-hidden="true">↗</span></a>
         </div>
       </section>
-
-      <section class="mechanics shell" id="how-it-works" aria-labelledby="mechanics-title">
-        <div class="section-heading compact-heading">
-          <p class="eyebrow">A small operating layer</p>
-          <h2 id="mechanics-title">Files hold memory. The engine keeps facts honest.</h2>
-        </div>
-        <ol class="mechanics-grid">
-          <li>
-            <span>01</span>
-            <h3>Link the project</h3>
-            <p>Plans, specs, decisions, tasks, and epics stay readable Markdown.</p>
-          </li>
-          <li>
-            <span>02</span>
-            <h3>Derive the state</h3>
-            <p>Readiness, transitions, indexes, and activity come from deterministic commands.</p>
-          </li>
-          <li>
-            <span>03</span>
-            <h3>Run the outcome</h3>
-            <p>Checked-in workflows guide agents through pickup, verification, and closure.</p>
-          </li>
-          <li>
-            <span>04</span>
-            <h3>Keep the receipt</h3>
-            <p>Commits link implementation to the task and its reconciled documentation.</p>
-          </li>
-        </ol>
-      </section>
-
-      <section class="workflows" aria-labelledby="workflows-title">
-        <div class="shell workflow-layout">
-          <div>
-            <p class="eyebrow">Ask for the outcome</p>
-            <h2 id="workflows-title">The project carries its operating rules.</h2>
-          </div>
-          <div class="workflow-list">
-            <article>
-              <code>Run the launch epic.</code>
-              <p>Supervise ready work, verify each result, and stop on one concrete blocker.</p>
-            </article>
-            <article>
-              <code>Groom the backlog.</code>
-              <p>Find stale tasks and broken dependencies before reprioritizing anything.</p>
-            </article>
-            <article>
-              <code>Check the docs for drift.</code>
-              <p>Review recent commits against the project knowledge they may have changed.</p>
-            </article>
-          </div>
-        </div>
-      </section>
-
-      <section class="trust shell" aria-labelledby="trust-title">
-        <div class="section-heading compact-heading">
-          <p class="eyebrow">Practical trust</p>
-          <h2 id="trust-title">Inspectable by design.</h2>
-        </div>
-        <div class="trust-grid">
-          <article>
-            <h3>No second database</h3>
-            <p>Markdown and Git remain authoritative. The cache is disposable.</p>
-          </article>
-          <article>
-            <h3>No hidden policy</h3>
-            <p>Agent procedures live in the repository for the team to review.</p>
-          </article>
-          <article>
-            <h3>No fake certainty</h3>
-            <p>Facts come from the engine. Judgment and blockers stay explicit.</p>
-          </article>
-        </div>
-      </section>
-
-      <section class="closing shell" aria-labelledby="closing-title">
-        <div>
-          <p class="eyebrow">Public preview</p>
-          <h2 id="closing-title">Make the next handoff easier.</h2>
-          <p>
-            Start with the repository you already have. Initialization is
-            additive and leaves existing Markdown untouched until you review it.
-          </p>
-        </div>
-        <div class="closing-actions">
-          <a
-            class="button primary"
-            href="https://github.com/GitDocket/gitdocket#install-from-source"
-            >Install from source</a
-          >
-          <a
-            class="text-link"
-            href="https://github.com/GitDocket/gitdocket/tree/main/docs/getting-started.md"
-            >Read the quickstart <span aria-hidden="true">→</span></a
-          >
-        </div>
+      <section class="foundation shell" aria-labelledby="foundation-title">
+        <div><p class="eyebrow">An open foundation</p><h2 id="foundation-title">Your knowledge stays yours.</h2></div>
+        <div><p>Built on Open Knowledge Format v0.1, <a href="https://cloud.google.com/blog/products/data-analytics/how-the-open-knowledge-format-can-improve-data-sharing/">introduced by Google Cloud</a>. Linked Markdown holds the context; Docket adds tasks, dependencies, agent workflows, and evidence.</p><p>Read it in your editor. Review it in Git. Bring it to your next agent session.</p><a class="text-link" href="/docs/">Start with a small epic <span aria-hidden="true">→</span></a></div>
       </section>
     </main>
-
-    <footer class="shell">
-      <span>GitDocket · Apache-2.0</span>
-      <div>
-        <a href="https://github.com/GitDocket/gitdocket">GitHub</a>
-        <a href="https://github.com/GitDocket/gitdocket/security">Security</a>
-      </div>
-    </footer>
+    <footer class="shell footer"><a class="brand" href="/">GitDocket</a><p>Project knowledge and work, together in Git.</p><a href="https://github.com/GitDocket/gitdocket">Source on GitHub ↗</a></footer>
   </body>
 </html>

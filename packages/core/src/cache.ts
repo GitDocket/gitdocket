@@ -11,6 +11,13 @@ import { join, resolve } from "node:path";
 import { Glob } from "bun";
 import type { Bundle } from "./bundle";
 import type { DocketConfig } from "./config";
+
+export {
+  GitEvidenceIndex,
+  type GitIndexOptions,
+  type GitSnapshot,
+} from "./git-evidence-index";
+
 import { resolveLink } from "./lint";
 import {
   resolveVerifyMarkers,
@@ -58,6 +65,8 @@ export interface GitEvidence {
   /** Bounded linked-checkout inventory, including checkout-local active markers. */
   worktrees: GitWorktreeEvidence[];
   truncated: boolean;
+  /** False when canonical history was cut off by a scan budget or shallow boundary. */
+  historyComplete?: boolean;
   reason?: string;
 }
 
@@ -446,8 +455,11 @@ CREATE TABLE concepts (
   priority TEXT,
   rank REAL,
   epic TEXT,
+  epic_path TEXT,
   timestamp TEXT
 );
+CREATE INDEX concepts_epic_path ON concepts(epic_path, type);
+CREATE INDEX concepts_id ON concepts(id);
 CREATE TABLE links (from_path TEXT NOT NULL, target TEXT NOT NULL, to_path TEXT);
 CREATE TABLE activity (task_id TEXT NOT NULL, sha TEXT NOT NULL, date TEXT NOT NULL, subject TEXT NOT NULL);
 -- Verification linkage: resolved docket:verifies markers.
@@ -483,13 +495,13 @@ CREATE VIEW board AS
 -- bumps timestamps, so this tracks the latest status transition anywhere in
 -- the epic). Empty string when nothing is stamped, so DESC sorts it last.
 CREATE VIEW epic_rollup AS
-  SELECT e.id AS epic_id, e.title AS epic_title,
+  SELECT e.path AS epic_path, e.id AS epic_id, e.title AS epic_title,
          COUNT(t.path) AS total,
          COALESCE(SUM(t.status = 'done'), 0) AS done,
          COALESCE(SUM(t.status = 'closed'), 0) AS closed,
          max(COALESCE(MAX(t.timestamp), ''), COALESCE(e.timestamp, '')) AS last_activity
   FROM concepts e
-  LEFT JOIN concepts t ON t.type = 'Task' AND t.epic LIKE '%/' || e.id || '-%'
+  LEFT JOIN concepts t ON t.type = 'Task' AND t.epic_path = e.path
   WHERE e.type = 'Epic'
   GROUP BY e.path;
 `;
@@ -506,7 +518,7 @@ export function buildCache(
   const paths = new Set(bundle.concepts.map((c) => c.path));
 
   const insertConcept = db.prepare(
-    "INSERT INTO concepts (path, id, type, title, status, priority, rank, epic, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    "INSERT INTO concepts (path, id, type, title, status, priority, rank, epic, epic_path, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
   );
   const insertLink = db.prepare(
     "INSERT INTO links (from_path, target, to_path) VALUES (?, ?, ?)",
@@ -529,6 +541,9 @@ export function buildCache(
         str(c.fm.priority),
         typeof c.fm.rank === "number" ? c.fm.rank : null,
         str(c.fm.epic),
+        typeof c.fm.epic === "string"
+          ? (resolveLink(c.path, c.fm.epic) ?? null)
+          : null,
         str(c.fm.timestamp),
       );
       for (const l of c.links) {

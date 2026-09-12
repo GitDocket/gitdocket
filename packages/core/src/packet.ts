@@ -7,7 +7,8 @@
 import type { Bundle } from "./bundle";
 import type { FileStore } from "./filestore";
 import { resolveLink } from "./lint";
-import type { WorkItemFrontmatter } from "./schema";
+import { parseConcept } from "./parse";
+import { buildSchemas, type WorkItemFrontmatter } from "./schema";
 
 /** A commit carrying the task's trailer; the caller derives these from git. */
 export interface CommitRef {
@@ -57,6 +58,14 @@ export async function buildContextPacket(
   if (item?.kind !== "work") throw new Error(`no work item with id ${id}`);
 
   const source = await store.read(item.path);
+  // Only this task's Markdown links are needed; the surrounding bundle may
+  // be a metadata projection. Parse the same source returned in the packet.
+  const parsed = parseConcept(item.path, source, buildSchemas(bundle.config));
+  if (
+    parsed.concept?.kind !== "work" ||
+    JSON.stringify(parsed.concept.fm) !== JSON.stringify(item.fm)
+  )
+    throw new Error(`task changed or is invalid: ${item.path}`);
   const body = source.replace(/^---\n[\s\S]*?\n---\n/, "").trim();
 
   const conceptAt = (path: string | undefined) =>
@@ -92,7 +101,7 @@ export async function buildContextPacket(
     if (target) skip.add(target.path);
   }
   const linked: PacketLink[] = [];
-  for (const link of item.links) {
+  for (const link of parsed.concept.links) {
     if (!link.internal) continue;
     const resolved = resolveLink(item.path, link.target);
     if (!resolved || skip.has(resolved)) continue;

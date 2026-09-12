@@ -8,6 +8,7 @@ export interface DocItem {
 }
 
 export interface DocSection {
+  total?: number;
   name: string;
   items: DocItem[];
 }

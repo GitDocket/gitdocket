@@ -5,13 +5,7 @@
 
 import { Database } from "bun:sqlite";
 import type { Bundle } from "./bundle";
-import {
-  buildCache,
-  type GitEvidence,
-  scanActivity,
-  scanGitEvidence,
-  taskLinkedCommitsSince,
-} from "./cache";
+import { buildCache, type GitEvidence, GitEvidenceIndex } from "./cache";
 import type { DocketConfig } from "./config";
 import type { FileStore } from "./filestore";
 import { deriveOverview, type OverviewModel } from "./overview";
@@ -35,6 +29,8 @@ export interface RepositoryOverviewInput {
   store: FileStore;
   /** Omit outside a Git-backed repository; the derived task selection remains valid. */
   root?: string;
+  /** Borrowed process owner. The caller retains responsibility for closing it. */
+  evidence?: GitEvidenceIndex;
 }
 
 export async function deriveRepositoryOverview({
@@ -42,11 +38,16 @@ export async function deriveRepositoryOverview({
   config,
   store,
   root,
+  evidence: borrowedEvidence,
 }: RepositoryOverviewInput): Promise<RepositoryOverview> {
   const db = new Database(":memory:");
+  const evidence =
+    borrowedEvidence ??
+    (root ? new GitEvidenceIndex(root, config.git.trailer) : undefined);
   try {
-    const git = root
-      ? scanGitEvidence(root, config.git.trailer, bundle.byId)
+    const snapshot = await evidence?.snapshot(bundle.byId);
+    const git = snapshot
+      ? snapshot.git
       : {
           status: "history-unavailable" as const,
           checkpoint: null,
@@ -56,16 +57,13 @@ export async function deriveRepositoryOverview({
           truncated: false,
           reason: "repository root was not provided",
         };
-    buildCache(
-      db,
-      bundle,
-      root ? scanActivity(root, config.git.trailer, bundle.byId) : [],
-    );
+    buildCache(db, bundle, snapshot?.activity ?? []);
     const source = await store.read(STATE_OF_PLAY_PATH).catch(() => undefined);
     const note = source ? parseStateOfPlay(source).note : undefined;
     const model = deriveOverview(bundle, db, {
       checkpoint: git.checkpoint ?? undefined,
-      historyAvailable: git.status === "available",
+      historyAvailable:
+        git.status === "available" && git.historyComplete !== false,
       decisionLinks:
         note?.format === REENTRY_CONTEXT_FORMAT
           ? note.decisionLinks
@@ -76,13 +74,12 @@ export async function deriveRepositoryOverview({
     const narrative = note
       ? presentStateOfPlay(
           note,
-          root
-            ? taskLinkedCommitsSince(root, config.git.trailer, note.asOf)
-            : undefined,
+          await evidence?.countSince(note.asOf, git.checkpoint),
         )
       : undefined;
     return narrative ? { narrative, ...model, git } : { ...model, git };
   } finally {
+    if (!borrowedEvidence) evidence?.close();
     db.close();
   }
 }

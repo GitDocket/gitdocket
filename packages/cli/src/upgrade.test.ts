@@ -303,6 +303,9 @@ describe("docket upgrade e2e", () => {
       expect(pickup).toContain("explicitly tracked Docket work only");
       expect(pickup).toContain("direct work bypasses Docket");
       expect(pickup).toContain("ambiguous references require resolution");
+      expect(pickup).toContain("retained epic-manager identity");
+      expect(pickup).toContain("same-epic or unrelated task pickup");
+      expect(pickup).toContain("do not call `codex_app__set_thread_title`");
       expect(pickup).toContain("codex_app__set_thread_title");
       expect(pickup).toContain("Omit `threadId`");
       expect(
@@ -321,6 +324,9 @@ describe("docket upgrade e2e", () => {
       expect(epic).toContain("omit `threadId`");
       expect(epic).toContain("after every successful child pickup");
       expect(epic).toContain("before the completion or blocker receipt");
+      expect(epic).toContain("retained identity");
+      expect(epic).toContain("Keep the identity after completion");
+      expect(epic).toContain("later task pickup alone may not");
       expect(epic).toContain(
         "never apply the manager title to an isolated child",
       );

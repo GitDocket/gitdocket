@@ -427,6 +427,9 @@ describe("docket init", () => {
     expect(pickup).toContain("explicitly tracked Docket work only");
     expect(pickup).toContain("direct work bypasses Docket");
     expect(pickup).toContain("ambiguous references require resolution");
+    expect(pickup).toContain("retained epic-manager identity");
+    expect(pickup).toContain("same-epic or unrelated task pickup");
+    expect(pickup).toContain("do not call `codex_app__set_thread_title`");
     expect(pickup).toContain("codex_app__set_thread_title");
     expect(pickup).toContain("Omit `threadId`");
     const epic = await readFile(
@@ -438,6 +441,9 @@ describe("docket init", () => {
     expect(epic).toContain("omit `threadId`");
     expect(epic).toContain("after every successful child pickup");
     expect(epic).toContain("before the completion or blocker receipt");
+    expect(epic).toContain("retained identity");
+    expect(epic).toContain("Keep the identity after completion");
+    expect(epic).toContain("later task pickup alone may not");
     expect(epic).toContain(
       "never apply the manager title to an isolated child",
     );
@@ -499,6 +505,8 @@ describe("docket init", () => {
     expect(codexPickup).toContain("explicitly tracked Docket work only");
     expect(codexPickup).toContain("direct work bypasses Docket");
     expect(codexPickup).toContain("ambiguous references require resolution");
+    expect(codexPickup).toContain("retained epic-manager identity");
+    expect(codexPickup).toContain("same-epic or unrelated task pickup");
     expect(codexPickup).toContain("codex_app__set_thread_title");
     const claudeEpic = await readFile(
       join(repo, ".claude", "skills", "docket-epic", "SKILL.md"),
@@ -511,6 +519,8 @@ describe("docket init", () => {
     expect(claudeEpic).toContain("current-session rename unsupported");
     expect(claudeEpic).not.toContain("codex_app__");
     expect(codexEpic).toContain("`Epic <ID> — <title>`");
+    expect(codexEpic).toContain("Keep the identity after completion");
+    expect(codexEpic).toContain("later task pickup alone may not");
     expect(codexEpic).toContain("codex_app__set_thread_title");
     expect(claudeEpic).toContain("no verified native worker lifecycle binding");
     expect(claudeEpic).toContain("serially in the calling session");

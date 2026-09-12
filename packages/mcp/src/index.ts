@@ -22,8 +22,26 @@ if (!root) {
   process.exit(1);
 }
 
-const config = parseConfig(await readFile(join(root, CONFIG_FILENAME), "utf8"));
-const store = new LocalFileStore(join(root, config.bundle));
-await createDocketServer(store, config, root).connect(
-  new StdioServerTransport(),
-);
+let store: LocalFileStore | undefined;
+const resolve = async () => {
+  const config = parseConfig(
+    await readFile(join(root, CONFIG_FILENAME), "utf8"),
+  );
+  const path = join(root, config.bundle);
+  if (store?.root !== path) store = new LocalFileStore(path);
+  return { config, store };
+};
+const initial = await resolve();
+const server = createDocketServer(initial.store, initial.config, root, resolve);
+let closing: Promise<void> | undefined;
+const close = () => {
+  closing ??= server.close();
+  void closing.catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+};
+process.stdin.once("end", close);
+process.once("SIGINT", close);
+process.once("SIGTERM", close);
+await server.connect(new StdioServerTransport());

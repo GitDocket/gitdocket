@@ -4,11 +4,12 @@
 // a system Git binary.
 
 import { execFile } from "node:child_process";
-import { mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
-import { hostname } from "node:os";
+import { readFile, stat } from "node:fs/promises";
 import { isAbsolute, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { parseConfig } from "./config";
+import { mapFiles } from "./file-batch";
+import { acquireFileLock } from "./file-lock";
 import { LocalFileStore } from "./filestore";
 
 const execFileAsync = promisify(execFile);
@@ -30,9 +31,6 @@ const DEFAULT_LOCK_TIMEOUT_MS = 10_000;
 const DEFAULT_STALE_LOCK_MS = 5 * 60_000;
 const DEFAULT_RETRY_DELAY_MS = 25;
 const LOCK_DIRECTORY = "docket/id-allocation.lock";
-
-const sleep = (ms: number): Promise<void> =>
-  new Promise((resolveDelay) => setTimeout(resolveDelay, ms));
 
 const errorCode = (error: unknown): string | undefined =>
   typeof error === "object" && error !== null && "code" in error
@@ -123,23 +121,24 @@ async function idsInWorktree(
     throw error;
   }
 
-  const ids: string[] = [];
-  for (const path of paths) {
-    if (!/^work\/(?:tasks|epics)\/.+\.md$/.test(path)) continue;
-    const source = await store.read(path).catch((error: unknown) => {
-      throw new Error(
-        `cannot read linked work item ${join(worktree, config.bundle, path)}: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    });
-    const id = readableWorkItemId(source);
-    if (!id) {
-      throw new Error(
-        `cannot allocate an ID while linked work item ${join(worktree, config.bundle, path)} has no readable frontmatter id`,
-      );
-    }
-    if (id.startsWith(`${project}-`)) ids.push(id);
-  }
-  return ids;
+  const ids = await mapFiles(
+    paths.filter((path) => /^work\/(?:tasks|epics)\/.+\.md$/.test(path)),
+    async (path) => {
+      const source = await store.read(path).catch((error: unknown) => {
+        throw new Error(
+          `cannot read linked work item ${join(worktree, config.bundle, path)}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
+      const id = readableWorkItemId(source);
+      if (!id) {
+        throw new Error(
+          `cannot allocate an ID while linked work item ${join(worktree, config.bundle, path)} has no readable frontmatter id`,
+        );
+      }
+      return id.startsWith(`${project}-`) ? id : null;
+    },
+  );
+  return ids.filter((id): id is string => id !== null);
 }
 
 async function repositoryIds(
@@ -151,104 +150,6 @@ async function repositoryIds(
     for (const id of await idsInWorktree(worktree, project)) ids.add(id);
   }
   return ids;
-}
-
-interface LockOwner {
-  pid?: number;
-  host?: string;
-  startedAt?: string;
-}
-
-async function readOwner(lockDirectory: string): Promise<LockOwner | null> {
-  try {
-    return JSON.parse(
-      await readFile(join(lockDirectory, "owner.json"), "utf8"),
-    ) as LockOwner;
-  } catch {
-    return null;
-  }
-}
-
-function processIsAlive(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    return errorCode(error) === "EPERM";
-  }
-}
-
-async function lockIsStale(
-  lockDirectory: string,
-  staleLockMs: number,
-): Promise<boolean> {
-  const owner = await readOwner(lockDirectory);
-  if (
-    owner?.host === hostname() &&
-    typeof owner.pid === "number" &&
-    Number.isInteger(owner.pid)
-  ) {
-    return !processIsAlive(owner.pid);
-  }
-  const metadata = await stat(lockDirectory);
-  return Date.now() - metadata.mtimeMs >= staleLockMs;
-}
-
-async function acquireLock(
-  commonDirectory: string,
-  options: Required<GitWorktreeIdCoordinatorOptions>,
-): Promise<string> {
-  const parent = join(commonDirectory, "docket");
-  const lockDirectory = join(commonDirectory, LOCK_DIRECTORY);
-  await mkdir(parent, { recursive: true });
-  const started = Date.now();
-
-  for (;;) {
-    try {
-      await mkdir(lockDirectory);
-      await writeFile(
-        join(lockDirectory, "owner.json"),
-        `${JSON.stringify({
-          pid: process.pid,
-          host: hostname(),
-          startedAt: new Date().toISOString(),
-        })}\n`,
-        "utf8",
-      );
-      return lockDirectory;
-    } catch (error) {
-      if (errorCode(error) !== "EEXIST") throw error;
-
-      if (
-        await lockIsStale(lockDirectory, options.staleLockMs).catch(() => true)
-      ) {
-        const staleDirectory = `${lockDirectory}.stale-${process.pid}-${Date.now()}`;
-        try {
-          await rename(lockDirectory, staleDirectory);
-          await rm(staleDirectory, { recursive: true, force: true });
-          continue;
-        } catch (recoveryError) {
-          if (
-            errorCode(recoveryError) === "ENOENT" ||
-            errorCode(recoveryError) === "EEXIST"
-          ) {
-            continue;
-          }
-          throw new Error(
-            `cannot recover stale Docket ID-allocation lock ${lockDirectory}: ${recoveryError instanceof Error ? recoveryError.message : String(recoveryError)}`,
-          );
-        }
-      }
-
-      if (Date.now() - started >= options.lockTimeoutMs) {
-        const owner = await readOwner(lockDirectory);
-        throw new Error(
-          `timed out after ${options.lockTimeoutMs}ms waiting for Docket ID-allocation lock ${lockDirectory}${owner ? ` (owner ${owner.host ?? "unknown"}:${owner.pid ?? "unknown"}, started ${owner.startedAt ?? "unknown"})` : ""}`,
-        );
-      }
-      await sleep(options.retryDelayMs);
-    }
-  }
 }
 
 /**
@@ -278,11 +179,15 @@ export class GitWorktreeIdCoordinator implements WorkItemIdCoordinator {
     const commonDirectory = await gitCommonDirectory(this.repoRoot);
     if (!commonDirectory) return create(new Set());
 
-    const lockDirectory = await acquireLock(commonDirectory, this.options);
+    const lockDirectory = await acquireFileLock(
+      join(commonDirectory, LOCK_DIRECTORY),
+      this.options,
+      "Docket ID-allocation",
+    );
     try {
       return await create(await repositoryIds(this.repoRoot, project));
     } finally {
-      await rm(lockDirectory, { recursive: true, force: true });
+      await lockDirectory.release();
     }
   }
 }

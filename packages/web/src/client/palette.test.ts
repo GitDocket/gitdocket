@@ -19,9 +19,9 @@ describe("view catalog", () => {
     const labels = viewCatalog(["specs", "decisions"]).map((v) => v.label);
     expect(labels).toEqual([
       "Home",
+      "Board",
       "Wiki",
       "Tasks",
-      "Board",
       "Epics",
       "Activity",
       "Docs",

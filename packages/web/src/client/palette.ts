@@ -13,6 +13,7 @@ export interface ConceptItem {
   path: string;
   id?: string;
   title?: string;
+  type?: string;
   text: string;
 }
 
@@ -24,6 +25,7 @@ export interface SearchHit {
   text: string;
   id?: string;
   title?: string;
+  type?: string;
 }
 
 /** Fixed views first, then one entry per docs directory. */
@@ -35,9 +37,9 @@ export function viewCatalog(sections: string[]): ViewItem[] {
   });
   return [
     view("Home", "#/"),
+    view("Board", "#/board"),
     view("Wiki", "#/wiki"),
     view("Tasks", "#/tasks"),
-    view("Board", "#/board"),
     view("Epics", "#/epics"),
     view("Activity", "#/activity"),
     view("Docs", "#/docs"),
@@ -65,6 +67,7 @@ export function paletteItems(
         path: h.path,
         id: h.id,
         title: h.title,
+        type: h.type,
         text: h.text,
       }),
     ),

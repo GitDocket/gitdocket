@@ -8,12 +8,11 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseConfig } from "@gitdocket/core";
-import type { Hono } from "hono";
 import { createApp } from "./app";
 import { createRepoContext } from "./state";
 
 let root: string;
-let app: Hono;
+let app: ReturnType<typeof createApp>;
 const NOW = new Date("2026-08-21T20:00:00Z");
 
 const FILES: Record<string, string> = {
@@ -52,6 +51,14 @@ const get = async (path: string) => {
 };
 
 describe("local request boundary", () => {
+  test("HEAD requests acquire the same coherent API generation", async () => {
+    const response = await app.request("http://localhost/api/tasks", {
+      method: "HEAD",
+    });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("X-Docket-Freshness")).toBe("current");
+    expect(await response.text()).toBe("");
+  });
   test("accepts loopback hostnames and rejects non-local Host values", async () => {
     for (const url of [
       "http://localhost/api/nav",
@@ -281,6 +288,7 @@ describe("wiki", () => {
     });
     expect(body.overview.loose).toBeNull();
     expect(body.overview.git).toEqual({
+      historyComplete: false,
       status: "history-unavailable",
       checkpoint: null,
       activity: [],
@@ -514,10 +522,45 @@ No linked decisions.
     expect((await get("/api/search?q=")).body.hits).toEqual([]);
   });
 
+  test("search endpoint prioritizes exact ticket numbers and accepts compact IDs", async () => {
+    await writeFile(
+      join(root, "docs/work/epics/DKT-11-prefix.md"),
+      "---\ntype: Epic\ntitle: Longer ticket number\nid: DKT-11\nstatus: todo\n---\n",
+    );
+    for (const query of ["DKT-1", "dkt1", "DKT 1", "1", "#1"]) {
+      const { status, body } = await get(
+        `/api/search?q=${encodeURIComponent(query)}&limit=1`,
+      );
+      expect(status).toBe(200);
+      expect(body.hits).toHaveLength(1);
+      expect(body.hits[0].id).toBe("DKT-1");
+    }
+  });
+
   test("missing files 404, traversal 400", async () => {
     expect((await get("/api/concept/nope.md")).status).toBe(404);
     // encoded slash survives URL normalization and only decodes at the param layer
     expect((await get("/api/concept/..%2Fdocket.yaml")).status).toBe(400);
+  });
+
+  test("numeric search only returns ticket IDs beginning with all typed digits", async () => {
+    for (const n of [24, 240, 241, 246, 2460]) {
+      await writeFile(
+        join(root, `docs/work/tasks/DKT-${n}.md`),
+        `---\ntype: Task\ntitle: Ticket ${n}\nid: DKT-${n}\nstatus: done\n---\nReferences DKT-246.\n`,
+      );
+    }
+    for (const query of ["246", "#246"]) {
+      const { status, body } = await get(
+        `/api/search?q=${encodeURIComponent(query)}`,
+      );
+      expect(status).toBe(200);
+      expect(body.hits.map((hit: { id: string }) => hit.id)).toEqual([
+        "DKT-246",
+        "DKT-2460",
+      ]);
+    }
+    expect((await get("/api/search?q=2469")).body.hits).toEqual([]);
   });
 });
 

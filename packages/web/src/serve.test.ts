@@ -2,9 +2,10 @@
 // source-rebuild watch mode.
 
 import { afterEach, beforeAll, describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { runInNewContext } from "node:vm";
 import { parseConfig } from "@gitdocket/core";
 import type { Assets } from "./app";
 import { buildAssets, startServe } from "./serve";
@@ -76,6 +77,82 @@ const readEvent = async (reader: EventReader): Promise<string> => {
 };
 
 describe("serve", () => {
+  test("reconciliation recovers a missing watched bundle and exposes stale data during failure", async () => {
+    const server = await start();
+    await fetch(new URL("/api/tasks", server.url));
+    const reader = await eventReader(server);
+    await readEvent(reader);
+    await rename(join(root, "docs"), join(root, "temporarily-missing"));
+    await readEvent(reader);
+    const stale = await fetch(new URL("/api/tasks", server.url));
+    expect(stale.headers.get("X-Docket-Freshness")).toBe("stale");
+    expect(stale.status).toBe(200);
+    await stale.text();
+    await rename(join(root, "temporarily-missing"), join(root, "docs"));
+    await writeFile(join(root, "docs", "index.md"), "# Recovered\n");
+    await readEvent(reader);
+    const recovered = await fetch(new URL("/api/nav", server.url));
+    expect(recovered.headers.get("X-Docket-Freshness")).toBe("current");
+    expect(((await recovered.json()) as { html: string }).html).toContain(
+      "Recovered",
+    );
+    await reader.cancel();
+  });
+
+  test("configuration changes replace the live bundle watcher and source generation", async () => {
+    const server = await start();
+    await fetch(new URL("/api/tasks", server.url));
+    await mkdir(join(root, "next"));
+    await writeFile(
+      join(root, "next", "task.md"),
+      "---\ntype: Task\nid: DKT-9\ntitle: New root\nstatus: todo\n---\n",
+    );
+    const reader = await eventReader(server);
+    await readEvent(reader);
+    await writeFile(join(root, "docket.yaml"), "bundle: next/\n");
+    await readEvent(reader);
+    const tasks = (await (
+      await fetch(new URL("/api/tasks", server.url))
+    ).json()) as { items: { id: string }[] };
+    expect(tasks.items.map((item) => item.id)).toEqual(["DKT-9"]);
+    await writeFile(
+      join(root, "next", "task.md"),
+      "---\ntype: Task\nid: DKT-9\ntitle: Updated new root\nstatus: todo\n---\n",
+    );
+    await readEvent(reader);
+    const detail = (await (
+      await fetch(new URL("/api/concept/task.md", server.url))
+    ).json()) as { fm: { title: string } };
+    expect(detail.fm.title).toBe("Updated new root");
+    await reader.cancel();
+  });
+  test("restart uses a new event identity and shutdown closes active streams", async () => {
+    const first = await start();
+    const firstReader = await eventReader(first);
+    const before = await readEvent(firstReader);
+    first.stop(true);
+    const ended = await Promise.race([
+      firstReader
+        .read()
+        .then((result) => result.done)
+        .catch(() => true),
+      Bun.sleep(1000).then(() => false),
+    ]);
+    expect(ended).toBeTrue();
+    await firstReader.cancel().catch(() => {});
+    server = await startServe(
+      root,
+      parseConfig("bundle: docs/"),
+      { port: 0 },
+      assets,
+    );
+    const secondReader = await eventReader(server);
+    const after = await readEvent(secondReader);
+    expect(after.split("\n")[0]?.split(":")[1]).not.toBe(
+      before.split("\n")[0]?.split(":")[1],
+    );
+    await secondReader.cancel();
+  });
   test("binds to IPv4 loopback only", async () => {
     const server = await start();
     expect(server.url.hostname).toBe("127.0.0.1");
@@ -88,6 +165,20 @@ describe("serve", () => {
     ).text();
     expect(js).toContain("/api/events");
     expect(js).not.toContain("/dev/reload");
+    // Execute the shipped bundle without Node globals. Server-side rendering
+    // tests cannot catch server-only imports that crash browser startup.
+    let reachedMount = false;
+    runInNewContext(js, {
+      document: {
+        createElement: () => ({}),
+        getElementById: (id: string) => {
+          expect(id).toBe("root");
+          reachedMount = true;
+          return null;
+        },
+      },
+    });
+    expect(reachedMount).toBe(true);
     // /dev/reload falls through to the SPA catch-all, not an event stream
     const res = await fetch(new URL("/dev/reload", server.url));
     expect(res.headers.get("content-type")).not.toContain("event-stream");
@@ -105,8 +196,8 @@ describe("serve", () => {
 
     const first = await eventReader(server);
     const second = await eventReader(server);
-    expect(await readEvent(first)).toContain("id: 0");
-    expect(await readEvent(second)).toContain("id: 0");
+    const initial = await readEvent(first);
+    expect(await readEvent(second)).toBe(initial);
 
     // Two files in one filesystem burst still produce one coalesced revision.
     await Promise.all([
@@ -118,10 +209,8 @@ describe("serve", () => {
     ]);
 
     const changes = await Promise.all([readEvent(first), readEvent(second)]);
-    expect(changes).toEqual([
-      expect.stringContaining("id: 1"),
-      expect.stringContaining("id: 1"),
-    ]);
+    expect(changes[0]).toBe(changes[1]);
+    expect(changes[0]).not.toBe(initial);
     const after = (await (
       await fetch(new URL("/api/tasks", server.url))
     ).json()) as { items: { id: string; status: string }[] };
@@ -135,18 +224,18 @@ describe("serve", () => {
   test("a reconnect receives the current revision after a missed change", async () => {
     const server = await start();
     const first = await eventReader(server);
-    expect(await readEvent(first)).toContain("id: 0");
+    const initial = await readEvent(first);
     await first.cancel();
 
     await writeFile(join(root, "docs", "index.md"), "# Changed offline\n");
     const response = await fetch(new URL("/api/events", server.url), {
-      headers: { "Last-Event-ID": "0" },
+      headers: { "Last-Event-ID": initial.split("\n")[0]?.slice(4) ?? "" },
     });
     const reconnected = response.body?.getReader();
     if (!reconnected) throw new Error("no body stream");
     let event = await readEvent(reconnected);
-    if (event.includes("id: 0")) event = await readEvent(reconnected);
-    expect(event).toContain("id: 1");
+    if (event === initial) event = await readEvent(reconnected);
+    expect(event).not.toBe(initial);
     await reconnected.cancel();
   });
 

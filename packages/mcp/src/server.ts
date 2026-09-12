@@ -1,13 +1,13 @@
 // @gitdocket/mcp — the auto-approvable agent surface. Every tool is a
 // narrow, named, zod-validated mirror of a @gitdocket/core op; none executes
-// shell and none takes a filesystem path — ids only, files reached solely
-// through core's FileStore rooted at the bundle. That containment is what
+// shell. Writes address IDs; source pages accept only exact members of the
+// bundle inventory. Files are reached through core's rooted FileStore. That containment is what
 // makes allowlisting the whole server (`mcp__docket`) safe. Read tools carry
 // readOnlyHint so cautious users can allowlist reads alone.
 
 import {
   appendLog,
-  type Bundle,
+  buildSchemas,
   createWorkItem,
   DOCKET_VERSION,
   type DocketConfig,
@@ -15,19 +15,33 @@ import {
   type FileStore,
   GitWorktreeIdCoordinator,
   lintBundle,
-  loadBundle,
   PRIORITIES,
+  parseConcept,
   READY_QUEUE_DESCRIPTION,
   readyWorkItems,
   STATES,
-  searchBundle,
   setStatus,
+  sourcePage,
   WORK_ITEM_TYPES,
   type WorkItem,
 } from "@gitdocket/core";
 import { deriveRepositoryOverview } from "@gitdocket/core/orientation";
+import {
+  environmentAttribution,
+  errorCategory,
+  OPERATIONS,
+  type Operation,
+  observeOperation,
+  Telemetry,
+} from "@gitdocket/core/telemetry";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { CallToolRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
+import {
+  RepositoryOwner,
+  type RepositoryResolver,
+  snapshotStore,
+} from "./owner";
 
 const READ = { readOnlyHint: true, openWorldHint: false } as const;
 // Writes are additive or state-machine-guarded frontmatter edits — nothing deletes.
@@ -56,12 +70,69 @@ export function createDocketServer(
   store: FileStore,
   config: DocketConfig,
   root?: string,
+  resolve?: RepositoryResolver,
 ): McpServer {
   const server = new McpServer({ name: "docket", version: DOCKET_VERSION });
   const idCoordinator = root ? new GitWorktreeIdCoordinator(root) : undefined;
-  // Bundles are reloaded per call: files are the source of truth and other
-  // clients (CLI, editor, git) mutate them between calls.
-  const bundle = (): Promise<Bundle> => loadBundle(store, config);
+  const owner = new RepositoryOwner(
+    resolve ?? (async () => ({ store, config })),
+    root,
+  );
+  const telemetry = root ? new Telemetry(root, "mcp") : undefined;
+  // Wrap the SDK's public request-handler registration, outside tool validation.
+  // This records handled validation failures without altering protocol responses.
+  const register = server.server.setRequestHandler.bind(server.server);
+  server.server.setRequestHandler = (schema, handler) => {
+    if ((schema as unknown) !== CallToolRequestSchema)
+      return register(schema, handler);
+    return register(schema, async (request, extra) => {
+      const params = request.params as
+        | { name?: string; _meta?: Record<string, unknown> }
+        | undefined;
+      const operation = params?.name;
+      if (!operation || !OPERATIONS.includes(operation as Operation))
+        return handler(request, extra);
+      const meta = params?._meta;
+      const attribution = {
+        ...environmentAttribution(),
+        trigger: "explicit" as const,
+      };
+      if (typeof meta?.["docket/workflow"] === "string")
+        attribution.workflow = meta["docket/workflow"];
+      if (typeof meta?.["docket/actor"] === "string")
+        attribution.actor = meta["docket/actor"];
+      if (typeof meta?.["docket/host"] === "string")
+        attribution.host = meta["docket/host"];
+      return observeOperation(
+        telemetry,
+        operation as Operation,
+        async () => handler(request, extra),
+        {
+          dimensions: () => owner.dimensions(),
+          attribution,
+          resultError: (result) => {
+            const value = result as {
+              isError?: boolean;
+              content?: { text?: string }[];
+            };
+            return value.isError
+              ? errorCategory(value.content?.[0]?.text)
+              : "none";
+          },
+        },
+      );
+    });
+  };
+  const close = server.close.bind(server);
+  server.close = async () => {
+    owner.close();
+    await close();
+  };
+  const onclose = server.server.onclose;
+  server.server.onclose = () => {
+    owner.close();
+    onclose?.();
+  };
 
   server.registerTool(
     "overview",
@@ -71,9 +142,15 @@ export function createDocketServer(
       annotations: READ,
     },
     async () => {
-      const b = await bundle();
+      const { bundle, config, store } = await owner.metadata();
       return json(
-        await deriveRepositoryOverview({ bundle: b, config, store, root }),
+        await deriveRepositoryOverview({
+          bundle,
+          config,
+          store,
+          root,
+          evidence: owner.evidence(config),
+        }),
       );
     },
   );
@@ -83,12 +160,13 @@ export function createDocketServer(
     {
       title: "List ready tasks",
       description: READY_QUEUE_DESCRIPTION,
+      inputSchema: { limit: z.number().int().min(1).max(1000).optional() },
       annotations: READ,
     },
-    async () => {
-      const b = await bundle();
+    async ({ limit }) => {
+      const { bundle: b } = await owner.metadata();
       const ready = readyWorkItems(b);
-      return json(ready.map(summarize));
+      return json(ready.slice(0, limit).map(summarize));
     },
   );
 
@@ -100,15 +178,21 @@ export function createDocketServer(
       inputSchema: {
         status: z.enum(STATES).optional().describe("filter by status"),
         type: z.enum(WORK_ITEM_TYPES).optional().describe("Task or Epic"),
+        limit: z.number().int().min(1).max(1000).optional(),
+        offset: z.number().int().min(0).optional().default(0),
       },
       annotations: READ,
     },
-    async ({ status, type }) => {
-      const b = await bundle();
+    async ({ status, type, limit, offset }) => {
+      const { bundle: b } = await owner.metadata();
       let items = b.workItems;
       if (status) items = items.filter((w) => w.fm.status === status);
       if (type) items = items.filter((w) => w.fm.type === type);
-      return json(items.map(summarize));
+      return json(
+        items
+          .slice(offset, limit === undefined ? undefined : offset + limit)
+          .map(summarize),
+      );
     },
   );
 
@@ -124,13 +208,25 @@ export function createDocketServer(
       annotations: READ,
     },
     async ({ id }) => {
-      const b = await bundle();
+      const { bundle: b, config } = await owner.metadata();
       const item = b.byId(id);
       if (!item) throw new Error(`no item with id ${id}`);
+      const source = await owner.source(item.path);
+      const current = parseConcept(
+        item.path,
+        source,
+        buildSchemas(config),
+      ).concept;
+      if (
+        !current ||
+        current.kind === "generic" ||
+        ![current.fm.id, ...current.fm.aliases].includes(id)
+      )
+        throw new Error(`item changed; retry lookup: ${id}`);
       return json({
         path: item.path,
-        frontmatter: item.fm,
-        source: await store.read(item.path),
+        frontmatter: current.fm,
+        source,
       });
     },
   );
@@ -143,7 +239,10 @@ export function createDocketServer(
         "Conformance errors (parse failures, schema violations, duplicate ids, unresolvable depends_on) plus practice warnings (missing epic specs, broken links, stale statuses, freshness nag). Empty array means clean.",
       annotations: READ,
     },
-    async () => json(await lintBundle(store, await bundle())),
+    async () => {
+      const { snapshot } = await owner.read();
+      return json(await lintBundle(snapshotStore(snapshot), snapshot.bundle));
+    },
   );
 
   server.registerTool(
@@ -158,8 +257,40 @@ export function createDocketServer(
       },
       annotations: READ,
     },
-    async ({ query, limit }) =>
-      json(await searchBundle(store, await bundle(), query, { limit })),
+    async ({ query, limit }) => {
+      const { snapshot } = await owner.read();
+      return json(snapshot.search.search(query, { limit }));
+    },
+  );
+
+  server.registerTool(
+    "source_page",
+    {
+      title: "Read a source page",
+      description:
+        "Explicit bounded retrieval of exact bundle Markdown, including log.md. Returns source hash, line range and a continuation cursor; changed sources reject old cursors.",
+      inputSchema: {
+        path: z.string().min(1),
+        maxChars: z.number().int().min(1).max(32768).optional(),
+        cursor: z
+          .object({
+            path: z.string(),
+            sourceHash: z.string(),
+            offset: z.number().int().min(0),
+          })
+          .optional(),
+      },
+      annotations: READ,
+    },
+    async ({ path, maxChars, cursor }) => {
+      const sources = await owner.sourceMap(path);
+      const page = sourcePage(sources, path, {
+        maxChars,
+        cursor,
+      });
+      if (!page) throw new Error(`not found: ${path}`);
+      return json(page);
+    },
   );
 
   server.registerTool(
@@ -185,20 +316,23 @@ export function createDocketServer(
     },
     async (input) =>
       json(
-        await createWorkItem(
-          store,
-          config,
-          {
-            title: input.title,
-            type: input.type,
-            description: input.description,
-            epic: input.epic,
-            dependsOn: input.depends_on,
-            priority: input.priority,
-            assignee: input.assignee,
-            tags: input.tags,
-          },
-          idCoordinator,
+        await owner.mutate(
+          async ({ store, config }) =>
+            await createWorkItem(
+              store,
+              config,
+              {
+                title: input.title,
+                type: input.type,
+                description: input.description,
+                epic: input.epic,
+                dependsOn: input.depends_on,
+                priority: input.priority,
+                assignee: input.assignee,
+                tags: input.tags,
+              },
+              idCoordinator,
+            ),
         ),
       ),
   );
@@ -220,7 +354,11 @@ export function createDocketServer(
       annotations: WRITE,
     },
     async ({ id, to, note }) =>
-      json(await setStatus(store, config, id, to, { note })),
+      json(
+        await owner.mutate(({ store, config }) =>
+          setStatus(store, config, id, to, { note }),
+        ),
+      ),
   );
 
   server.registerTool(
@@ -235,8 +373,14 @@ export function createDocketServer(
       },
       annotations: WRITE,
     },
-    async ({ id, entry }) => json(await appendLog(store, config, id, entry)),
+    async ({ id, entry }) =>
+      json(
+        await owner.mutate(({ store, config }) =>
+          appendLog(store, config, id, entry),
+        ),
+      ),
   );
 
+  server.server.setRequestHandler = register;
   return server;
 }

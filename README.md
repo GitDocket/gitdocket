@@ -4,9 +4,9 @@ GitDocket keeps project documentation and work tracking together as linked Markd
 
 It is for teams that want durable, reviewable project context without moving the source of truth into a hosted tracker. Files remain authoritative; GitDocket derives readiness, indexes, activity, and browser views from them.
 
-> GitDocket 0.1.1 is a public preview. File formats and commands are tested, but the compatibility surface may still change as external use provides evidence.
+> GitDocket 0.2.0 is a public preview. File formats and commands are tested, but the compatibility surface may still change as external use provides evidence.
 
-![GitDocket task board showing synthetic todo and completed work](site/assets/gitdocket-home.png)
+![Current GitDocket Home showing project context and ready work in the synthetic Harbor project](site/assets/current-home.jpg)
 
 ## Requirements
 
@@ -25,7 +25,7 @@ bun add --global @gitdocket/cli @gitdocket/mcp
 docket --version
 ```
 
-The version command should report `0.1.1`. Both packages require Bun 1.3.14 or newer; the installed binaries remain `docket` and `docket-mcp`.
+The version command should report `0.2.0`. Both packages require Bun 1.3.14 or newer; the installed binaries remain `docket` and `docket-mcp`.
 
 ## Quickstart
 
@@ -48,6 +48,12 @@ docket init --agent codex
 docket init --agent claude
 ```
 
+Once initialized, ask your agent to create and run a small “Welcome guide” epic:
+write a short contributor guide, then link it from README, with concrete checks
+for each task. Review the completed work, reconciled docs, and task-linked
+receipt—or the concrete blocker. The [first-run walkthrough](docs/getting-started.md#3-try-a-small-epic-with-your-agent)
+shows the expected result and how a later session recovers context.
+
 ## What is in a bundle?
 
 A Docket bundle is one link graph containing documentation, decisions, tasks, epics, and agent workflows. Work state is ordinary frontmatter. Ready work is derived from `status: todo` plus completed dependencies; it is never another stored state.
@@ -57,6 +63,10 @@ The [basic example](examples/basic/) is a complete synthetic bundle. See [Gettin
 ## Stability and upgrades
 
 The first public release is a preview: file formats and commands are tested, but compatibility guarantees are intentionally narrow until real external use provides evidence. Vendored workflow files carry their originating GitDocket version; `docket upgrade` performs a three-way merge so local edits remain explicit.
+
+## Telemetry
+
+Telemetry is **local only and off by default**. Collection requires explicitly running `docket telemetry enable` for each checkout. Observations stay on your computer, outside your repository; GitDocket never uploads them. Run `docket telemetry disable` to stop collection or `docket telemetry delete` to remove the current checkout's enrollment and recorded data.
 
 ## Contributing and security
 

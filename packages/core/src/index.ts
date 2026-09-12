@@ -3,11 +3,14 @@
 
 export {
   type Bundle,
+  clearMetadata,
   findRepoRoot,
   loadBundle,
+  loadMetadataBundle,
   loadRepo,
   readyWorkItems,
 } from "./bundle";
+export { BundleIndex, type BundleSnapshot } from "./bundle-index";
 export {
   CONFIG_FILENAME,
   DEFAULT_BUNDLE,
@@ -116,6 +119,8 @@ export {
   type WorkItemFrontmatter,
 } from "./schema";
 export { type SearchHit, searchBundle } from "./search";
+export { searchFresh } from "./search-fresh";
+export { SearchIndex } from "./search-index";
 export {
   formatOrigin,
   type Origin,
@@ -125,6 +130,7 @@ export {
   shippedHistory,
   shippedWorkflow,
 } from "./shipped";
+export { type SourceCursor, type SourcePage, sourcePage } from "./source-page";
 export {
   type LegacyStateOfPlayNote,
   parseStateOfPlay,

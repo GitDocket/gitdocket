@@ -161,3 +161,44 @@ describe("HomeBriefing", () => {
     expect(html).not.toContain("Purpose unavailable");
   });
 });
+
+test("Board preview is a bounded linked sample with explicit scope and full matching counts", async () => {
+  const { BoardPreview } = await import("./App");
+  const cards = Array.from({ length: 5 }, (_, i) => ({
+    id: `DKT-${i}`,
+    title: `Task ${i}`,
+    rank: null,
+    timestamp: null,
+    path: `work/tasks/${i}.md`,
+    status: "todo",
+    priority: "p2",
+    epic: null,
+    tags: [],
+    assignee: null,
+  }));
+  const html = renderToStaticMarkup(
+    <BoardPreview
+      data={{
+        states: ["todo", "done"],
+        cards,
+        totals: { todo: 120 },
+        columns: [
+          {
+            status: "todo",
+            cards,
+            page: { number: 1, limit: 2, total: 120, next: 2, generation: 1 },
+          },
+        ],
+      }}
+      href="#/board?epic=DKT-9&tag=web"
+      scope="Epic DKT-9 · Tag: web"
+      visibility="active"
+    />,
+  );
+  expect(html).toContain("Epic DKT-9 · Tag: web");
+  expect(html).toContain("120");
+  expect(html).toContain('href="#/board?epic=DKT-9&amp;tag=web"');
+  expect(html).toContain("Task 1");
+  expect(html).not.toContain("Task 2");
+  expect(html).not.toContain("draggable");
+});

@@ -1,0 +1,357 @@
+{
+  "schema": 1,
+  "kind": "scripted-synthetic-demo",
+  "productSource": "9a81cde",
+  "version": "0.1.1",
+  "request": "Run HBR-1, the Harbor welcome-guide epic, through completion.",
+  "baseline": "c567fe8b0ca84dc3b1b82dbbe8bff6629e8da45d",
+  "finalCommit": "360eea64970b02869d6b3925821c42a25d76a9f2",
+  "implementationCommits": [
+    "313eac5d12714aa2077836931767ea06537f9332",
+    "6446d63a9784589dea15b61a0f7a2010deba8455"
+  ],
+  "completed": ["HBR-1", "HBR-2", "HBR-3"],
+  "checks": [
+    "Required guide headings",
+    "README and onboarding links resolve",
+    "Dependency order",
+    "Two completed child Outcomes",
+    "Bundle lint has no errors",
+    "Whole epic reviewed before closure"
+  ],
+  "knowledgeChanged": [
+    "docket/reference/welcome.md",
+    "docket/reference/onboarding.md",
+    "README.md"
+  ],
+  "nextReady": [
+    {
+      "id": "HBR-4",
+      "title": "Collect feedback on the welcome guide"
+    }
+  ],
+  "finalTasks": [
+    {
+      "id": "HBR-4",
+      "type": "Task",
+      "title": "Collect feedback on the welcome guide",
+      "status": "todo",
+      "priority": "p2",
+      "depends_on": ["HBR-3"],
+      "path": "work/tasks/HBR-4-collect-feedback-on-the-welcome-guide.md"
+    },
+    {
+      "id": "HBR-1",
+      "type": "Epic",
+      "title": "Harbor welcome guide",
+      "status": "done",
+      "priority": "p2",
+      "depends_on": [],
+      "path": "work/epics/HBR-1-harbor-welcome-guide.md"
+    },
+    {
+      "id": "HBR-3",
+      "type": "Task",
+      "title": "Connect the guide to onboarding",
+      "status": "done",
+      "priority": "p2",
+      "epic": "/work/epics/HBR-1-harbor-welcome-guide.md",
+      "depends_on": ["HBR-2"],
+      "path": "work/tasks/HBR-3-connect-the-guide-to-onboarding.md"
+    },
+    {
+      "id": "HBR-2",
+      "type": "Task",
+      "title": "Write the welcome guide",
+      "status": "done",
+      "priority": "p2",
+      "epic": "/work/epics/HBR-1-harbor-welcome-guide.md",
+      "depends_on": [],
+      "path": "work/tasks/HBR-2-write-the-welcome-guide.md"
+    }
+  ],
+  "history": "360eea6 Complete Harbor epic after final review\nTask: HBR-1\n\n17aba6c Complete onboarding discovery\nTask: HBR-3\n\n6446d63 Link the guide and reconcile onboarding\nTask: HBR-3\n\ned2061a Complete the verified guide task\nTask: HBR-2\n\n313eac5 Write the Harbor welcome guide\nTask: HBR-2\n\nc567fe8 Seed the synthetic Harbor welcome-guide epic",
+  "transcript": [
+    {
+      "command": "docket --version",
+      "output": "0.1.1"
+    },
+    {
+      "command": "docket task create --type Epic --title Harbor welcome guide --description Give new contributors a verified first step. --json",
+      "output": {
+        "id": "HBR-1",
+        "path": "work/epics/HBR-1-harbor-welcome-guide.md"
+      }
+    },
+    {
+      "command": "docket task create --title Write the welcome guide --epic /work/epics/HBR-1-harbor-welcome-guide.md --json",
+      "output": {
+        "id": "HBR-2",
+        "path": "work/tasks/HBR-2-write-the-welcome-guide.md"
+      }
+    },
+    {
+      "command": "docket task create --title Connect the guide to onboarding --epic /work/epics/HBR-1-harbor-welcome-guide.md --deps HBR-2 --json",
+      "output": {
+        "id": "HBR-3",
+        "path": "work/tasks/HBR-3-connect-the-guide-to-onboarding.md"
+      }
+    },
+    {
+      "command": "docket task create --title Collect feedback on the welcome guide --deps HBR-3 --json",
+      "output": {
+        "id": "HBR-4",
+        "path": "work/tasks/HBR-4-collect-feedback-on-the-welcome-guide.md"
+      }
+    },
+    {
+      "command": "docket ready --json",
+      "output": [
+        {
+          "id": "HBR-2",
+          "type": "Task",
+          "title": "Write the welcome guide",
+          "status": "todo",
+          "priority": "p2",
+          "epic": "/work/epics/HBR-1-harbor-welcome-guide.md",
+          "depends_on": [],
+          "path": "work/tasks/HBR-2-write-the-welcome-guide.md"
+        }
+      ]
+    },
+    {
+      "command": "docket task move HBR-1 in-progress --json",
+      "output": {
+        "id": "HBR-1",
+        "path": "work/epics/HBR-1-harbor-welcome-guide.md",
+        "from": "todo",
+        "to": "in-progress"
+      }
+    },
+    {
+      "command": "docket task start HBR-2 --json",
+      "output": {
+        "picked": false,
+        "started": {
+          "from": "todo",
+          "to": "in-progress"
+        },
+        "suggestedSessionTitle": "HBR-2 — Write the welcome guide",
+        "task": {
+          "path": "work/tasks/HBR-2-write-the-welcome-guide.md",
+          "fm": {
+            "type": "Task",
+            "title": "Write the welcome guide",
+            "tags": [],
+            "aliases": [],
+            "id": "HBR-2",
+            "status": "in-progress",
+            "epic": "/work/epics/HBR-1-harbor-welcome-guide.md",
+            "depends_on": [],
+            "priority": "p2",
+            "timestamp": "2026-09-12T00:27:51Z"
+          },
+          "body": "# Context\n\nWrite the first step and explain how contributors review changes.\n\n# Acceptance Criteria\n\n- [ ] The guide includes First step and Review sections."
+        },
+        "epic": {
+          "path": "work/epics/HBR-1-harbor-welcome-guide.md",
+          "id": "HBR-1",
+          "title": "Harbor welcome guide",
+          "status": "in-progress"
+        },
+        "deps": [],
+        "linked": [],
+        "commits": []
+      }
+    },
+    {
+      "command": "verify guide headings",
+      "output": "PASS: First step and Review sections exist"
+    },
+    {
+      "command": "docket task close HBR-2 --note Verified required guide headings; Outcome links the implementation commit. --json",
+      "output": {
+        "id": "HBR-2",
+        "path": "work/tasks/HBR-2-write-the-welcome-guide.md",
+        "from": "in-progress",
+        "to": "done"
+      }
+    },
+    {
+      "command": "docket ready --json",
+      "output": [
+        {
+          "id": "HBR-3",
+          "type": "Task",
+          "title": "Connect the guide to onboarding",
+          "status": "todo",
+          "priority": "p2",
+          "epic": "/work/epics/HBR-1-harbor-welcome-guide.md",
+          "depends_on": ["HBR-2"],
+          "path": "work/tasks/HBR-3-connect-the-guide-to-onboarding.md"
+        }
+      ]
+    },
+    {
+      "command": "docket task start HBR-3 --json",
+      "output": {
+        "picked": false,
+        "started": {
+          "from": "todo",
+          "to": "in-progress"
+        },
+        "suggestedSessionTitle": "HBR-3 — Connect the guide to onboarding",
+        "task": {
+          "path": "work/tasks/HBR-3-connect-the-guide-to-onboarding.md",
+          "fm": {
+            "type": "Task",
+            "title": "Connect the guide to onboarding",
+            "tags": [],
+            "aliases": [],
+            "id": "HBR-3",
+            "status": "in-progress",
+            "epic": "/work/epics/HBR-1-harbor-welcome-guide.md",
+            "depends_on": ["HBR-2"],
+            "priority": "p2",
+            "timestamp": "2026-09-12T00:27:53Z"
+          },
+          "body": "# Context\n\nMake the completed guide discoverable.\n\n# Acceptance Criteria\n\n- [ ] README and onboarding reference link to the existing guide."
+        },
+        "epic": {
+          "path": "work/epics/HBR-1-harbor-welcome-guide.md",
+          "id": "HBR-1",
+          "title": "Harbor welcome guide",
+          "status": "in-progress"
+        },
+        "deps": [
+          {
+            "id": "HBR-2",
+            "title": "Write the welcome guide",
+            "status": "done"
+          }
+        ],
+        "linked": [],
+        "commits": []
+      }
+    },
+    {
+      "command": "verify README and onboarding links",
+      "output": "PASS: both links resolve to the guide"
+    },
+    {
+      "command": "docket task close HBR-3 --note Both guide links verified; onboarding documentation reconciled in the same task. --json",
+      "output": {
+        "id": "HBR-3",
+        "path": "work/tasks/HBR-3-connect-the-guide-to-onboarding.md",
+        "from": "in-progress",
+        "to": "done"
+      }
+    },
+    {
+      "command": "docket task list --epic HBR-1 --all --json",
+      "output": [
+        {
+          "id": "HBR-3",
+          "type": "Task",
+          "title": "Connect the guide to onboarding",
+          "status": "done",
+          "priority": "p2",
+          "epic": "/work/epics/HBR-1-harbor-welcome-guide.md",
+          "depends_on": ["HBR-2"],
+          "path": "work/tasks/HBR-3-connect-the-guide-to-onboarding.md"
+        },
+        {
+          "id": "HBR-2",
+          "type": "Task",
+          "title": "Write the welcome guide",
+          "status": "done",
+          "priority": "p2",
+          "epic": "/work/epics/HBR-1-harbor-welcome-guide.md",
+          "depends_on": [],
+          "path": "work/tasks/HBR-2-write-the-welcome-guide.md"
+        }
+      ]
+    },
+    {
+      "command": "docket lint --json",
+      "output": [
+        {
+          "path": "work/epics/HBR-1-harbor-welcome-guide.md",
+          "message": "epic has no spec link",
+          "severity": "warning"
+        },
+        {
+          "path": "log.md",
+          "message": "no **Freshness** watermark — run the docket-freshness workflow",
+          "severity": "warning"
+        }
+      ]
+    },
+    {
+      "command": "docket task close HBR-1 --note Final review passed: guide, working links, reconciled docs, and both task receipts. --json",
+      "output": {
+        "id": "HBR-1",
+        "path": "work/epics/HBR-1-harbor-welcome-guide.md",
+        "from": "in-progress",
+        "to": "done"
+      }
+    },
+    {
+      "command": "docket ready --json",
+      "output": [
+        {
+          "id": "HBR-4",
+          "type": "Task",
+          "title": "Collect feedback on the welcome guide",
+          "status": "todo",
+          "priority": "p2",
+          "depends_on": ["HBR-3"],
+          "path": "work/tasks/HBR-4-collect-feedback-on-the-welcome-guide.md"
+        }
+      ]
+    },
+    {
+      "command": "docket task list --all --json",
+      "output": [
+        {
+          "id": "HBR-4",
+          "type": "Task",
+          "title": "Collect feedback on the welcome guide",
+          "status": "todo",
+          "priority": "p2",
+          "depends_on": ["HBR-3"],
+          "path": "work/tasks/HBR-4-collect-feedback-on-the-welcome-guide.md"
+        },
+        {
+          "id": "HBR-1",
+          "type": "Epic",
+          "title": "Harbor welcome guide",
+          "status": "done",
+          "priority": "p2",
+          "depends_on": [],
+          "path": "work/epics/HBR-1-harbor-welcome-guide.md"
+        },
+        {
+          "id": "HBR-3",
+          "type": "Task",
+          "title": "Connect the guide to onboarding",
+          "status": "done",
+          "priority": "p2",
+          "epic": "/work/epics/HBR-1-harbor-welcome-guide.md",
+          "depends_on": ["HBR-2"],
+          "path": "work/tasks/HBR-3-connect-the-guide-to-onboarding.md"
+        },
+        {
+          "id": "HBR-2",
+          "type": "Task",
+          "title": "Write the welcome guide",
+          "status": "done",
+          "priority": "p2",
+          "epic": "/work/epics/HBR-1-harbor-welcome-guide.md",
+          "depends_on": [],
+          "path": "work/tasks/HBR-2-write-the-welcome-guide.md"
+        }
+      ]
+    }
+  ]
+}

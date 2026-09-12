@@ -1,7 +1,7 @@
 // End-to-end over a linked in-memory transport pair: a real MCP client
 // calling the real server, only the filesystem faked.
 
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
 import {
   InMemoryFileStore,
   parseConfig,
@@ -27,15 +27,29 @@ const seed = () =>
     ]),
   );
 
+const connections: { close(): Promise<void> }[] = [];
+afterEach(async () => {
+  await Promise.all(
+    connections.splice(0).map((connection) => connection.close()),
+  );
+});
+
 async function connect(store = seed()) {
   const client = new Client({ name: "test", version: "0.0.0" });
   const [clientTransport, serverTransport] =
     InMemoryTransport.createLinkedPair();
+  const server = createDocketServer(store, config);
+  connections.push({
+    close: async () => {
+      await client.close();
+      await server.close();
+    },
+  });
   await Promise.all([
-    createDocketServer(store, config).connect(serverTransport),
+    server.connect(serverTransport),
     client.connect(clientTransport),
   ]);
-  return { client, store };
+  return { client, store, server };
 }
 
 const call = async (
@@ -66,6 +80,7 @@ describe("tool surface", () => {
       task_get: true,
       lint: true,
       search: true,
+      source_page: true,
       task_create: false,
       set_status: false,
       append_log: false,
@@ -79,6 +94,44 @@ describe("tool surface", () => {
 });
 
 describe("read tools", () => {
+  test("bounded retrieval preserves defaults, complete source and changed-cursor errors", async () => {
+    const { client, store } = await connect();
+    const all = (await call(client, "task_list")).data;
+    expect(all).toHaveLength(3);
+    expect(
+      (await call(client, "task_list", { limit: 1, offset: 1 })).data,
+    ).toEqual(all.slice(1, 2));
+    const source = "2026-09-11 DKT-123 complete history 😀\n".repeat(50);
+    await store.write("log.md", source);
+    let cursor: unknown;
+    let assembled = "";
+    do {
+      const result = await call(client, "source_page", {
+        path: "log.md",
+        maxChars: 100,
+        ...(cursor ? { cursor } : {}),
+      });
+      expect(result.isError).toBe(false);
+      assembled += result.data.text;
+      cursor = result.data.nextCursor;
+    } while (cursor);
+    expect(assembled).toBe(source);
+    const first = (
+      await call(client, "source_page", { path: "log.md", maxChars: 100 })
+    ).data;
+    await store.write("log.md", `${source}new`);
+    expect(
+      (
+        await call(client, "source_page", {
+          path: "log.md",
+          cursor: first.nextCursor,
+        })
+      ).isError,
+    ).toBe(true);
+    expect(
+      (await call(client, "source_page", { path: "../docket.yaml" })).isError,
+    ).toBe(true);
+  });
   test("overview returns the bounded shared selection without writes", async () => {
     const { client, store } = await connect();
     const before = new Map(store.files);

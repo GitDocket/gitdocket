@@ -87,6 +87,59 @@ async function runCreate(
 }
 
 describe("GitWorktreeIdCoordinator", () => {
+  test("batches at most sixteen ID reads and retains the earliest-path failure", async () => {
+    const { root } = await repository();
+    const directory = join(root, "docket", "work", "tasks");
+    for (let i = 0; i < 32; i++)
+      await writeFile(
+        join(directory, `z-${String(i).padStart(2, "0")}.md`),
+        `---\ntype: Task\nid: TST-${i + 2}\n---\n`,
+      );
+    const original = LocalFileStore.prototype.read;
+    let active = 0,
+      maximum = 0;
+    const reads: string[] = [];
+    LocalFileStore.prototype.read = async function (path) {
+      reads.push(path);
+      maximum = Math.max(maximum, ++active);
+      try {
+        await Bun.sleep(2);
+        if (path.endsWith("b-error.md")) throw new Error("later read failure");
+        return await original.call(this, path);
+      } finally {
+        active--;
+      }
+    };
+    try {
+      const coordinator = new GitWorktreeIdCoordinator(root);
+      const ids = await coordinator.allocate("TST", async (ids) => [...ids]);
+      expect(ids).toHaveLength(33);
+      expect(maximum).toBe(16);
+      expect(reads).toHaveLength(33);
+      await writeFile(
+        join(directory, "a-invalid.md"),
+        "---\ntype: Task\n---\n",
+      );
+      await writeFile(
+        join(directory, "b-error.md"),
+        "---\ntype: Task\nid: TST-100\n---\n",
+      );
+      reads.length = 0;
+      let created = false;
+      await expect(
+        coordinator.allocate("TST", async () => {
+          created = true;
+        }),
+      ).rejects.toThrow("a-invalid.md has no readable frontmatter id");
+      expect(created).toBe(false);
+      expect(reads).toHaveLength(16);
+      expect(reads.some((path) => path.endsWith("z-13.md"))).toBe(false);
+      expect(active).toBe(0);
+    } finally {
+      LocalFileStore.prototype.read = original;
+    }
+  });
+
   test("serializes simultaneous CLI creates across linked worktree processes", async () => {
     const { root } = await repository();
     const first = addWorktree(root, "worker-a");

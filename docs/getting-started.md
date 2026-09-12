@@ -11,7 +11,7 @@ bun add --global @gitdocket/cli @gitdocket/mcp
 docket --version
 ```
 
-The version command should report `0.1.1`. The package names live under the `@gitdocket` scope; the commands remain `docket` and `docket-mcp`.
+The version command should report `0.2.0`. The package names live under the `@gitdocket` scope; the commands remain `docket` and `docket-mcp`.
 
 ## 2. Initialize a project
 
@@ -25,16 +25,54 @@ Init is additive. It creates `docket.yaml`, a `docket/` bundle, portable agent i
 
 If existing Markdown lacks `type` frontmatter, init prints an adoption worklist with suggested types. Review that list, add only the correct metadata, run `docket index`, and commit the result. If the worklist is empty, init’s next step is simply to commit the new files.
 
-## 3. Orient and work
+## 3. Try a small epic with your agent
+
+Start in a scratch Git repository if you want to try the full loop before using
+it on your project. Install the native adapter for your agent:
 
 ```sh
-docket overview
-docket ready
-docket search "release gate"
-docket task start DEMO-3 --json
+docket init --agent codex
 ```
 
-Use an explicit task ID to pick up known tracked work. Bare task selection is reserved for an explicit request to choose the next backlog item.
+Use `--agent claude` for Claude Code; omit the flag for portable `AGENTS.md`
+guidance. Open the initialized repository in your coding agent and ask:
+
+> Create a “Welcome guide” epic with two dependent tasks: write a short
+> contributor guide, then link it from README. Give each task concrete
+> acceptance criteria. Run that epic through completion, verify the guide
+> and links, and reconcile the docs.
+
+The agent uses the checked-in workflows to create the epic and scoped tasks,
+select work whose dependencies are done, perform and verify changes, and update
+affected documentation. It reviews the overall epic before closing it and
+returns a completion receipt or a concrete blocker. You direct the work and
+review the result; this runs in the agent session, with that agent's permissions.
+
+Inspect the result:
+
+```sh
+docket task list --all
+docket ready
+```
+
+On a successful run, both child tasks and their epic are `done`; their Markdown
+contains checked criteria, an Outcome, and task-linked Git commits. Confirm the
+README link opens the guide and that the completion receipt explains its checks
+and documentation changes. If the agent reports a blocker, resolve the named
+issue before resuming the same epic.
+
+In a later session, ask “Where did we leave off?” The agent can read repository
+state and Git evidence without the previous conversation. A re-entry note is
+authored context and may need refreshing; current readiness comes from Docket.
+
+For an existing tracked item, use its real ID returned by `docket task list`:
+`docket task start <ID> --json`. Bare selection is reserved for an explicit
+request to choose the next backlog item. A new project has no pre-existing
+`DEMO-3` task.
+
+The [scripted Harbor demonstration](../site/demo/README.md) includes a repeatable
+CLI run and actual evidence. It illustrates the workflow; it is not a recording
+of autonomous agent execution.
 
 ## 4. Open the local interface
 

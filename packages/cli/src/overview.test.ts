@@ -322,6 +322,7 @@ describe("docket overview", () => {
       loose: null,
       git: {
         status: "history-unavailable",
+        historyComplete: false,
         checkpoint: null,
         activity: [],
         unmergedActivity: [],

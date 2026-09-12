@@ -11,6 +11,7 @@ import {
 import {
   ARTIFACT_SMOKE_CHECKS,
   defaultCommandRunner,
+  LEGACY_MCP_TOOLS,
   PUBLIC_RELEASE_CHECKS,
   parseStageReceipt,
   type StageReceipt,
@@ -187,7 +188,7 @@ async function receiptFixture(): Promise<{
         packageVersions: Object.fromEntries(
           packages.map((item) => [item.name, "0.2.0"]),
         ),
-        mcpTools: Array.from({ length: 9 }, (_, index) => `tool-${index}`),
+        mcpTools: [...LEGACY_MCP_TOOLS],
         serveStatus: 200,
       },
       approvalReady: true,
@@ -196,6 +197,20 @@ async function receiptFixture(): Promise<{
 }
 
 describe("stage receipt binding", () => {
+  test("accepts historical and additive MCP tools, rejects missing or duplicate capabilities", async () => {
+    const { receipt } = await receiptFixture();
+    expect(parseStageReceipt(receipt)).toEqual(receipt);
+    receipt.smoke.mcpTools.push("source_page");
+    expect(parseStageReceipt(receipt)).toEqual(receipt);
+    receipt.smoke.mcpTools.push("future_tool");
+    expect(parseStageReceipt(receipt)).toEqual(receipt);
+    receipt.smoke.mcpTools = receipt.smoke.mcpTools.filter(
+      (name) => name !== "ready",
+    );
+    expect(() => parseStageReceipt(receipt)).toThrow("schema 1");
+    receipt.smoke.mcpTools = [...LEGACY_MCP_TOOLS, "ready"];
+    expect(() => parseStageReceipt(receipt)).toThrow("schema 1");
+  });
   test("accepts and verifies an unchanged export state and tarball", async () => {
     const fixture = await receiptFixture();
     expect(parseStageReceipt(fixture.receipt)).toEqual(fixture.receipt);
@@ -269,7 +284,7 @@ describe("public gate runner", () => {
           packageVersions: Object.fromEntries(
             plan.packages.map((item) => [item.name, item.version]),
           ),
-          mcpTools: Array.from({ length: 9 }, (_, index) => `tool-${index}`),
+          mcpTools: [...LEGACY_MCP_TOOLS, "source_page"],
           serveStatus: 200,
         }),
       },

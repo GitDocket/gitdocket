@@ -73,7 +73,7 @@ const idNum = (id: string) => Number(id.split("-").pop());
 /** Filters AND together; free text matches id + title, case-insensitive. */
 export function applyList(
   rows: TaskRow[],
-  states: string[],
+  states: readonly string[],
   state: ListState,
 ): TaskRow[] {
   const q = state.q.trim().toLowerCase();

@@ -1,3 +1,5 @@
+import { recordWork } from "./work-metrics";
+
 // The task-profile state machine (docs/specs/okf-task-profile.md).
 
 export const STATES = [
@@ -80,6 +82,10 @@ export function isReady(
   dependsOn: readonly string[],
   statusById: ReadonlyMap<string, Status>,
 ): boolean {
+  recordWork("readyRow");
   if (status !== "todo") return false;
-  return dependsOn.every((id) => statusById.get(id) === "done");
+  return dependsOn.every((id) => {
+    recordWork("dependencyEdge");
+    return statusById.get(id) === "done";
+  });
 }

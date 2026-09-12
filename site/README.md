@@ -1,6 +1,7 @@
 # Website deployment
 
-The launch site is deliberately static. It has no package install, build step, server runtime, analytics, cookies, or third-party requests.
+The site is static: no package install, build step, server runtime, analytics,
+cookies, scripts, or third-party requests.
 
 For Cloudflare Pages:
 
@@ -10,10 +11,35 @@ For Cloudflare Pages:
 - Build output directory: `site`
 - Root directory: repository root
 
-Before production deployment, preview the exact public commit and verify `/`,
-`/styles.css`, `/favicon.svg`, and all four `/assets/product-*.jpg` showcase
-images return `200`; inspect desktop and narrow layouts; tab through every
-interactive element; and confirm the browser console has no errors or
-third-party network requests.
+The homepage keeps the pitch, current product UI, a short workflow, and the
+OKF v0.1 foundation. The Board screenshot expands on demand. Reference content
+lives on the site at `/docs/`, `/docs/cli/`, `/docs/mcp/`, and `/docs/api/`.
+Keep setup aligned with `docs/getting-started.md`; verify CLI examples against
+command help and MCP schemas against a real `tools/list` response.
 
-The owner completes the Cloudflare account/repository connection, authorizes production deployment, and configures the custom domain. After DNS is active, confirm Cloudflare’s universal certificate is issued, Always Use HTTPS is enabled, the apex redirects consistently if `www` is added, and the GitHub repository homepage matches the canonical HTTPS URL.
+`site/docs/mcp/tools.json` was captured from the development server on
+2026-09-12. It is a reference snapshot, not a promise that all installed
+versions expose the same tools. Example project IDs in descriptions are
+normalized to HBR/ADR. No published OpenAPI specification exists; the HTTP page
+identifies its routes as a small subset of the local UI implementation.
+
+The current Home and Board screenshots use a synthetic Harbor fixture and the
+current development UI. The fixture has an authored re-entry note and a short
+project introduction. Only JPEG compression was applied to native screenshots.
+Historical scripted demo evidence and replay instructions remain in `site/demo/`.
+Its original completed-epic image is historical run evidence, not a current UI
+showcase. The homepage and README use `current-home.jpg`.
+
+Before production deployment, preview the exact public commit. Verify all five
+HTML pages, stylesheet, favicon, current images, schema download, and demo links
+return 200. Check desktop and narrow layouts, keyboard navigation, the expandable
+Board, and the browser console. Confirm no third-party network requests.
+
+Add public files to `release/public-export.json`. Validate an exact committed
+snapshot from a clean source checkout with `bun run export-public`; a dirty
+development checkout is intentionally rejected.
+
+The owner completes the Cloudflare account/repository connection, authorizes
+production deployment, and configures the custom domain. After DNS is active,
+confirm certificate issuance, HTTPS, and canonical domain redirects. Package
+publication and production site deployment remain separately authorized actions.

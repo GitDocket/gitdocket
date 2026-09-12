@@ -20,6 +20,8 @@ export interface BoardState {
   tag: string;
   assignee: string;
   group: boolean; // group-by-epic swimlanes
+  visibility: "active" | "completed" | "all";
+  collapseEmpty: boolean;
 }
 
 export const DEFAULT_BOARD: BoardState = {
@@ -27,6 +29,8 @@ export const DEFAULT_BOARD: BoardState = {
   tag: "",
   assignee: "",
   group: false,
+  visibility: "active",
+  collapseEmpty: false,
 };
 
 export function parseBoardState(query: string): BoardState {
@@ -36,6 +40,13 @@ export function parseBoardState(query: string): BoardState {
     tag: p.get("tag") ?? "",
     assignee: p.get("assignee") ?? "",
     group: p.get("group") === "epic",
+    visibility:
+      p.get("view") === "completed"
+        ? "completed"
+        : p.get("view") === "all"
+          ? "all"
+          : "active",
+    collapseEmpty: p.get("empty") === "collapse",
   };
 }
 
@@ -46,6 +57,8 @@ export function boardStateQuery(state: BoardState): string {
   if (state.tag) p.set("tag", state.tag);
   if (state.assignee) p.set("assignee", state.assignee);
   if (state.group) p.set("group", "epic");
+  if (state.visibility !== "active") p.set("view", state.visibility);
+  if (state.collapseEmpty) p.set("empty", "collapse");
   return p.toString();
 }
 

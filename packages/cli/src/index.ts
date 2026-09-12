@@ -23,6 +23,7 @@ import {
   LocalFileStore,
   lintBundle,
   loadBundle,
+  loadMetadataBundle,
   type Priority,
   parseConfig,
   parseStateOfPlay,
@@ -30,22 +31,31 @@ import {
   readyWorkItems,
   renderIndex,
   STATE_OF_PLAY_PATH,
-  searchBundle,
+  searchFresh,
   setEpic,
   setPriority,
   setRank,
   setStatus,
+  sourcePage,
   verifyStatus,
   type WorkItem,
   type WorkItemType,
 } from "@gitdocket/core";
 import { scanActivity, taskLinkedCommitsSince } from "@gitdocket/core/cache";
 import { deriveRepositoryOverview } from "@gitdocket/core/orientation";
-import { Command } from "commander";
+import {
+  type Dimensions,
+  environmentAttribution,
+  type Operation,
+  observeOperation,
+  Telemetry,
+} from "@gitdocket/core/telemetry";
+import { Command, CommanderError } from "commander";
 import { trailerlessSince } from "./freshness";
 import { refreshIndex } from "./indexing";
 import { AGENT_TARGETS, type AgentTarget, runInit } from "./init";
 import { renderOverview } from "./overview";
+import { registerTelemetry } from "./telemetry";
 import { runUpgrade } from "./upgrade";
 import { scanRepoMarkers } from "./verify";
 
@@ -55,13 +65,24 @@ interface Ctx {
   idCoordinator: GitWorktreeIdCoordinator;
   config: DocketConfig;
   bundle: () => Promise<Bundle>;
+  metadata: (reuse?: boolean) => Promise<Bundle>;
 }
 
+let usageDimensions: Partial<Dimensions> = { indexState: "uninitialized" };
+let usageRoot: string | null | undefined;
+const measuredBundle = async (load: () => Promise<Bundle>) => {
+  const bundle = await load();
+  usageDimensions = {
+    indexState: "metadata",
+    concepts: bundle.concepts.length,
+  };
+  return bundle;
+};
+
 async function ctx(): Promise<Ctx> {
-  const root = await findRepoRoot(process.cwd());
+  const root = usageRoot ?? (await findRepoRoot(process.cwd()));
   if (!root) {
-    console.error("no docket.yaml found here or in any parent directory");
-    process.exit(1);
+    throw new Error("no docket.yaml found here or in any parent directory");
   }
   const config = parseConfig(await readFile(join(root, "docket.yaml"), "utf8"));
   const store = new LocalFileStore(join(root, config.bundle));
@@ -70,9 +91,29 @@ async function ctx(): Promise<Ctx> {
     store,
     idCoordinator: new GitWorktreeIdCoordinator(root),
     config,
-    bundle: () => loadBundle(store, config),
+    bundle: () => measuredBundle(() => loadBundle(store, config)),
+    metadata: (reuse = false) =>
+      measuredBundle(() => loadMetadataBundle(store, config, { cache: reuse })),
   };
 }
+
+const print = async (value: string): Promise<void> => {
+  const bytes = Buffer.from(`${value}\n`, "utf8");
+  for (let offset = 0; offset < bytes.length; offset += 65536) {
+    await new Promise<void>((resolve, reject) => {
+      process.stdout.write(bytes.subarray(offset, offset + 65536), (error) =>
+        error ? reject(error) : resolve(),
+      );
+    });
+  }
+};
+
+const integer = (value: string): number => {
+  const n = Number(value);
+  if (!Number.isSafeInteger(n) || n < 0)
+    throw new Error(`expected a nonnegative integer, got "${value}"`);
+  return n;
+};
 
 const row = (w: WorkItem): string =>
   [
@@ -95,43 +136,43 @@ const summarize = (w: WorkItem) => ({
 });
 
 const fail = (error: unknown): never => {
-  console.error(error instanceof Error ? error.message : String(error));
-  process.exit(1);
+  throw error;
 };
 
 const activeTaskPath = (root: string): string =>
   join(root, ".docket", "active-task");
 
 // One screenful: header lines for the structure, then the body verbatim.
-function printPacket(packet: ContextPacket): void {
+async function printPacket(packet: ContextPacket): Promise<void> {
   const { task, epic, deps, linked, commits } = packet;
-  console.log(`\n${task.fm.id} — ${task.fm.title ?? ""}`);
-  console.log(`${task.fm.status} · ${task.fm.priority ?? "p2"} · ${task.path}`);
+  await print(`\n${task.fm.id} — ${task.fm.title ?? ""}`);
+  await print(`${task.fm.status} · ${task.fm.priority ?? "p2"} · ${task.path}`);
   if (epic)
-    console.log(
+    await print(
       `epic: ${epic.id ?? epic.path} — ${epic.title ?? ""} (${epic.status ?? "?"})`,
     );
   if (deps.length > 0)
-    console.log(
+    await print(
       `deps: ${deps.map((d) => `${d.id} ${d.status ?? "missing!"}`).join(" · ")}`,
     );
-  console.log(`\n${task.body}`);
+  await print(`\n${task.body}`);
   if (linked.length > 0) {
-    console.log("\nlinked:");
+    await print("\nlinked:");
     for (const l of linked)
-      console.log(
+      await print(
         `  /${l.path} — ${[l.title, l.description].filter(Boolean).join(" — ")}`,
       );
   }
   if (commits.length > 0) {
-    console.log("\ncommits:");
+    await print("\ncommits:");
     for (const c of commits.slice(0, 10))
-      console.log(`  ${c.sha.slice(0, 7)} ${c.date.slice(0, 10)} ${c.subject}`);
-    if (commits.length > 10) console.log(`  … ${commits.length - 10} more`);
+      await print(`  ${c.sha.slice(0, 7)} ${c.date.slice(0, 10)} ${c.subject}`);
+    if (commits.length > 10) await print(`  … ${commits.length - 10} more`);
   }
 }
 
 const program = new Command();
+registerTelemetry(program, print);
 
 program
   .name("docket")
@@ -144,14 +185,15 @@ program
   .command("ready")
   .description(READY_QUEUE_DESCRIPTION)
   .option("--json", "machine-readable output")
-  .action(async (opts: { json?: boolean }) => {
-    const { bundle } = await ctx();
-    const b = await bundle();
-    const ready = readyWorkItems(b);
-    if (opts.json) console.log(JSON.stringify(ready.map(summarize), null, 2));
+  .option("--limit <n>", "return the first n ready tasks", integer)
+  .action(async (opts: { json?: boolean; limit?: number }) => {
+    const { metadata } = await ctx();
+    const b = await metadata();
+    const ready = readyWorkItems(b).slice(0, opts.limit);
+    if (opts.json) await print(JSON.stringify(ready.map(summarize), null, 2));
     else if (ready.length === 0)
-      console.log("nothing ready — check `docket task list --status blocked`");
-    else for (const w of ready) console.log(row(w));
+      await print("nothing ready — check `docket task list --status blocked`");
+    else for (const w of ready) await print(row(w));
   });
 
 program
@@ -159,8 +201,8 @@ program
   .description(docketIntent("orientation").discovery)
   .option("--json", "machine-readable output")
   .action(async (opts: { json?: boolean }) => {
-    const { root, store, config, bundle } = await ctx();
-    const b = await bundle();
+    const { root, store, config, metadata } = await ctx();
+    const b = await metadata();
     const result = await deriveRepositoryOverview({
       root,
       store,
@@ -168,7 +210,7 @@ program
       bundle: b,
     });
     const { narrative, git, ...model } = result;
-    console.log(
+    await print(
       opts.json
         ? JSON.stringify(result, null, 2)
         : renderOverview(model, narrative, git),
@@ -184,15 +226,15 @@ program
   .option("--limit <n>", "max hits after ranking", "20")
   .option("--json", "machine-readable output")
   .action(async (parts: string[], opts: { limit: string; json?: boolean }) => {
-    const { store, bundle } = await ctx();
-    const hits = await searchBundle(store, await bundle(), parts.join(" "), {
+    const { store, config } = await ctx();
+    const hits = await searchFresh(store, config, parts.join(" "), {
       limit: Number(opts.limit) || 20,
     });
-    if (opts.json) console.log(JSON.stringify(hits, null, 2));
-    else if (hits.length === 0) console.log("no hits");
+    if (opts.json) await print(JSON.stringify(hits, null, 2));
+    else if (hits.length === 0) await print("no hits");
     else
       for (const h of hits)
-        console.log(
+        await print(
           `${`${h.path}:${h.line}`.padEnd(52)} ${(h.id ?? "").padEnd(8)} ${h.text}`,
         );
   });
@@ -223,12 +265,12 @@ program
       verifyMarkers: await scanRepoMarkers(root, config, b),
     });
     const errors = diags.filter((d) => d.severity === "error").length;
-    if (opts.json) console.log(JSON.stringify(diags, null, 2));
-    else if (diags.length === 0) console.log("clean");
+    if (opts.json) await print(JSON.stringify(diags, null, 2));
+    else if (diags.length === 0) await print("clean");
     else
       for (const d of diags)
-        console.log(`${d.severity.padEnd(8)} ${d.path} — ${d.message}`);
-    if (errors > 0 || (opts.strict && diags.length > 0)) process.exit(1);
+        await print(`${d.severity.padEnd(8)} ${d.path} — ${d.message}`);
+    if (errors > 0 || (opts.strict && diags.length > 0)) process.exitCode = 1;
   });
 
 program
@@ -246,9 +288,10 @@ program
     if (opts.check) {
       if (next !== current) {
         console.error("index.md is stale — run `docket index`");
-        process.exit(1);
+        process.exitCode = 1;
+        return;
       }
-      console.log("index.md up to date");
+      await print("index.md up to date");
       return;
     }
 
@@ -256,7 +299,7 @@ program
     const verifyNote = config.verify
       ? `; ${result.verifyMarkerCount} verify marker(s)`
       : "";
-    console.log(
+    await print(
       `${result.indexChanged ? "index.md regenerated" : "index.md unchanged"}; cache rebuilt at .docket/cache.sqlite${verifyNote}`,
     );
   });
@@ -276,7 +319,7 @@ verify
   .action(async (opts: { json?: boolean }) => {
     const { root, config, bundle } = await ctx();
     if (!config.verify) {
-      console.log(
+      await print(
         "verify is not configured — add a `verify:` section with a `tests:` glob list to docket.yaml",
       );
       return;
@@ -284,17 +327,17 @@ verify
     const b = await bundle();
     const rows = verifyStatus(b, await scanRepoMarkers(root, config, b));
     if (opts.json) {
-      console.log(JSON.stringify(rows, null, 2));
+      await print(JSON.stringify(rows, null, 2));
       return;
     }
     if (rows.length === 0) {
-      console.log("no specs and no markers found");
+      await print("no specs and no markers found");
       return;
     }
     for (const r of rows) {
-      console.log(`/${r.spec} — ${r.title ?? r.type}`);
+      await print(`/${r.spec} — ${r.title ?? r.type}`);
       if (r.unverified) {
-        console.log("  ⚠ nothing verifies this");
+        await print("  ⚠ nothing verifies this");
         continue;
       }
       // Presence marks only: distinct source files, anchors noted.
@@ -309,7 +352,7 @@ verify
           anchors.length > 0
             ? ` (${anchors.map((a) => `#${a}`).join(", ")})`
             : "";
-        console.log(`  ✓ ${source}${note}`);
+        await print(`  ✓ ${source}${note}`);
       }
     }
   });
@@ -372,7 +415,7 @@ program
           agents,
         });
         if (opts.json) {
-          console.log(JSON.stringify(report, null, 2));
+          await print(JSON.stringify(report, null, 2));
           return;
         }
         for (const s of report.steps) {
@@ -381,7 +424,7 @@ program
             ...(s.gitignored ? ["gitignored — local only"] : []),
           ];
           const note = notes.length > 0 ? ` (${notes.join("; ")})` : "";
-          console.log(`${s.action.padEnd(7)} ${s.path}${note}`);
+          await print(`${s.action.padEnd(7)} ${s.path}${note}`);
         }
         if (
           report.steps.some(
@@ -392,23 +435,23 @@ program
               s.gitignored,
           )
         ) {
-          console.log(
+          await print(
             "\nwarning: this repo gitignores native agent adapter files, so they won't travel on clone. The tracked fallback still does: bundle workflows + AGENTS.md. Narrow the relevant ignore rules to share native adapters.",
           );
         }
         if (report.adopt.length > 0) {
-          console.log(
+          await print(
             `\n${report.adopt.length} existing file(s) lack \`type\` frontmatter — proposed types (agent: review and apply, never move files):`,
           );
           for (const a of report.adopt)
-            console.log(`  ${a.path} → type: ${a.proposedType}`);
+            await print(`  ${a.path} → type: ${a.proposedType}`);
         }
         if (agents.length === 0) {
-          console.log(
+          await print(
             "\nnative agent adapters skipped — rerun with --agent claude, --agent codex, or both",
           );
         }
-        console.log(
+        await print(
           report.adopt.length > 0
             ? "\nnext: review and apply the adoption worklist above, then commit the new files"
             : "\nnext: commit the new files",
@@ -438,10 +481,10 @@ program
           fileTask: opts.fileTask,
         });
         if (opts.json) {
-          console.log(JSON.stringify(report, null, 2));
+          await print(JSON.stringify(report, null, 2));
         } else {
           if (report.items.length === 0) {
-            console.log("nothing vendored here to upgrade");
+            await print("nothing vendored here to upgrade");
           }
           for (const item of report.items) {
             const note =
@@ -450,18 +493,18 @@ program
                 : item.action === "up-to-date"
                   ? (item.reason ?? report.available)
                   : `${item.from ?? "unversioned"} → ${report.available}`;
-            console.log(
+            await print(
               `${item.action.padEnd(12)} ${item.path}${note ? ` (${note})` : ""}`,
             );
           }
           if (report.conflicts.length > 0) {
-            console.log(
+            await print(
               `\n${report.conflicts.length} conflict(s) — resolve the markers, keeping local customizations where they still apply${report.filedTask ? ` (filed ${report.filedTask.id})` : ""}`,
             );
           }
-          if (report.dryRun) console.log("\ndry run — nothing written");
+          if (report.dryRun) await print("\ndry run — nothing written");
         }
-        if (report.conflicts.length > 0) process.exit(1);
+        if (report.conflicts.length > 0) process.exitCode = 1;
       } catch (error) {
         fail(error);
       }
@@ -492,13 +535,50 @@ program
       const modes = [opts.watch && "watch", opts.commit && "commit"]
         .filter(Boolean)
         .join(", ");
-      console.log(`docket serve → ${server.url}${modes ? ` (${modes})` : ""}`);
+      await print(`docket serve → ${server.url}${modes ? ` (${modes})` : ""}`);
     } catch (error) {
       fail(error);
     }
   });
 
 const task = program.command("task").description("work item operations");
+
+program
+  .command("source <path>")
+  .description(
+    "read an exact bounded Markdown page, including log.md, with source provenance",
+  )
+  .option(
+    "--cursor <json>",
+    "continuation cursor returned by the preceding page",
+  )
+  .option(
+    "--max-chars <n>",
+    "page size in UTF-16 units (maximum 32768)",
+    integer,
+  )
+  .option("--json", "machine-readable page and continuation cursor")
+  .action(
+    async (
+      path: string,
+      opts: { cursor?: string; maxChars?: number; json?: boolean },
+    ) => {
+      const { store } = await ctx();
+      // Resolve only an exact inventory member; never pass arbitrary paths to read.
+      if (!(await store.list()).includes(path))
+        throw new Error(`not found: ${path}`);
+      const page = sourcePage(new Map([[path, await store.read(path)]]), path, {
+        cursor: opts.cursor === undefined ? undefined : JSON.parse(opts.cursor),
+        maxChars: opts.maxChars,
+      });
+      if (!page) throw new Error(`not found: ${path}`);
+      await print(
+        opts.json
+          ? JSON.stringify(page, null, 2)
+          : `${path}:${page.startLine}-${page.endLine} (${page.sourceHash})\n${page.text}`,
+      );
+    },
+  );
 
 task
   .command("list")
@@ -509,6 +589,12 @@ task
   .option("--epic <id>", "filter by epic id")
   .option("--type <type>", "Task or Epic")
   .option("--all", "include done and closed items")
+  .option(
+    "--limit <n>",
+    "return at most n matching items (omit for full export)",
+    integer,
+  )
+  .option("--offset <n>", "skip n matching items", integer, 0)
   .option("--json", "machine-readable output")
   .action(
     async (opts: {
@@ -517,9 +603,11 @@ task
       type?: string;
       all?: boolean;
       json?: boolean;
+      limit?: number;
+      offset: number;
     }) => {
-      const { bundle } = await ctx();
-      const b = await bundle();
+      const { metadata } = await ctx();
+      const b = await metadata();
       let items = b.workItems;
       // History hides by default — it lives in git and the wiki.
       if (opts.status) items = items.filter((w) => w.fm.status === opts.status);
@@ -541,8 +629,12 @@ task
           .filter((w) => isTerminalStatus(w.fm.status))
           .sort((a, z) => ts(z).localeCompare(ts(a))),
       ];
-      if (opts.json) console.log(JSON.stringify(items.map(summarize), null, 2));
-      else for (const w of items) console.log(row(w));
+      items = items.slice(
+        opts.offset,
+        opts.limit === undefined ? undefined : opts.offset + opts.limit,
+      );
+      if (opts.json) await print(JSON.stringify(items.map(summarize), null, 2));
+      else for (const w of items) await print(row(w));
     },
   );
 
@@ -581,8 +673,8 @@ task
           },
           idCoordinator,
         );
-        if (opts.json) console.log(JSON.stringify(result, null, 2));
-        else console.log(`created ${result.id} at ${result.path}`);
+        if (opts.json) await print(JSON.stringify(result, null, 2));
+        else await print(`created ${result.id} at ${result.path}`);
       } catch (error) {
         fail(error);
       }
@@ -596,8 +688,8 @@ task
   )
   .option("--json", "machine-readable output")
   .action(async (given: string | undefined, opts: { json?: boolean }) => {
-    const { root, store, config, bundle } = await ctx();
-    const b = await bundle();
+    const { root, store, config, metadata } = await ctx();
+    const b = await metadata(true);
     let picked = false;
     let id = given;
     if (!id) {
@@ -606,7 +698,8 @@ task
         console.error(
           "nothing ready — no todo task has every dependency done; `docket task list` shows what's in flight or blocked",
         );
-        process.exit(1);
+        process.exitCode = 1;
+        return;
       }
       id = top.fm.id;
       picked = true;
@@ -625,7 +718,7 @@ task
       await mkdir(join(root, ".docket"), { recursive: true });
       await writeFile(activeTaskPath(root), `${item.fm.id}\n`, "utf8");
 
-      const fresh = await bundle();
+      const fresh = await metadata(true);
       const commits = scanActivity(root, config.git.trailer, fresh.byId)
         .filter((a) => a.taskId === item.fm.id)
         .map(({ sha, date, subject }) => ({ sha, date, subject }));
@@ -637,7 +730,7 @@ task
       );
 
       if (opts.json) {
-        console.log(
+        await print(
           JSON.stringify(
             {
               picked,
@@ -650,13 +743,13 @@ task
         );
         return;
       }
-      if (picked) console.log(`picked ${item.fm.id} — top of the ready list`);
-      console.log(
+      if (picked) await print(`picked ${item.fm.id} — top of the ready list`);
+      await print(
         already
           ? `${item.fm.id} is already in-progress — resuming (active task set)`
           : `${item.fm.id}: ${from} → in-progress (active task set)`,
       );
-      printPacket(packet);
+      await printPacket(packet);
     } catch (error) {
       fail(error);
     }
@@ -670,12 +763,12 @@ task
     const path = activeTaskPath(root);
     const current = await readFile(path, "utf8").catch(() => undefined);
     if (current === undefined) {
-      console.log("no active task");
+      await print("no active task");
       return;
     }
     await rm(path);
     const id = current.trim();
-    console.log(
+    await print(
       id
         ? `stopped ${id} — active task cleared, status untouched (finishing is \`docket task close\`)`
         : "active task cleared",
@@ -698,8 +791,8 @@ task
         const result = await setStatus(store, config, id, status, {
           note: opts.note,
         });
-        if (opts.json) console.log(JSON.stringify(result, null, 2));
-        else console.log(`${result.id}: ${result.from} → ${result.to}`);
+        if (opts.json) await print(JSON.stringify(result, null, 2));
+        else await print(`${result.id}: ${result.from} → ${result.to}`);
       } catch (error) {
         fail(error);
       }
@@ -773,8 +866,8 @@ task
           json.epic = { from: r.from, to: r.to };
           results.push(`epic ${r.from ?? "none"} → ${r.to ?? "none"}`);
         }
-        if (opts.json) console.log(JSON.stringify(json, null, 2));
-        else console.log(`${json.id}: ${results.join(", ")}`);
+        if (opts.json) await print(JSON.stringify(json, null, 2));
+        else await print(`${json.id}: ${results.join(", ")}`);
       } catch (error) {
         fail(error);
       }
@@ -809,13 +902,13 @@ task
         const result = await setStatus(store, config, id, to, {
           note: opts.note,
         });
-        if (opts.json) console.log(JSON.stringify(result, null, 2));
+        if (opts.json) await print(JSON.stringify(result, null, 2));
         else if (to === "closed")
-          console.log(
+          await print(
             `${result.id}: ${result.from} → closed — disposition recorded; acceptance criteria remain incomplete`,
           );
         else
-          console.log(
+          await print(
             `${result.id}: ${result.from} → done — now write the Outcome and reconcile docs`,
           );
       } catch (error) {
@@ -831,10 +924,69 @@ task
     const { store, config } = await ctx();
     try {
       const { path } = await appendLog(store, config, id, entry);
-      console.log(`logged to ${path}`);
+      await print(`logged to ${path}`);
     } catch (error) {
       fail(error);
     }
   });
 
-program.parse();
+// Only static command names reach telemetry. No argument values are retained.
+const cliOperations: Record<string, Operation> = {
+  ready: "ready",
+  overview: "overview",
+  search: "search",
+  source: "source_page",
+  lint: "lint",
+  index: "index",
+  verify: "verify",
+  init: "init",
+  upgrade: "upgrade",
+  freshness: "freshness",
+};
+const taskOperations: Record<string, Operation> = {
+  list: "task_list",
+  create: "task_create",
+  start: "task_start",
+  stop: "task_stop",
+  move: "set_status",
+  edit: "task_edit",
+  close: "task_close",
+  log: "append_log",
+};
+const args = process.argv.slice(2);
+const usageOperation =
+  args[0] === "task"
+    ? taskOperations[args[1] ?? ""]
+    : cliOperations[args[0] ?? ""];
+let telemetry: Telemetry | undefined;
+if (usageOperation && !args.includes("--help") && !args.includes("-h")) {
+  try {
+    usageRoot = await findRepoRoot(process.cwd());
+    if (usageRoot) telemetry = new Telemetry(usageRoot, "cli");
+  } catch {
+    /* Context errors are handled by the operation, not observation. */
+  }
+}
+program.exitOverride();
+try {
+  if (usageOperation)
+    await observeOperation(
+      telemetry,
+      usageOperation,
+      async () => {
+        await program.parseAsync();
+      },
+      {
+        dimensions: () => usageDimensions,
+        attribution: { ...environmentAttribution(), trigger: "explicit" },
+        resultError: () => (process.exitCode ? "validation" : "none"),
+      },
+    );
+  else await program.parseAsync();
+} catch (error) {
+  if (error instanceof CommanderError) process.exitCode = error.exitCode;
+  else {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
+  }
+}

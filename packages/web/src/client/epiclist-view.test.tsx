@@ -34,3 +34,19 @@ describe("EpicList", () => {
     expect(html.match(/needs cleanup/g)).toHaveLength(1);
   });
 });
+
+test("empty and mixed terminal epics keep completion claims precise", () => {
+  const html = renderToStaticMarkup(
+    <EpicList
+      epics={[
+        { ...row("DKT-3", false), total: 0, done: 0 },
+        { ...row("DKT-4", false), total: 3, done: 1, closed: 2 },
+      ]}
+      states={["todo", "done", "closed"]}
+    />,
+  );
+  expect(html).toContain("No child tasks yet");
+  expect(html).toContain("1 of 3 done");
+  expect(html).toContain(", 2 closed");
+  expect(html).not.toContain("reconcile DKT-4 status");
+});

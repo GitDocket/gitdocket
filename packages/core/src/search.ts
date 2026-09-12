@@ -4,13 +4,16 @@
 //
 // Search is the entry-point finder: queries are tokenized, terms
 // match anywhere in any order, and results come back best-first — more terms
-// matched beats fewer, title/id matches outweigh body matches. One hit per
+// matched beats fewer, title/id matches outweigh body matches. Exact ID/number
+// lookups take precedence over text ranking. Number-only queries select task
+// and epic ID prefixes, never incidental numbers in document text. One hit per
 // file, snippeted at its best-matching line. No index build, no dependencies;
 // same bundle + query always yields the same ordering.
 
 import type { Bundle } from "./bundle";
 import type { FileStore } from "./filestore";
 import { resolveLink } from "./lint";
+import type { Concept } from "./parse";
 
 /** A neighboring concept: identity only, never contents — hits stay compact. */
 export interface NeighborRef {
@@ -52,22 +55,43 @@ export async function searchBundle(
   store: FileStore,
   bundle: Bundle,
   query: string,
-  opts: { limit?: number } = {},
+  opts: { limit?: number; includeGraph?: boolean } = {},
 ): Promise<SearchHit[]> {
-  const terms = [...new Set(tokenize(query))];
+  // Resolve full, compact, or spaced IDs against actual concept identities.
+  // Reuse the canonical ID's terms so references still participate in search.
+  const lookup = query.trim().toLowerCase();
+  const compact = (s: string) => s.toLowerCase().replace(/[-\s]/g, "");
+  const canonicalId = bundle.concepts
+    .map((c) => c.fm.id)
+    .find((id) => typeof id === "string" && compact(id) === compact(lookup));
+  const terms = [
+    ...new Set(tokenize(typeof canonicalId === "string" ? canonicalId : query)),
+  ];
   if (terms.length === 0) return [];
   const limit = Math.max(1, opts.limit ?? 20);
+  const number = lookup.match(/^#?(\d+)$/)?.[1];
+  const exactPaths = new Set<string>();
 
   const byPath = new Map(bundle.concepts.map((c) => [c.path, c]));
   const allPaths = await store.list();
-  const exists = new Set(allPaths);
   const hits: SearchHit[] = [];
 
   for (const path of allPaths) {
-    const lines = (await store.read(path)).split("\n");
-    const lineTokens = lines.map(tokenize);
     const fm = byPath.get(path)?.fm;
     const id = typeof fm?.id === "string" ? fm.id : undefined;
+    const ticketNumber =
+      fm?.type === "Task" || fm?.type === "Epic"
+        ? id?.match(/-(\d+)$/)?.[1]
+        : undefined;
+    // Typing 246 narrows 24's results: only 246, 2460, etc. qualify,
+    // regardless of references, dates, or other numbers elsewhere in a file.
+    if (number && !ticketNumber?.startsWith(number)) continue;
+    const exactTicketNumber = number && ticketNumber === number;
+    if (id && (id === canonicalId || exactTicketNumber)) {
+      exactPaths.add(path);
+    }
+    const lines = (await store.read(path)).split("\n");
+    const lineTokens = lines.map(tokenize);
     const fieldTokens = tokenize(`${id ?? ""} ${fm?.title ?? ""}`);
 
     const matched = terms.filter(
@@ -102,21 +126,36 @@ export async function searchBundle(
     });
   }
 
-  // Best-first after the full scan: more terms, then weight, then path for
-  // a deterministic total order. Limit applies here, not during the scan.
+  // Exact identity first, then more terms, weight, and path for a deterministic
+  // total order. Limit applies here, not during the scan.
   hits.sort(
     (a, z) =>
+      Number(exactPaths.has(z.path)) - Number(exactPaths.has(a.path)) ||
       z.matched.length - a.matched.length ||
       z.score - a.score ||
       a.path.localeCompare(z.path),
   );
   const top = hits.slice(0, limit);
 
+  if (opts.includeGraph !== false)
+    attachSearchNeighborhoods(top, bundle.concepts, allPaths);
+  return top;
+}
+
+/** Enrich ranked hits from canonical parsed links, preserving source ordering. */
+export function attachSearchNeighborhoods(
+  top: SearchHit[],
+  concepts: readonly Concept[],
+  allPaths: readonly string[],
+): void {
+  const byPath = new Map(concepts.map((concept) => [concept.path, concept]));
+  const exists = new Set(allPaths);
+
   // Neighborhood: the hit is the foothold, its links are the map.
   // Derived from the same parse lint/index use — no second source of truth —
   // and only for the hits that survived ranking.
   const inbound = new Map<string, Set<string>>();
-  for (const c of bundle.concepts)
+  for (const c of concepts)
     for (const l of c.links) {
       if (!l.internal) continue;
       const to = resolveLink(c.path, l.target);
@@ -143,5 +182,4 @@ export async function searchBundle(
     hit.links = [...outbound].map(ref);
     hit.backlinks = [...(inbound.get(hit.path) ?? [])].sort().map(ref);
   }
-  return top;
 }

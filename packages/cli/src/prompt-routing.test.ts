@@ -138,6 +138,10 @@ describe("cross-harness prompt routing", () => {
         expect(claude).toContain(DOCKET_INTENTS.pickup.discovery);
         expect(codex).toContain(DOCKET_INTENTS.pickup.discovery);
         expect(claude).toContain("rename unsupported");
+        expect(codex).toContain("retained epic-manager identity");
+        expect(codex).toContain("same-epic or unrelated task pickup");
+        expect(codex).toContain("do not call `codex_app__set_thread_title`");
+        expect(codex).toContain("explicitly asks to repurpose this chat");
         expect(codex).toContain("codex_app__set_thread_title");
       } else if (workflow.slug === "docket-epic") {
         expect(claude).toContain("no verified native worker lifecycle binding");
@@ -147,6 +151,9 @@ describe("cross-harness prompt routing", () => {
         expect(codex).toContain("omit `threadId`");
         expect(codex).toContain("after every successful child pickup");
         expect(codex).toContain("before the completion or blocker receipt");
+        expect(codex).toContain("retained identity");
+        expect(codex).toContain("Keep the identity after completion");
+        expect(codex).toContain("later task pickup alone may not");
         expect(codex).toContain(
           "never apply the manager title to an isolated child",
         );

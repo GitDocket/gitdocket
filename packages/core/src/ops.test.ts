@@ -65,6 +65,37 @@ describe("createWorkItem", () => {
 });
 
 describe("setStatus", () => {
+  test("validates the exact source being written and writes the status plus note once", async () => {
+    const store = seed();
+    const read = store.read.bind(store);
+    let taskReads = 0;
+    store.read = async (path) => {
+      const source = await read(path);
+      if (path === "work/tasks/DKT-1-a.md" && ++taskReads === 2) {
+        const changed = source.replace("status: todo", "status: done");
+        await store.write(path, changed);
+        return changed;
+      }
+      return source;
+    };
+    await expect(
+      setStatus(store, config, "DKT-1", "in-progress"),
+    ).rejects.toThrow("invalid transition done");
+    const fresh = seed();
+    let writes = 0;
+    const write = fresh.write.bind(fresh);
+    fresh.write = async (path, source) => {
+      writes++;
+      await write(path, source);
+    };
+    await setStatus(fresh, config, "DKT-1", "in-progress", {
+      note: "One coherent write",
+    });
+    expect(writes).toBe(1);
+    expect(await fresh.read("work/tasks/DKT-1-a.md")).toContain(
+      "One coherent write",
+    );
+  });
   test("valid transition updates only the status and timestamp lines", async () => {
     const store = seed();
     const result = await setStatus(store, config, "DKT-1", "in-progress");

@@ -53,6 +53,19 @@ Spec again: [format](/specs/format.md). External: [okf](https://okf.md/). Broken
   );
 
 describe("buildContextPacket", () => {
+  test("rejects changed frontmatter instead of mixing it with the retained packet metadata", async () => {
+    const store = seed();
+    const bundle = await loadBundle(store, config);
+    const item = bundle.byId("DKT-3");
+    if (!item) throw new Error("missing fixture");
+    await store.write(
+      item.path,
+      (await store.read(item.path)).replace("status: todo", "status: done"),
+    );
+    await expect(buildContextPacket(store, bundle, "DKT-3")).rejects.toThrow(
+      "task changed or is invalid",
+    );
+  });
   test("assembles task, epic, deps, one-hop links, and commits", async () => {
     const store = seed();
     const bundle = await loadBundle(store, config);

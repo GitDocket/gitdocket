@@ -13,6 +13,7 @@ import type {
   Schemas,
   WorkItemFrontmatter,
 } from "./schema";
+import { recordWork } from "./work-metrics";
 
 export interface Link {
   /** Raw target as written: bundle-absolute (/specs/x.md), relative, or external URL. */
@@ -106,11 +107,37 @@ export function parseConcept(
   source: string,
   schemas: Schemas,
 ): { concept?: Concept; diagnostics: Diagnostic[] } {
-  const diagnostics: Diagnostic[] = [];
-  const tree = processor.parse(source);
-  const links = extractLinks(tree);
+  return parse(path, source, schemas, true);
+}
 
-  if (isReserved(path)) return { diagnostics };
+/** Frontmatter/summary projection for operations that never inspect links. */
+export function parseMetadataConcept(
+  path: string,
+  source: string,
+  schemas: Schemas,
+): { concept?: Concept; diagnostics: Diagnostic[] } {
+  return parse(path, source, schemas, false);
+}
+
+function parse(
+  path: string,
+  source: string,
+  schemas: Schemas,
+  includeLinks: boolean,
+): { concept?: Concept; diagnostics: Diagnostic[] } {
+  // Structural files have no concept or diagnostic contract. In particular,
+  // never build an unused Markdown tree for an ever-growing activity log.
+  if (isReserved(path)) return { diagnostics: [] };
+  recordWork("parse");
+  const diagnostics: Diagnostic[] = [];
+  // The canonical Markdown parser still recognizes the frontmatter. For the
+  // common LF-delimited form it needs only the prefix through the closing
+  // fence. Unusual/malformed delimiters retain the full parser fallback.
+  const end = source.startsWith("---\n") ? source.indexOf("\n---\n", 3) : -1;
+  const tree = processor.parse(
+    !includeLinks && end >= 0 ? source.slice(0, end + 5) : source,
+  );
+  const links = includeLinks ? extractLinks(tree) : [];
 
   const fmNode = tree.children[0];
   if (fmNode?.type !== "yaml") {

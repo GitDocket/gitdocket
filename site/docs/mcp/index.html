@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MCP &amp; workflows. — GitDocket</title>
+    <meta name="description" content="Connect an agent to narrow repository operations, then use the checked-in workflows to guide the work." />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="MCP &amp; workflows. — GitDocket" />
+    <meta property="og:description" content="Connect an agent to narrow repository operations, then use the checked-in workflows to guide the work." />
+    <meta property="og:image" content="https://gitdocket.com/assets/current-home.jpg" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="shell nav">
+      <a class="brand" href="/" aria-label="GitDocket home"><span class="mark" aria-hidden="true">GD</span>GitDocket</a>
+      <nav aria-label="Primary navigation"><a href="/#product">Product</a><a href="/#workflow">Workflow</a><a href="/docs/">Docs</a><a href="https://github.com/GitDocket/gitdocket">GitHub</a></nav>
+    </header>
+    <div class="shell docs-layout">
+      <aside class="docs-sidebar"><p class="eyebrow">Reference</p><nav aria-label="Documentation"><a href="/docs/">Get started</a><a href="/docs/cli/">CLI commands</a><a href="/docs/mcp/" aria-current="page">MCP & workflows</a><a href="/docs/api/">Local HTTP reference</a></nav></aside>
+      <main class="docs-content" id="main" tabindex="-1"><p class="eyebrow">GitDocket docs</p><h1>MCP &amp; workflows.</h1><p class="doc-lede">Connect an agent to narrow repository operations, then use the checked-in workflows to guide the work.</p>
+        <section aria-labelledby="connect"><h2 id="connect">Connect over stdio</h2><p>The <code>@gitdocket/mcp</code> package installs <code>docket-mcp</code>. Configure your MCP client to launch that command with the project repository as its working directory. It resolves the nearest <code>docket.yaml</code>. There is no HTTP MCP endpoint.</p><p>For supported coding agents, <code>docket init --agent codex</code> or <code>docket init --agent claude</code> installs the native integration. Other clients use their own stdio server configuration.</p></section>
+        <section aria-labelledby="tools"><h2 id="tools">The tool surface</h2><p>These ten tools are captured from the 0.2.0 server. <a href="/docs/mcp/tools.json">Download the input schemas (JSON)</a>, or request <code>tools/list</code> from your installed server for its exact contract.</p>
+<div class="table-wrap"><table><thead><tr><th>Tool</th><th>Required input</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><code>overview</code></td><td>None</td><td>Project orientation.</td></tr>
+<tr><td><code>ready</code></td><td>None</td><td>Ready work; optional limit.</td></tr>
+<tr><td><code>task_list</code></td><td>None</td><td>Work items with status/type filters and pagination.</td></tr>
+<tr><td><code>task_get</code></td><td><code>id</code></td><td>Full task or epic source.</td></tr>
+<tr><td><code>search</code></td><td><code>query</code></td><td>Ranked bundle search.</td></tr>
+<tr><td><code>source_page</code></td><td><code>path</code></td><td>Bounded source with a continuation cursor.</td></tr>
+<tr><td><code>lint</code></td><td>None</td><td>Bundle diagnostics.</td></tr>
+<tr><td><code>task_create</code></td><td><code>title</code></td><td>Create a task or epic; writes files.</td></tr>
+<tr><td><code>set_status</code></td><td><code>id</code>, <code>to</code></td><td>Change stored status; writes files.</td></tr>
+<tr><td><code>append_log</code></td><td><code>id</code>, <code>entry</code></td><td>Append a dated work note; writes files.</td></tr>
+</tbody></table></div></section>
+        <section aria-labelledby="orientation"><h2 id="orientation">Workflow: get oriented</h2><p>Start with <code>overview</code>. If you need the ready queue, call <code>ready</code>, then inspect a returned ID with <code>task_get</code>. Reading status does not start work.</p>
+<pre><code>overview    {}
+ready       {"limit": 5}
+task_get    {"id": "HBR-4"}</code></pre><p>Examples show tool names and argument objects, not shell commands. <code>HBR-4</code> belongs to the synthetic demo; use an ID from your own repository.</p></section>
+        <section aria-labelledby="epic"><h2 id="epic">Workflow: run a named epic</h2><p>Ask your agent to run an existing epic through completion. It reads the epic and the repository’s procedure, then works through eligible children, verifies results, and reconciles affected docs.</p>
+<pre><code>task_get     {"id": "HBR-1"}
+source_page  {"path": "workflows/docket-epic.md"}</code></pre><p>If the source is paged, pass the returned <code>nextCursor</code> as <code>cursor</code> with the same path until the procedure is complete. A stale cursor requires restarting the read.</p><p>The agent also needs repository editing, Git, and CLI tools. MCP does not itself run an epic. Tracked pickup uses <code>docket task start &lt;ID&gt;</code>; closure follows the close workflow and <code>docket task close &lt;ID&gt;</code>. <code>set_status</code> alone does not perform those procedures.</p></section>
+        <section aria-labelledby="handoff"><h2 id="handoff">Workflow: leave a useful handoff</h2><p>After verifying a change, reconcile the docs and record the outcome with linked commits. Use <code>append_log</code> for a dated note and <code>lint</code> to check the bundle. A new session can use <code>overview</code> and source reads to recover the next step.</p></section>
+        <section class="reference-note" aria-labelledby="demo"><p class="eyebrow">Inspectable example</p><h2 id="demo">The Harbor welcome guide</h2><p>A script executed a two-task epic with the real CLI: write a contributor guide, then link it from README and update onboarding. Both tasks and the epic completed; a feedback task became ready next.</p><p>The run checked headings, links, recorded Outcomes, and bundle lint. A fresh reader recovered the result from a clean clone. This is a synthetic, scripted example—not a captured agent conversation.</p><ul><li><a href="/demo/receipt.json">Actual command evidence</a></li><li><a href="/demo/handoff.md">Fresh-reader handoff</a></li><li><a href="/demo/README.md">Replay instructions</a></li><li><a href="/demo/welcome.md">Resulting guide</a> and <a href="/demo/onboarding.md">updated onboarding</a></li></ul></section></main>
+    </div>
+    <footer class="shell footer"><a class="brand" href="/">GitDocket</a><p>Project knowledge and work, together in Git.</p><a href="https://github.com/GitDocket/gitdocket">Source on GitHub ↗</a></footer>
+  </body>
+</html>

@@ -26,6 +26,32 @@ import {
 } from "./release-contract";
 
 export const STAGE_SCHEMA = 1 as const;
+// Schema-1 receipts from releases before source paging remain valid. New
+// package smoke must expose the current contract; additive tools are allowed.
+export const LEGACY_MCP_TOOLS = [
+  "append_log",
+  "lint",
+  "overview",
+  "ready",
+  "search",
+  "set_status",
+  "task_create",
+  "task_get",
+  "task_list",
+] as const;
+export const REQUIRED_MCP_TOOLS = [...LEGACY_MCP_TOOLS, "source_page"] as const;
+
+function hasMcpTools(
+  value: unknown,
+  required: readonly string[],
+): value is string[] {
+  return (
+    Array.isArray(value) &&
+    value.every((name) => typeof name === "string" && name.length > 0) &&
+    new Set(value).size === value.length &&
+    required.every((name) => value.includes(name))
+  );
+}
 export const PUBLIC_RELEASE_CHECKS = [
   "bun install --frozen-lockfile",
   "bunx biome ci .",
@@ -293,8 +319,10 @@ async function smokeMcp(mcp: string, project: string): Promise<string[]> {
       .map((tool) => tool.name)
       .filter((name): name is string => typeof name === "string")
       .sort();
-    if (tools.length !== 9) {
-      throw new Error(`docket-mcp exposed ${tools.length} tools, expected 9`);
+    if (!hasMcpTools(tools, REQUIRED_MCP_TOOLS)) {
+      throw new Error(
+        `docket-mcp tool contract mismatch: ${JSON.stringify(tools)}; required ${JSON.stringify(REQUIRED_MCP_TOOLS)}`,
+      );
     }
     return tools;
   } catch (error) {
@@ -470,8 +498,7 @@ export function parseStageReceipt(value: unknown): StageReceipt {
     JSON.stringify(receipt.smoke.checks) !==
       JSON.stringify(ARTIFACT_SMOKE_CHECKS) ||
     receipt.smoke.serveStatus !== 200 ||
-    !Array.isArray(receipt.smoke.mcpTools) ||
-    receipt.smoke.mcpTools.length !== 9 ||
+    !hasMcpTools(receipt.smoke.mcpTools, LEGACY_MCP_TOOLS) ||
     receipt.approvalReady !== true
   ) {
     throw new Error("stage receipt violates schema 1");

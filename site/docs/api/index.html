@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Local HTTP reference. — GitDocket</title>
+    <meta name="description" content="A small reference for the browser preview’s read routes. For automation, start with the CLI or MCP tools." />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Local HTTP reference. — GitDocket" />
+    <meta property="og:description" content="A small reference for the browser preview’s read routes. For automation, start with the CLI or MCP tools." />
+    <meta property="og:image" content="https://gitdocket.com/assets/current-home.jpg" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="shell nav">
+      <a class="brand" href="/" aria-label="GitDocket home"><span class="mark" aria-hidden="true">GD</span>GitDocket</a>
+      <nav aria-label="Primary navigation"><a href="/#product">Product</a><a href="/#workflow">Workflow</a><a href="/docs/">Docs</a><a href="https://github.com/GitDocket/gitdocket">GitHub</a></nav>
+    </header>
+    <div class="shell docs-layout">
+      <aside class="docs-sidebar"><p class="eyebrow">Reference</p><nav aria-label="Documentation"><a href="/docs/">Get started</a><a href="/docs/cli/">CLI commands</a><a href="/docs/mcp/">MCP & workflows</a><a href="/docs/api/" aria-current="page">Local HTTP reference</a></nav></aside>
+      <main class="docs-content" id="main" tabindex="-1"><p class="eyebrow">GitDocket docs</p><h1>Local HTTP reference.</h1><p class="doc-lede">A small reference for the browser preview’s read routes. For automation, start with the CLI or MCP tools.</p>
+        <section aria-labelledby="scope"><h2 id="scope">What exists</h2><p>Docket has no published OpenAPI specification. <code>docket serve</code> exposes a local HTTP surface used by its browser UI. These are current implementation routes, not a versioned public service contract.</p><p>The <a href="/docs/mcp/tools.json">MCP input schemas</a> are the available machine-readable tool reference. For HTTP inspection, use the loopback URL printed by Serve on your own computer.</p></section>
+        <section aria-labelledby="routes"><h2 id="routes">Useful read routes</h2><p>All routes below use <code>GET</code>. Task, epic, document, and search responses include a <code>page</code> object. The board keeps pagination inside its columns.</p>
+<div class="table-wrap"><table><thead><tr><th>Route</th><th>Returns</th></tr></thead><tbody>
+<tr><td><code>/api/nav?summary=1</code></td><td>Navigation summary.</td></tr>
+<tr><td><code>/api/home?briefing=1</code></td><td>Home briefing.</td></tr>
+<tr><td><code>/api/tasks?page=1&amp;limit=20</code></td><td>Paginated work items.</td></tr>
+<tr><td><code>/api/board?page=1</code></td><td>Work grouped by state.</td></tr>
+<tr><td><code>/api/epics?page=1</code></td><td>Epic rollups.</td></tr>
+<tr><td><code>/api/docs?page=1</code></td><td>Document inventory.</td></tr>
+<tr><td><code>/api/search?q=welcome&amp;page=1&amp;limit=10</code></td><td>Ranked search hits.</td></tr>
+<tr><td><code>/api/source/reference/welcome.md</code></td><td>A bounded Markdown source page.</td></tr>
+</tbody></table></div><p>The source example exists in the Harbor demo. Use an exact path from your own bundle inventory. Source responses include a hash and may include a continuation cursor; unknown paths return 404 and stale cursors return 409.</p></section>
+        <section aria-labelledby="example"><h2 id="example">Try a read</h2><p>Start the local server on an available port, then query it from a second terminal:</p>
+<pre><code>docket serve --port 4111</code></pre>
+<pre><code>curl 'http://127.0.0.1:4111/api/tasks?page=1&amp;limit=20'</code></pre><p>Serve binds to loopback and checks the request host and origin. It has no remote authentication layer; it is intended for same-computer use. This page covers a small read subset. Use the <a href="/docs/cli/">CLI</a> or <a href="/docs/mcp/">MCP operations</a> for documented task mutations.</p></section></main>
+    </div>
+    <footer class="shell footer"><a class="brand" href="/">GitDocket</a><p>Project knowledge and work, together in Git.</p><a href="https://github.com/GitDocket/gitdocket">Source on GitHub ↗</a></footer>
+  </body>
+</html>

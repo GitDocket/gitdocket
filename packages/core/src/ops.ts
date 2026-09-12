@@ -4,11 +4,13 @@
 // formatting and comments survive.
 
 import { stringify as stringifyYaml } from "yaml";
-import { type Bundle, loadBundle } from "./bundle";
+import { type Bundle, loadMetadataBundle } from "./bundle";
 import type { DocketConfig } from "./config";
 import type { FileStore } from "./filestore";
 import type { WorkItemIdCoordinator } from "./id-allocation";
 import { resolveLink } from "./lint";
+import { parseMetadataConcept } from "./parse";
+import { buildSchemas } from "./schema";
 import {
   canTransition,
   isPriority,
@@ -62,7 +64,11 @@ export function nextId(
 const yamlLine = (key: string, value: unknown): string =>
   stringifyYaml({ [key]: value }).trimEnd();
 
-export async function createWorkItem(
+export const createWorkItem = (
+  ...args: Parameters<typeof createWorkItemUnlocked>
+) => mutate(args[0], () => createWorkItemUnlocked(...args));
+
+async function createWorkItemUnlocked(
   store: FileStore,
   config: DocketConfig,
   input: CreateInput,
@@ -73,7 +79,7 @@ export async function createWorkItem(
   ): Promise<{ id: string; path: string }> => {
     // Load inside the coordination boundary: another caller may have created
     // an item while this process waited for the shared lock.
-    const bundle = await loadBundle(store, config);
+    const bundle = await loadMetadataBundle(store, config);
     const id = nextId(bundle, knownIds);
     if (bundle.byId(id) || knownIds.has(id))
       throw new Error(`id collision on ${id} — bundle has duplicate ids?`);
@@ -122,7 +128,34 @@ function splitFrontmatter(source: string): { fm: string; rest: string } {
   return { fm: match[0], rest: source.slice(match[0].length) };
 }
 
-export async function setStatus(
+async function readResolved(
+  store: FileStore,
+  config: DocketConfig,
+  id: string,
+) {
+  const bundle = await loadMetadataBundle(store, config);
+  const resolved = bundle.byId(id);
+  if (!resolved) return { bundle, item: undefined, source: "" };
+  const source = await store.read(resolved.path);
+  const parsed = parseMetadataConcept(
+    resolved.path,
+    source,
+    buildSchemas(config),
+  ).concept;
+  if (
+    !parsed ||
+    parsed.kind === "generic" ||
+    parsed.fm.id !== resolved.fm.id ||
+    ![parsed.fm.id, ...parsed.fm.aliases].includes(id)
+  )
+    throw new Error(`item changed or is invalid; retry lookup: ${id}`);
+  return { bundle, item: parsed, source };
+}
+
+export const setStatus = (...args: Parameters<typeof setStatusUnlocked>) =>
+  mutate(args[0], () => setStatusUnlocked(...args));
+
+async function setStatusUnlocked(
   store: FileStore,
   config: DocketConfig,
   id: string,
@@ -133,8 +166,7 @@ export async function setStatus(
   if (to === "closed" && !opts.note?.trim()) {
     throw new Error("closing without completion requires a disposition note");
   }
-  const bundle = await loadBundle(store, config);
-  const item = bundle.byId(id);
+  const { item, source } = await readResolved(store, config, id);
   if (item?.kind !== "work") throw new Error(`no work item with id ${id}`);
 
   const from = item.fm.status;
@@ -143,17 +175,17 @@ export async function setStatus(
     throw new Error(`invalid transition ${from} → ${to} for ${item.fm.id}`);
   }
 
-  const source = await store.read(item.path);
   const { fm, rest } = splitFrontmatter(source);
   let updated = fm.replace(/^status:.*$/m, `status: ${to}`);
   const stamp = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
   if (/^timestamp:.*$/m.test(updated)) {
     updated = updated.replace(/^timestamp:.*$/m, `timestamp: ${stamp}`);
   }
-  await store.write(item.path, updated + rest);
-
-  if (opts.note?.trim())
-    await appendLog(store, config, item.fm.id, opts.note.trim());
+  const content = updated + rest;
+  await store.write(
+    item.path,
+    opts.note?.trim() ? withLogEntry(content, opts.note.trim()) : content,
+  );
   return { id: item.fm.id, path: item.path, from, to };
 }
 
@@ -183,21 +215,22 @@ function upsertFmLine(
   throw new Error(`no anchor line to place ${key}: after`);
 }
 
-export async function setPriority(
+export const setPriority = (...args: Parameters<typeof setPriorityUnlocked>) =>
+  mutate(args[0], () => setPriorityUnlocked(...args));
+
+async function setPriorityUnlocked(
   store: FileStore,
   config: DocketConfig,
   id: string,
   to: string,
 ): Promise<{ id: string; path: string; from: Priority; to: Priority }> {
   if (!isPriority(to)) throw new Error(`unknown priority "${to}"`);
-  const bundle = await loadBundle(store, config);
-  const item = bundle.byId(id);
+  const { item, source } = await readResolved(store, config, id);
   if (item?.kind !== "work") throw new Error(`no work item with id ${id}`);
 
   const from = item.fm.priority ?? "p2";
   if (from === to) throw new Error(`${item.fm.id} is already ${to}`);
 
-  const source = await store.read(item.path);
   const { fm, rest } = splitFrontmatter(source);
   // No timestamp bump: timestamp marks status transitions (the epic lists
   // order on it); a priority tweak shouldn't reshuffle those.
@@ -213,7 +246,10 @@ export async function setPriority(
 // Rank is the manual within-lane order: one global number per task,
 // lower first, decimals allowed so an insert between neighbors takes the
 // midpoint and touches only the moved task's file. Unranked sorts last.
-export async function setRank(
+export const setRank = (...args: Parameters<typeof setRankUnlocked>) =>
+  mutate(args[0], () => setRankUnlocked(...args));
+
+async function setRankUnlocked(
   store: FileStore,
   config: DocketConfig,
   id: string,
@@ -226,8 +262,7 @@ export async function setRank(
 }> {
   if (to !== null && !Number.isFinite(to))
     throw new Error(`rank must be a finite number, got ${to}`);
-  const bundle = await loadBundle(store, config);
-  const item = bundle.byId(id);
+  const { item, source } = await readResolved(store, config, id);
   if (item?.kind !== "work") throw new Error(`no work item with id ${id}`);
   if (item.fm.type === "Epic")
     throw new Error(`${item.fm.id} is an epic — rank orders tasks`);
@@ -236,7 +271,6 @@ export async function setRank(
   if (from === to)
     throw new Error(`${item.fm.id} rank is already ${to ?? "unset"}`);
 
-  const source = await store.read(item.path);
   const { fm, rest } = splitFrontmatter(source);
   // No timestamp bump — same reasoning as priority: reordering a lane
   // shouldn't reshuffle the activity-ordered lists.
@@ -250,7 +284,10 @@ export async function setRank(
   return { id: item.fm.id, path: item.path, from, to };
 }
 
-export async function setEpic(
+export const setEpic = (...args: Parameters<typeof setEpicUnlocked>) =>
+  mutate(args[0], () => setEpicUnlocked(...args));
+
+async function setEpicUnlocked(
   store: FileStore,
   config: DocketConfig,
   id: string,
@@ -261,8 +298,7 @@ export async function setEpic(
   from: string | null;
   to: string | null;
 }> {
-  const bundle = await loadBundle(store, config);
-  const item = bundle.byId(id);
+  const { bundle, item, source } = await readResolved(store, config, id);
   if (item?.kind !== "work") throw new Error(`no work item with id ${id}`);
   if (item.fm.type === "Epic")
     throw new Error(`${item.fm.id} is an epic — epics don't nest`);
@@ -282,7 +318,6 @@ export async function setEpic(
   if (from === link)
     throw new Error(`${item.fm.id} epic is already ${link ?? "unset"}`);
 
-  const source = await store.read(item.path);
   const { fm, rest } = splitFrontmatter(source);
   const updated = upsertFmLine(
     fm,
@@ -295,26 +330,45 @@ export async function setEpic(
 }
 
 /** Insert a dated entry directly under `# Log` (newest first), creating the section if needed. */
-export async function appendLog(
+export const appendLog = (...args: Parameters<typeof appendLogUnlocked>) =>
+  mutate(args[0], () => appendLogUnlocked(...args));
+
+async function appendLogUnlocked(
   store: FileStore,
   config: DocketConfig,
   id: string,
   entry: string,
 ): Promise<{ path: string }> {
-  const bundle = await loadBundle(store, config);
-  const item = bundle.byId(id);
+  const { item, source } = await readResolved(store, config, id);
   if (!item) throw new Error(`no item with id ${id}`);
 
+  await store.write(item.path, withLogEntry(source, entry));
+  return { path: item.path };
+}
+
+function withLogEntry(source: string, entry: string): string {
   const date = new Date().toISOString().slice(0, 10);
   const line = `**${date}** — ${entry}`;
-  const source = await store.read(item.path);
 
   // Consume the blank lines after the heading and re-emit them around the new
   // entry, so consecutive entries stay separated by exactly one blank line.
-  const updated = /^# Log\s*$/m.test(source)
+  return /^# Log\s*$/m.test(source)
     ? `${source.replace(/^# Log[ \t]*\n*/m, `# Log\n\n${line}\n\n`).trimEnd()}\n`
     : `${source.trimEnd()}\n\n# Log\n\n${line}\n`;
+}
 
-  await store.write(item.path, updated);
-  return { path: item.path };
+// Hosted stores can supply their own transaction boundary. The fallback
+// serializes shared in-process stores; LocalFileStore also coordinates processes.
+const mutationQueues = new WeakMap<FileStore, Promise<void>>();
+function mutate<T>(store: FileStore, operation: () => Promise<T>): Promise<T> {
+  if (store.withMutation) return store.withMutation(operation);
+  const next = (mutationQueues.get(store) ?? Promise.resolve()).then(operation);
+  mutationQueues.set(
+    store,
+    next.then(
+      () => {},
+      () => {},
+    ),
+  );
+  return next;
 }

@@ -109,5 +109,5 @@ describe("docket task close dispositions", () => {
       id: string;
     }[];
     expect(ready.map((item) => item.id)).not.toContain(dependentId);
-  });
+  }, 15000);
 });

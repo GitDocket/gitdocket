@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CLI commands. — GitDocket</title>
+    <meta name="description" content="A short reference for working from the terminal. Run commands inside your initialized repository." />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="CLI commands. — GitDocket" />
+    <meta property="og:description" content="A short reference for working from the terminal. Run commands inside your initialized repository." />
+    <meta property="og:image" content="https://gitdocket.com/assets/current-home.jpg" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="shell nav">
+      <a class="brand" href="/" aria-label="GitDocket home"><span class="mark" aria-hidden="true">GD</span>GitDocket</a>
+      <nav aria-label="Primary navigation"><a href="/#product">Product</a><a href="/#workflow">Workflow</a><a href="/docs/">Docs</a><a href="https://github.com/GitDocket/gitdocket">GitHub</a></nav>
+    </header>
+    <div class="shell docs-layout">
+      <aside class="docs-sidebar"><p class="eyebrow">Reference</p><nav aria-label="Documentation"><a href="/docs/">Get started</a><a href="/docs/cli/" aria-current="page">CLI commands</a><a href="/docs/mcp/">MCP & workflows</a><a href="/docs/api/">Local HTTP reference</a></nav></aside>
+      <main class="docs-content" id="main" tabindex="-1"><p class="eyebrow">GitDocket docs</p><h1>CLI commands.</h1><p class="doc-lede">A short reference for working from the terminal. Run commands inside your initialized repository.</p>
+        <section aria-labelledby="read"><h2 id="read">Find the context</h2><div class="table-wrap"><table><thead><tr><th>Command</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><code>docket overview --json</code></td><td>Read the project briefing, active work, and next frontier.</td></tr>
+<tr><td><code>docket ready --json</code></td><td>Find todo tasks whose dependencies are done.</td></tr>
+<tr><td><code>docket task list --all</code></td><td>List tracked work, including done and closed items.</td></tr>
+<tr><td><code>docket search "welcome guide"</code></td><td>Search the Markdown bundle.</td></tr>
+<tr><td><code>docket source workflows/docket-epic.md</code></td><td>Read a bounded page of an exact bundle source path.</td></tr>
+</tbody></table></div></section>
+        <section aria-labelledby="work"><h2 id="work">Manage tracked work</h2><p>Replace <code>&lt;ID&gt;</code> with a real ID from your task list. Use the checked-in pickup and close workflows for implementation, verification, and documentation reconciliation.</p>
+<div class="table-wrap"><table><thead><tr><th>Command</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><code>docket task create --title "Write the guide"</code></td><td>Create a task with a generated ID.</td></tr>
+<tr><td><code>docket task start &lt;ID&gt; --json</code></td><td>Start selected work and return its context packet.</td></tr>
+<tr><td><code>docket task log &lt;ID&gt; "Verified the guide links"</code></td><td>Record a dated work note.</td></tr>
+<tr><td><code>docket task move &lt;ID&gt; review</code></td><td>Change stored status through the state machine.</td></tr>
+<tr><td><code>docket task edit &lt;ID&gt; --priority p1</code></td><td>Update a task’s fields.</td></tr>
+<tr><td><code>docket task stop</code></td><td>Clear the active task; its status stays unchanged.</td></tr>
+<tr><td><code>docket task close &lt;ID&gt;</code></td><td>Complete the item after the close workflow’s checks.</td></tr>
+</tbody></table></div><p>To close without completion, use <code>docket task close &lt;ID&gt; --without-completion --note "Reason"</code>. Closing state alone is not evidence that the work was verified.</p></section>
+        <section aria-labelledby="maintain"><h2 id="maintain">Maintain &amp; browse</h2><div class="table-wrap"><table><thead><tr><th>Command</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><code>docket init --agent codex</code></td><td>Initialize a project and install an optional native adapter.</td></tr>
+<tr><td><code>docket lint</code></td><td>Check schema, links, and workflow hygiene.</td></tr>
+<tr><td><code>docket index</code></td><td>Regenerate the index and cache after direct Markdown edits.</td></tr>
+<tr><td><code>docket verify status</code></td><td>Inspect spec-to-test linkage; this does not run tests.</td></tr>
+<tr><td><code>docket upgrade</code></td><td>Merge updates to vendored workflows and regenerate adapters.</td></tr>
+<tr><td><code>docket serve</code></td><td>Open the browser interface on this computer.</td></tr>
+</tbody></table></div><p>Use <code>docket --help</code> or <code>docket task create --help</code> for the exact flags in your installed version. Add <code>--json</code> where supported for programmatic output. This reference includes the 0.2.0 CLI; installed release capabilities can differ.</p></section>        <section aria-labelledby="telemetry"><h2 id="telemetry">Local telemetry</h2><p>Telemetry is off by default and requires enrollment per checkout. Observations stay outside your repository on this computer; Docket never uploads them. Document contents, prompts, search terms, and file paths are excluded.</p>
+<pre><code>docket telemetry status
+docket telemetry enable
+docket telemetry report
+docket telemetry disable
+docket telemetry delete</code></pre><p><code>report</code> summarizes observed operation counts, latency, errors, and sampled runtime memory. <code>disable</code> stops collection; <code>delete</code> removes this checkout’s enrollment and retained observations. Reports you export yourself remain yours to manage.</p></section>
+</main>
+    </div>
+    <footer class="shell footer"><a class="brand" href="/">GitDocket</a><p>Project knowledge and work, together in Git.</p><a href="https://github.com/GitDocket/gitdocket">Source on GitHub ↗</a></footer>
+  </body>
+</html>

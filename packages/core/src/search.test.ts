@@ -79,6 +79,107 @@ describe("searchBundle", () => {
     expect(hits[0]?.path).toBe("work/tasks/DKT-1-a.md");
   });
 
+  test("exact ticket lookups beat numeric prefixes, title matches, and references before limiting", async () => {
+    const store = new InMemoryFileStore(
+      new Map([
+        [
+          "work/epics/longer.md",
+          "---\ntype: Epic\ntitle: Longer ID\nid: DKT-111\nstatus: todo\n---\n",
+        ],
+        [
+          "work/tasks/exact.md",
+          "---\ntype: Task\ntitle: Target ticket\nid: DKT-11\nstatus: done\n---\n",
+        ],
+        [
+          "a-title.md",
+          "---\ntype: Spec\ntitle: DKT-11 reference\n---\nSee DKT-11.\n",
+        ],
+        ["a-body.md", "DKT-11 is referenced here.\n"],
+        [
+          "decisions/DEC-11.md",
+          "---\ntype: Decision\ntitle: Same number\nid: DEC-11\n---\n",
+        ],
+      ]),
+    );
+    const bundle = await loadBundle(store, config);
+    for (const query of [
+      "DKT-11",
+      " dkt-11 ",
+      "DKT11",
+      "dkt 11",
+      "11",
+      "#11",
+    ]) {
+      const hits = await searchBundle(store, bundle, query, { limit: 1 });
+      expect(hits).toHaveLength(1);
+      expect(hits[0]?.id).toBe("DKT-11");
+      expect(hits[0]?.text).toBe("id: DKT-11");
+    }
+    expect(
+      (await searchBundle(store, bundle, "dec11", { limit: 1 }))[0]?.id,
+    ).toBe("DEC-11");
+  });
+
+  test("compact IDs use the bundle's project key and preserve references", async () => {
+    const store = new InMemoryFileStore(
+      new Map([
+        [
+          "work/tasks/target.md",
+          "---\ntype: Task\ntitle: Target\nid: APP-42\nstatus: todo\n---\n",
+        ],
+        ["reference.md", "See APP-42 for details.\n"],
+      ]),
+    );
+    const bundle = await loadBundle(store, parseConfig("project: APP"));
+    const hits = await searchBundle(store, bundle, "app42");
+    expect(hits.map((hit) => hit.path)).toEqual([
+      "work/tasks/target.md",
+      "reference.md",
+    ]);
+    expect(hits[0]?.matched).toEqual(["app", "42"]);
+    expect(await searchBundle(store, bundle, "unknown42")).toEqual([]);
+  });
+
+  test("numeric queries require the whole prefix in the owning ticket number", async () => {
+    const store = new InMemoryFileStore(
+      new Map([
+        ...[24, 240, 241, 246, 2460, 2461, 1246].map((n): [string, string] => [
+          `work/tasks/RS-${n}.md`,
+          `---\ntype: Task\ntitle: Ticket ${n} mentions 246\nid: RS-${n}\nstatus: done\n---\nSee RS-246 for details.\n`,
+        ]),
+        [
+          "work/epics/RS-2462.md",
+          "---\ntype: Epic\ntitle: Longer ticket\nid: RS-2462\nstatus: todo\n---\n",
+        ],
+        [
+          "decisions/DEC-246.md",
+          "---\ntype: Decision\ntitle: Decision\nid: DEC-246\n---\n",
+        ],
+        ["index.md", "See RS-246 for details.\n"],
+      ]),
+    );
+    const bundle = await loadBundle(store, parseConfig("project: RS"));
+    for (const query of ["246", " #246 "]) {
+      const hits = await searchBundle(store, bundle, query);
+      expect(hits.map((hit) => hit.id)).toEqual([
+        "RS-246",
+        "RS-2462",
+        "RS-2460",
+        "RS-2461",
+      ]);
+      expect(
+        (await searchBundle(store, bundle, query, { limit: 1 }))[0]?.id,
+      ).toBe("RS-246");
+    }
+    expect(await searchBundle(store, bundle, "2469")).toEqual([]);
+    // Mixed text queries continue to search titles and bodies normally.
+    expect(
+      (await searchBundle(store, bundle, "mentions 246")).some(
+        (hit) => hit.id === "RS-24",
+      ),
+    ).toBe(true);
+  });
+
   test("deterministic: same bundle and query always order the same", async () => {
     const a = await search("checkout idempotency");
     const b = await search("checkout idempotency");

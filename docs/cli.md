@@ -20,3 +20,15 @@ GitDocket’s CLI is intentionally small. Use `--json` when another program or c
 | `docket serve` | Open the local-only browser interface. |
 
 Run `docket <command> --help` for flags and exact argument forms.
+
+## Local telemetry
+
+Telemetry is local only and off by default. Enroll each checkout explicitly
+with `docket telemetry enable`; `docket telemetry status` shows its state.
+`docket telemetry report` summarizes observed operations, latency, errors, and
+sampled runtime memory. Add `--json` for structured evidence.
+
+`docket telemetry disable` stops collection. `docket telemetry delete` removes
+the current checkout's enrollment and observations; exports remain user-owned.
+Docket never uploads observations and excludes document contents, prompts,
+search terms, task IDs, and file paths. Storage lives outside the repository.

@@ -6,11 +6,12 @@
 import {
   REENTRY_CONTEXT_V1_FORMAT,
   type StateOfPlayView,
-} from "@gitdocket/core";
+} from "@gitdocket/core/state-of-play";
 import {
   type ReactNode,
   useCallback,
   useEffect,
+  useId,
   useRef,
   useState,
 } from "react";
@@ -19,7 +20,6 @@ import {
   boardStateQuery,
   DEFAULT_BOARD,
   type EpicRef,
-  filterCards,
   groupByEpic,
   parseBoardState,
 } from "./board";
@@ -30,7 +30,6 @@ import {
   sidebarSections,
 } from "./docs";
 import {
-  applyEpicList,
   DEFAULT_EPICS,
   type EpicListState,
   type EpicRow,
@@ -40,6 +39,18 @@ import {
   parseEpicListState,
 } from "./epiclist";
 import { createRequestGate } from "./live";
+import { createJsonRequests } from "./requests";
+
+import {
+  Icon,
+  readPreference,
+  rememberedView,
+  rememberView,
+  writePreference,
+} from "./workspace";
+
+const jsonRequests = createJsonRequests();
+
 import {
   itemHash,
   type PaletteItem,
@@ -47,10 +58,8 @@ import {
   type SearchHit,
   viewCatalog,
 } from "./palette";
-import { dropRank } from "./rank";
-import { modeLabel, nextMode, type SortMode, sortCards } from "./sort";
+import { modeLabel, nextMode, type SortMode } from "./sort";
 import {
-  applyList,
   DEFAULT_STATE,
   type ListState,
   listStateQuery,
@@ -79,7 +88,7 @@ export function parseHashValue(hash: string): Route {
     return { view: "board", query: raw.slice("board?".length) };
   if (raw === "epics" || raw.startsWith("epics?"))
     return { view: "epics", query: raw.slice("epics?".length) };
-  const h = decodeURIComponent(raw);
+  const h = decodeURIComponent(raw.split("?")[0] ?? raw);
   if (h === "wiki") return { view: "wiki" };
   if (h === "activity") return { view: "activity" };
   // Bare #/docs is the Docs tab; #/docs/<dir> renders into the same view with
@@ -99,15 +108,26 @@ function useRoute(): Route {
   useEffect(() => {
     const onChange = () => setRoute(parseHash());
     window.addEventListener("hashchange", onChange);
-    return () => window.removeEventListener("hashchange", onChange);
+    window.addEventListener("popstate", onChange);
+    return () => {
+      window.removeEventListener("hashchange", onChange);
+      window.removeEventListener("popstate", onChange);
+    };
   }, []);
   return route;
 }
 
-async function getJson<T>(url: string): Promise<T> {
-  const res = await fetch(url);
+async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
+  const res = await fetch(url, {
+    signal,
+    headers: { "X-Docket-Trigger": "explicit" },
+  });
   const body = await res.json();
   if (!res.ok) throw new Error(body.error ?? res.statusText);
+  if (res.headers.get("X-Docket-Freshness") === "stale")
+    throw new Error(
+      "Refresh failed. Showing last-known data; current state is unconfirmed.",
+    );
   return body as T;
 }
 
@@ -115,32 +135,373 @@ async function getJson<T>(url: string): Promise<T> {
 // local writes use the same load function, so overlapping requests cannot
 // publish out of order.
 function useLiveJson<T>(url: string, revision: string, enabled = true) {
+  const [loading, setLoading] = useState(false);
   const [data, setData] = useState<T>();
   const [error, setError] = useState<string>();
   const gate = useRef(createRequestGate());
-  const load = useCallback(() => {
-    // Reading the revision binds this loader generation to the signal even
-    // though the API URL itself is stable.
-    void revision;
-    if (!enabled) return;
-    const current = gate.current.begin();
-    getJson<T>(url)
-      .then((next) => {
-        if (!current()) return;
-        setData(next);
-        setError(undefined);
-      })
-      .catch((e: Error) => {
-        if (current()) setError(e.message);
-      });
-  }, [enabled, revision, url]);
+  const previous = useRef<{ url: string; revision: string } | undefined>(
+    undefined,
+  );
+  const pending = useRef<(() => void) | undefined>(undefined);
+  const load = useCallback(
+    (fresh = true) => {
+      // Reading the revision binds this loader generation to the signal even
+      // though the API URL itself is stable.
+      void revision;
+      if (!enabled) return;
+      pending.current?.();
+      const trigger =
+        !fresh &&
+        previous.current?.url === url &&
+        previous.current.revision !== revision
+          ? "background"
+          : "explicit";
+      previous.current = { url, revision };
+      const request = jsonRequests.acquire<T>(url, revision, fresh, trigger);
+      pending.current = request.release;
+      const current = gate.current.begin();
+      setLoading(true);
+      return request.result
+        .then(({ data: next, stale }) => {
+          if (!current()) return;
+          setData(next);
+          setError(
+            stale
+              ? "Refresh failed. Showing last-known data; current state is unconfirmed."
+              : undefined,
+          );
+        })
+        .catch((e: Error) => {
+          if (current()) setError(e.message);
+        })
+        .finally(() => {
+          if (current()) setLoading(false);
+        });
+    },
+    [enabled, revision, url],
+  );
 
   useEffect(() => {
-    load();
-    return () => gate.current.cancel();
+    load(false);
+    return () => {
+      gate.current.cancel();
+      pending.current?.();
+    };
   }, [load]);
 
-  return { data, error, load };
+  return { data, error, load, loading };
+}
+
+interface PageInfo {
+  number: number;
+  limit: number;
+  total: number;
+  generation: number;
+  next: number | null;
+}
+function Pager({
+  page,
+  onPage,
+  label = "Result pages",
+  disabled = false,
+}: {
+  label?: string;
+  disabled?: boolean;
+  page?: PageInfo;
+  onPage: (page: number) => void;
+}) {
+  if (!page) return null;
+  return (
+    <nav className="pagination" aria-label={label}>
+      <button
+        type="button"
+        disabled={disabled || page.number <= 1}
+        onClick={() => onPage(page.number - 1)}
+      >
+        Previous
+      </button>
+      <span role="status">
+        {page.total ? (page.number - 1) * page.limit + 1 : 0}–
+        {Math.min(page.number * page.limit, page.total)} of {page.total}
+      </span>
+      <button
+        type="button"
+        disabled={disabled || !page.next}
+        onClick={() => {
+          if (page.next) onPage(page.next);
+        }}
+      >
+        Next
+      </button>
+    </nav>
+  );
+}
+function usePage(query = "") {
+  const requested = Math.max(
+    1,
+    Number(new URLSearchParams(query).get("page")) || 1,
+  );
+  const [page, setPage] = useState(requested);
+  useEffect(() => setPage(requested), [requested]);
+  const change = (next: number, push = true) => {
+    setPage(next);
+    const [base, qs] = location.hash.split("?");
+    const params = new URLSearchParams(qs);
+    if (next === 1) params.delete("page");
+    else params.set("page", String(next));
+    history[push ? "pushState" : "replaceState"](
+      null,
+      "",
+      base + (params.size ? `?${params}` : ""),
+    );
+    // History API writes do not emit hashchange. Defer until a filter's
+    // accompanying replaceState has finished, then synchronize route props.
+    queueMicrotask(() =>
+      window.dispatchEvent(new HashChangeEvent("hashchange")),
+    );
+  };
+  return [page, change] as const;
+}
+// Native datalist keeps keyboard entry available; options are an exact search
+// of all facet values, independent of the currently loaded result page.
+function FacetInput({
+  field,
+  value,
+  onChange,
+  label,
+  revision,
+}: {
+  field: string;
+  value: string;
+  onChange: (value: string) => void;
+  label: string;
+  revision: string;
+}) {
+  const id = useId();
+  const [focused, setFocused] = useState(false);
+  const { data } = useLiveJson<{ options: { value: string; label: string }[] }>(
+    `/api/facets?field=${field}&q=${encodeURIComponent(value)}`,
+    revision,
+    focused,
+  );
+  return (
+    <>
+      <input
+        list={id}
+        aria-label={label}
+        placeholder={label}
+        value={value}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      <datalist id={id}>
+        {data?.options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </datalist>
+    </>
+  );
+}
+function EpicPicker({
+  current,
+  onChange,
+  revision,
+  label = "epic",
+}: {
+  current: GraphRef | null;
+  onChange: (path: string | null) => void;
+  revision: string;
+  label?: string;
+}) {
+  const id = useId();
+  const [editing, setEditing] = useState(false);
+  const editor = useRef<HTMLInputElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const wasEditing = useRef(false);
+  useEffect(() => {
+    if (editing) editor.current?.focus();
+    else if (wasEditing.current) trigger.current?.focus();
+    wasEditing.current = editing;
+  }, [editing]);
+  const [query, setQuery] = useState("");
+  const { data } = useLiveJson<{
+    options: { value: string; label: string; path: string }[];
+  }>(
+    `/api/facets?field=epic&q=${encodeURIComponent(query)}`,
+    revision,
+    editing,
+  );
+  if (!editing)
+    return (
+      <span>
+        {current && <a href={`#/c/${current.path}`}>{current.id}</a>}{" "}
+        <button
+          type="button"
+          ref={trigger}
+          aria-label={label}
+          onClick={() => {
+            setQuery("");
+            setEditing(true);
+          }}
+        >
+          Edit epic
+        </button>
+      </span>
+    );
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        const option = data?.options.find((o) => o.value === query);
+        if (!query || option) {
+          onChange(option ? `/${option.path}` : null);
+          setEditing(false);
+        }
+      }}
+    >
+      <input
+        ref={editor}
+        list={id}
+        aria-label={label}
+        placeholder="Epic ID; empty clears"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+      />
+      <datalist id={id}>
+        {data?.options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </datalist>
+      <button
+        type="submit"
+        disabled={!!query && !data?.options.some((o) => o.value === query)}
+      >
+        Save
+      </button>
+      <button type="button" onClick={() => setEditing(false)}>
+        Cancel
+      </button>
+    </form>
+  );
+}
+function SourceReader({
+  path,
+  revision,
+  readable = false,
+}: {
+  path: string;
+  revision: string;
+  readable?: boolean;
+}) {
+  const [cursors, setCursors] = useState<(unknown | undefined)[]>([undefined]);
+  const [at, setAt] = useState(0);
+  useEffect(() => {
+    void path;
+    void revision;
+    setCursors([undefined]);
+    setAt(0);
+  }, [path, revision]);
+  const cursor = cursors[at];
+  const { data, error, load, loading } = useLiveJson<{
+    text: string;
+    html?: string | null;
+    partial?: boolean;
+    startLine: number;
+    endLine: number;
+    sourceHash: string;
+    nextCursor?: unknown;
+  }>(
+    "/api/source/" +
+      path +
+      `?${readable ? "readable=1&" : ""}${cursor ? `cursor=${encodeURIComponent(JSON.stringify(cursor))}` : ""}`,
+    revision,
+  );
+  return (
+    <section aria-label={`Source ${path}`}>
+      {error && (
+        <>
+          <ErrorNote message={error} />
+          <button
+            type="button"
+            onClick={() => {
+              setCursors([undefined]);
+              setAt(0);
+              if (!at) load();
+            }}
+          >
+            Restart from first page
+          </button>
+        </>
+      )}
+      {data ? (
+        readable ? (
+          <>
+            <p className="muted log-caption">
+              Authored project log{data.partial ? " · excerpt" : ""}
+            </p>
+            {data.html != null ? (
+              <Markdown html={data.html} />
+            ) : (
+              <>
+                <p className="muted">
+                  This excerpt may cross a Markdown block. Exact text is shown.
+                </p>
+                <pre className="source-page">{data.text}</pre>
+              </>
+            )}
+            <details className="source-details">
+              <summary>
+                Source details · lines {data.startLine}–{data.endLine}
+              </summary>
+              <code>{path}</code>
+              <p>
+                Source hash <code>{data.sourceHash}</code>
+              </p>
+            </details>
+          </>
+        ) : (
+          <>
+            <p>
+              <code>{path}</code> · lines {data.startLine}–{data.endLine}{" "}
+              <small title={data.sourceHash}>
+                source {data.sourceHash.slice(0, 8)}
+              </small>
+            </p>
+            <pre className="source-page">{data.text}</pre>
+          </>
+        )
+      ) : (
+        <p>loading…</p>
+      )}
+      <nav
+        className="pagination"
+        aria-label={readable ? "Project log pages" : "Source pages"}
+      >
+        <button
+          type="button"
+          disabled={loading || !at}
+          onClick={() => setAt(at - 1)}
+        >
+          {readable ? "Previous log page" : "Previous source page"}
+        </button>
+        <button
+          type="button"
+          disabled={loading || !data?.nextCursor}
+          onClick={() => {
+            setCursors([...cursors.slice(0, at + 1), data?.nextCursor]);
+            setAt(at + 1);
+          }}
+        >
+          {readable ? "Next log page" : "Next source page"}
+        </button>
+      </nav>
+    </section>
+  );
 }
 
 // One subscription per tab. The server immediately sends its current
@@ -174,6 +535,8 @@ interface GraphRef {
 }
 
 interface Concept {
+  sourcePath?: string;
+  relationPage?: PageInfo;
   path: string;
   fm: Frontmatter | null;
   states: string[];
@@ -218,12 +581,15 @@ interface BoardCard extends WorkCard {
 }
 
 interface BoardData {
+  columns?: { status: string; cards: BoardCard[]; page: PageInfo }[];
   states: string[];
   cards: BoardCard[];
   totals: Record<string, number>;
 }
 
 interface EpicsData {
+  page?: PageInfo;
+  total?: number;
   states: string[];
   epics: EpicRow[];
 }
@@ -291,7 +657,10 @@ async function postEdit(
       return "Closing without completion requires a disposition note.";
     const res = await fetch(`/api/tasks/${id}/${field}`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        "X-Docket-Trigger": "explicit",
+      },
       body: JSON.stringify({ to, ...(note ? { note: note.trim() } : {}) }),
     });
     if (res.ok) return undefined;
@@ -318,6 +687,8 @@ function Markdown({ html }: { html: string }) {
 }
 
 export interface HomeData {
+  preambleSourcePath?: string;
+  narrativeSourcePath?: string;
   project: string;
   preamble: string;
   narrative:
@@ -421,7 +792,7 @@ function DocList({ items }: { items: DocItem[] }) {
         <li key={item.path}>
           <a href={`#/c/${item.path}`}>{item.title ?? item.path}</a>
           {item.description && (
-            <span className="muted"> — {item.description}</span>
+            <span className="doc-description muted">{item.description}</span>
           )}
         </li>
       ))}
@@ -595,7 +966,13 @@ function StateOfPlay({ note }: { note: NonNullable<HomeData["narrative"]> }) {
   );
 }
 
-export function HomeBriefing({ data }: { data: HomeData }) {
+export function HomeBriefing({
+  data,
+  boardPreview,
+}: {
+  data: HomeData;
+  boardPreview?: ReactNode;
+}) {
   return (
     <div className="home">
       <section className="home-intro">
@@ -605,12 +982,15 @@ export function HomeBriefing({ data }: { data: HomeData }) {
           <h1>{data.project}</h1>
         )}
       </section>
+      {boardPreview}
       {data.narrative ? (
         <StateOfPlay note={data.narrative} />
       ) : (
-        <p className="context-unavailable muted">
-          No usable project re-entry note is available.
-        </p>
+        !data.narrativeSourcePath && (
+          <p className="context-unavailable muted">
+            No usable project re-entry note is available.
+          </p>
+        )
       )}
     </div>
   );
@@ -619,11 +999,145 @@ export function HomeBriefing({ data }: { data: HomeData }) {
 // Home is the first-minute briefing; the git-facing index body belongs to the
 // separate Wiki/Docs knowledge surfaces.
 function HomeView({ revision }: { revision: string }) {
-  const { data, error } = useLiveJson<HomeData>("/api/home", revision);
-  if (error) return <ErrorNote message={error} />;
+  const { data, error } = useLiveJson<HomeData>(
+    "/api/home?briefing=1",
+    revision,
+  );
+  if (error && !data) return <ErrorNote message={error} />;
   if (!data) return <p className="muted">loading…</p>;
 
-  return <HomeBriefing data={data} />;
+  return (
+    <>
+      {error && <ErrorNote message={error} />}
+      <HomeBriefing
+        data={data}
+        boardPreview={<BoardAtGlance revision={revision} />}
+      />
+      {data.preambleSourcePath && (
+        <SourceReader path={data.preambleSourcePath} revision={revision} />
+      )}
+      {data.narrativeSourcePath && (
+        <SourceReader path={data.narrativeSourcePath} revision={revision} />
+      )}
+    </>
+  );
+}
+
+export function BoardPreview({
+  data,
+  href,
+  scope,
+  visibility,
+}: {
+  data: BoardData;
+  href: string;
+  scope: string;
+  visibility: BoardState["visibility"];
+}) {
+  const terminal = (status: string) => status === "done" || status === "closed";
+  const eligible = data.states.filter(
+    (status) =>
+      visibility === "all" ||
+      (visibility === "completed" ? terminal(status) : !terminal(status)),
+  );
+  const ordered = [
+    "in-progress",
+    "todo",
+    ...eligible.filter((status) => !["in-progress", "todo"].includes(status)),
+  ]
+    .filter((status) => eligible.includes(status))
+    .slice(0, 3);
+  return (
+    <section className="board-preview" aria-label="Board at a glance">
+      <header>
+        <div>
+          <h2>Board at a glance</h2>
+          <p className="muted">
+            {scope} ·{" "}
+            {visibility === "completed"
+              ? "Done & Closed"
+              : visibility === "all"
+                ? "All states"
+                : "Active work"}
+          </p>
+        </div>
+        <a href={href}>Open board →</a>
+      </header>
+      <div className="mini-board">
+        {ordered.map((status) => {
+          const column = data.columns?.find(
+            (column) => column.status === status,
+          );
+          const cards = data.cards
+            .filter((card) => card.status === status)
+            .slice(0, 2);
+          return (
+            <section className="mini-column" key={status}>
+              <h3>
+                {status.replaceAll("-", " ")}{" "}
+                <span className="muted">
+                  {column?.page.total ?? cards.length}
+                </span>
+              </h3>
+              {cards.map((card) => (
+                <a key={card.id} href={`#/c/${card.path}`}>
+                  <span>{card.title}</span>
+                  <code>{card.id}</code>
+                </a>
+              ))}
+              {cards.length === 0 && (
+                <p className="muted">No matching tasks.</p>
+              )}
+            </section>
+          );
+        })}
+      </div>
+      <p className="preview-caption muted">
+        Up to two tasks per status. Open the board for all matching work.
+      </p>
+    </section>
+  );
+}
+
+function BoardAtGlance({ revision }: { revision: string }) {
+  const restored = rememberedView("board");
+  const state = parseBoardState(restored.split("?")[1] ?? "");
+  const query = boardStateQuery(state);
+  const href = `#/board${query ? `?${query}` : ""}`;
+  const scope = [
+    state.epic ? `Epic ${state.epic}` : "Project-wide",
+    state.tag && `Tag: ${state.tag}`,
+    state.assignee && `Assignee: ${state.assignee}`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  const { data, error, load, loading } = useLiveJson<BoardData>(
+    `/api/board?page=1&limit=2&${query}&sorts=${encodeURIComponent(JSON.stringify(loadSorts()))}`,
+    revision,
+  );
+  return (
+    <>
+      <div role="status">
+        {!data && !error && <p className="muted">Loading board preview…</p>}
+      </div>
+      {error && (
+        <div className="preview-error">
+          <ErrorNote message={error} />
+          <button type="button" onClick={() => load()} disabled={loading}>
+            Retry board preview
+          </button>
+        </div>
+      )}
+      {data && (
+        <BoardPreview
+          data={data}
+          href={href}
+          scope={scope}
+          visibility={state.visibility}
+        />
+      )}
+    </>
+  );
 }
 
 export function WikiLanding({ sections }: { sections: DocSection[] }) {
@@ -647,9 +1161,9 @@ export function WikiLanding({ sections }: { sections: DocSection[] }) {
                 <a href={`#/docs/${section.name}`}>{section.name}</a>
               </h2>
               <DocList items={section.items.slice(0, previewLimit)} />
-              {section.items.length > previewLimit && (
+              {(section.total ?? section.items.length) > previewLimit && (
                 <a className="wiki-more" href={`#/docs/${section.name}`}>
-                  Browse all {section.items.length} →
+                  Browse all {section.total ?? section.items.length} →
                 </a>
               )}
             </section>
@@ -685,13 +1199,20 @@ export function WikiLanding({ sections }: { sections: DocSection[] }) {
 }
 
 function WikiView({ revision }: { revision: string }) {
-  const { data, error } = useLiveJson<{ sections: DocSection[] }>(
-    "/api/docs",
-    revision,
-  );
-  if (error) return <ErrorNote message={error} />;
+  const [page, setPage] = usePage(location.hash.split("?")[1]);
+  const { data, error } = useLiveJson<{
+    sections: DocSection[];
+    page: PageInfo;
+  }>(`/api/docs?preview=1&page=${page}`, revision);
+  if (error && !data) return <ErrorNote message={error} />;
   if (!data) return <p className="muted">loading…</p>;
-  return <WikiLanding sections={data.sections} />;
+  return (
+    <>
+      {error && <ErrorNote message={error} />}
+      <WikiLanding sections={data.sections} />
+      <Pager page={data.page} onPage={setPage} label="Wiki sections pages" />
+    </>
+  );
 }
 
 // The Docs view: a persistent section sidebar beside the main pane.
@@ -709,12 +1230,30 @@ function DocsShell({
   children?: ReactNode;
   revision: string;
 }) {
+  const [browseOpen, setBrowseOpen] = useState(
+    () => !window.matchMedia("(max-width: 900px)").matches,
+  );
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 900px)");
+    const change = () => setBrowseOpen(!media.matches);
+    media.addEventListener("change", change);
+    return () => media.removeEventListener("change", change);
+  }, []);
   const { data, error } = useLiveJson<{ sections: DocSection[] }>(
     "/api/docs",
     revision,
   );
+  const [page, setPage] = usePage(location.hash.split("?")[1]);
+  const { data: listingData, error: listingError } = useLiveJson<{
+    sections: DocSection[];
+    page: PageInfo;
+  }>(
+    `/api/docs?page=${page}&section=${encodeURIComponent(dir ?? "")}`,
+    revision,
+    !children,
+  );
   const sections = data?.sections;
-  if (error) return <ErrorNote message={error} />;
+  if (error && !data) return <ErrorNote message={error} />;
   if (!sections) return <p className="muted">loading…</p>;
 
   const listing = (section: DocSection) => (
@@ -723,7 +1262,7 @@ function DocsShell({
       <DocList items={section.items} />
     </section>
   );
-  const shown = dir ? sections.filter((s) => s.name === dir) : sections;
+  const shown = listingData?.sections ?? [];
   const main =
     children ??
     (shown.length > 0 ? (
@@ -734,32 +1273,50 @@ function DocsShell({
 
   return (
     <div className="docs-layout">
+      <div className="docs-main">
+        {(error || listingError) && (
+          <ErrorNote message={error ?? listingError ?? "Refresh failed"} />
+        )}{" "}
+        {main}
+        {!children && (
+          <Pager
+            page={listingData?.page}
+            onPage={setPage}
+            label="Wiki documents pages"
+          />
+        )}
+      </div>
       <aside className="docs-sidebar" aria-label="Wiki sections">
-        <a className="wiki-overview-link" href="#/wiki">
-          ← Wiki overview
-        </a>
-        {sidebarSections(sections).map((section) => (
-          <section key={section.name}>
-            <h3 className="section-name">
-              <a href={`#/docs/${section.name}`}>{section.name}</a>
-            </h3>
-            <ul>
-              {section.items.map((item) => (
-                <li key={item.path}>
-                  <a
-                    href={`#/c/${item.path}`}
-                    aria-current={item.path === current ? "page" : undefined}
-                    className={item.path === current ? "active" : ""}
-                  >
-                    {item.title ?? item.path}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </section>
-        ))}
+        <details
+          open={browseOpen}
+          onToggle={(e) => setBrowseOpen(e.currentTarget.open)}
+        >
+          <summary>Browse wiki</summary>
+          <a className="wiki-overview-link" href="#/wiki">
+            ← Wiki overview
+          </a>
+          {sidebarSections(sections).map((section) => (
+            <section key={section.name}>
+              <h3 className="section-name">
+                <a href={`#/docs/${section.name}`}>{section.name}</a>
+              </h3>
+              <ul>
+                {section.items.map((item) => (
+                  <li key={item.path}>
+                    <a
+                      href={`#/c/${item.path}`}
+                      aria-current={item.path === current ? "page" : undefined}
+                      className={item.path === current ? "active" : ""}
+                    >
+                      {item.title ?? item.path}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))}
+        </details>
       </aside>
-      <div className="docs-main">{main}</div>
     </div>
   );
 }
@@ -767,75 +1324,155 @@ function DocsShell({
 // The curated log.md narrative above the raw commit feed; a bundle
 // without log.md just shows the feed.
 function ActivityView({ revision }: { revision: string }) {
+  const params = new URLSearchParams(location.hash.split("?")[1]);
+  const tab =
+    params.get("tab") === "git"
+      ? "git"
+      : params.get("tab") === "source"
+        ? "source"
+        : "log";
+  const task = params.get("task") ?? "";
+  const update = (key: string, value: string) => {
+    if (value) params.set(key, value);
+    else params.delete(key);
+    if (key === "task") params.delete("page");
+    history.pushState(null, "", `#/activity${params.size ? `?${params}` : ""}`);
+    window.dispatchEvent(new HashChangeEvent("hashchange"));
+  };
+  const [page, setPage] = usePage(location.hash.split("?")[1]);
   const { data, error } = useLiveJson<{
     activity: ActivityEntry[];
     git: GitEvidence;
     log: string;
-  }>("/api/activity", revision);
-  if (error) return <ErrorNote message={error} />;
+    logPath?: string;
+    page?: PageInfo;
+  }>(`/api/activity?page=${page}&task=${encodeURIComponent(task)}`, revision);
+  if (error && !data) return <ErrorNote message={error} />;
   if (!data) return <p className="muted">loading…</p>;
   return (
     <div>
-      {data.log && <Markdown html={data.log} />}
-      <h2 className="section-title">Commits</h2>
-      {data.activity.length === 0 ? (
-        <p className="muted">nothing here</p>
-      ) : (
-        <ActivityFeed entries={data.activity} />
-      )}
-      {data.git.status === "history-unavailable" ? (
-        <p className="muted">
-          Local Git evidence unavailable: {data.git.reason ?? "unknown reason"}
-        </p>
-      ) : (
+      <header className="view-heading">
+        <h1>Activity</h1>
+        <p className="muted">The authored project log and its Git evidence.</p>
+      </header>
+      <fieldset
+        className="view-segments activity-tabs"
+        aria-label="Activity view"
+      >
+        <button
+          type="button"
+          aria-pressed={tab === "log"}
+          onClick={() => update("tab", "log")}
+        >
+          Project log
+        </button>
+        <button
+          type="button"
+          aria-pressed={tab === "git"}
+          onClick={() => update("tab", "git")}
+        >
+          Git history
+        </button>
+        <button
+          type="button"
+          aria-pressed={tab === "source"}
+          onClick={() => update("tab", "source")}
+        >
+          Source
+        </button>
+      </fieldset>
+      {error && <ErrorNote message={error} />}
+      {tab !== "git" &&
+        (data.logPath ? (
+          <SourceReader
+            path={data.logPath}
+            revision={revision}
+            readable={tab === "log"}
+          />
+        ) : (
+          <p className="muted">
+            No project log is available.{" "}
+            <button type="button" onClick={() => update("tab", "git")}>
+              View Git history
+            </button>
+          </p>
+        ))}
+      {tab === "git" && (
         <>
-          {data.git.unmergedActivity.length > 0 && (
-            <section>
-              <h2 className="section-title">Unmerged Git evidence</h2>
-              <UnmergedActivityFeed entries={data.git.unmergedActivity} />
+          <div className="filters">
+            <input
+              aria-label="Filter Git history by task"
+              placeholder="Task ID"
+              value={task}
+              onChange={(e) => update("task", e.target.value)}
+            />
+          </div>
+          <h2 className="section-title">Integrated commits</h2>
+          {data.activity.length === 0 ? (
+            <p className="muted">nothing here</p>
+          ) : (
+            <ActivityFeed entries={data.activity} />
+          )}
+          <Pager page={data.page} onPage={setPage} label="Git evidence pages" />
+          {data.git.status === "history-unavailable" ? (
+            <p className="muted">
+              Local Git evidence unavailable:{" "}
+              {data.git.reason ?? "unknown reason"}
+            </p>
+          ) : (
+            <>
+              {data.git.reason && <p className="muted">{data.git.reason}</p>}
               {data.git.truncated && (
                 <p className="muted">Additional local evidence was omitted.</p>
               )}
-            </section>
-          )}
-          {data.git.worktrees.some(
-            (worktree) =>
-              !worktree.current &&
-              (!worktree.available ||
-                worktree.dirty ||
-                worktree.activeTaskId ||
-                worktree.mergedIntoCurrentHead === false),
-          ) && (
-            <section>
-              <h2 className="section-title">
-                Linked worktrees needing attention
-              </h2>
-              <ul>
-                {data.git.worktrees
-                  .filter(
-                    (worktree) =>
-                      !worktree.current &&
-                      (!worktree.available ||
-                        worktree.dirty ||
-                        worktree.activeTaskId ||
-                        worktree.mergedIntoCurrentHead === false),
-                  )
-                  .slice(0, 10)
-                  .map((worktree) => (
-                    <li key={worktree.path}>
-                      <code>{worktree.ref ?? worktree.head.slice(0, 7)}</code>{" "}
-                      {worktree.path}
-                      <span className="muted">
-                        {worktree.activeTaskId
-                          ? ` — active ${worktree.activeTaskId}`
-                          : ""}
-                        {worktree.dirty ? " — dirty" : ""}
-                        {!worktree.available ? " — unavailable" : ""}
-                      </span>
-                    </li>
-                  ))}
-              </ul>
-            </section>
+              {data.git.unmergedActivity.length > 0 && (
+                <section>
+                  <h2 className="section-title">Unmerged Git evidence</h2>
+                  <UnmergedActivityFeed entries={data.git.unmergedActivity} />
+                </section>
+              )}
+              {data.git.worktrees.some(
+                (worktree) =>
+                  !worktree.current &&
+                  (!worktree.available ||
+                    worktree.dirty ||
+                    worktree.activeTaskId ||
+                    worktree.mergedIntoCurrentHead === false),
+              ) && (
+                <section>
+                  <h2 className="section-title">
+                    Linked worktrees needing attention
+                  </h2>
+                  <ul>
+                    {data.git.worktrees
+                      .filter(
+                        (worktree) =>
+                          !worktree.current &&
+                          (!worktree.available ||
+                            worktree.dirty ||
+                            worktree.activeTaskId ||
+                            worktree.mergedIntoCurrentHead === false),
+                      )
+                      .slice(0, 10)
+                      .map((worktree) => (
+                        <li key={worktree.path}>
+                          <code>
+                            {worktree.ref ?? worktree.head.slice(0, 7)}
+                          </code>{" "}
+                          {worktree.path}
+                          <span className="muted">
+                            {worktree.activeTaskId
+                              ? ` — active ${worktree.activeTaskId}`
+                              : ""}
+                            {worktree.dirty ? " — dirty" : ""}
+                            {!worktree.available ? " — unavailable" : ""}
+                          </span>
+                        </li>
+                      ))}
+                  </ul>
+                </section>
+              )}
+            </>
           )}
         </>
       )}
@@ -843,20 +1480,41 @@ function ActivityView({ revision }: { revision: string }) {
   );
 }
 
+function ChildTasks({
+  items,
+  title,
+}: {
+  items: (GraphRef & { ready: boolean })[];
+  title: string;
+}) {
+  if (!items.length) return null;
+  return (
+    <section>
+      <h2 className="section-title">{title}</h2>
+      <ul className="items">
+        {items.map((child) => (
+          <li key={child.id}>
+            <a href={`#/c/${child.path}`}>
+              {child.title ?? child.path}{" "}
+              <code className="muted">{child.id}</code>
+            </a>
+            {child.status && <Chip kind={child.status}>{child.status}</Chip>}
+            {child.ready && <Chip kind="ready">ready</Chip>}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 function ConceptView({ path, revision }: { path: string; revision: string }) {
+  const [page, setPage] = usePage(location.hash.split("?")[1]);
   const {
     data: concept,
     error,
     load,
-  } = useLiveJson<Concept>(`/api/concept/${path}`, revision);
+  } = useLiveJson<Concept>(`/api/concept/${path}?page=${page}`, revision);
   const [editError, setEditError] = useState<string>();
-  // Options for the epic select, fetched once a Task page loads.
-  const { data: epicData } = useLiveJson<EpicsData>(
-    "/api/epics",
-    revision,
-    concept?.fm?.type === "Task",
-  );
-  const epics = epicData?.epics;
   // Tab title tracks the loaded concept; the path stands in until it arrives
   // (and stays for title-less files).
   useEffect(() => {
@@ -866,7 +1524,7 @@ function ConceptView({ path, revision }: { path: string; revision: string }) {
     document.title = `${name} · docket`;
   }, [concept, path]);
 
-  if (error) return <ErrorNote message={error} />;
+  if (error && !concept) return <ErrorNote message={error} />;
   if (!concept) return <p className="muted">loading…</p>;
 
   const fm = concept.fm;
@@ -926,10 +1584,9 @@ function ConceptView({ path, revision }: { path: string; revision: string }) {
                 </select>
               </label>
               {fm.type === "Task" && (
-                <EpicEditor
+                <EpicPicker
                   current={graph?.epic ?? null}
-                  epics={epics}
-                  value={fm.epic ?? ""}
+                  revision={revision}
                   onChange={(to) => void edit("epic", to)}
                 />
               )}
@@ -949,27 +1606,43 @@ function ConceptView({ path, revision }: { path: string; revision: string }) {
           )}
         </header>
       )}
-      <Markdown html={concept.html} />
+      {error && <ErrorNote message={error} />}
+      {fm?.type === "Epic" && graph && (
+        <section className="epic-current-work">
+          <ChildTasks
+            items={graph.children.filter(
+              (child) => child.status !== "done" && child.status !== "closed",
+            )}
+            title="Active tasks on this page"
+          />
+          <a href={`#/board?epic=${encodeURIComponent(fm.id ?? "")}`}>
+            Open epic board →
+          </a>
+          {graph.children.length === 0 && (
+            <p className="muted">No child tasks on this page.</p>
+          )}
+        </section>
+      )}
+      {concept.sourcePath ? (
+        <SourceReader path={concept.sourcePath} revision={revision} />
+      ) : (
+        <Markdown html={concept.html} />
+      )}
+      <Pager
+        page={concept.relationPage}
+        onPage={setPage}
+        label="Concept relationships and history pages"
+      />
       {concept.verification && (
         <VerifiedByCard verification={concept.verification} />
       )}
-      {graph && graph.children.length > 0 && (
-        <section>
-          <h2 className="section-title">Tasks</h2>
-          <ul className="children">
-            {graph.children.map((child) => (
-              <li key={child.id}>
-                <a href={`#/c/${child.path}`}>
-                  <code>{child.id}</code> {child.title ?? child.path}
-                </a>{" "}
-                {child.status && (
-                  <Chip kind={child.status}>{child.status}</Chip>
-                )}
-                {child.ready && <Chip kind="ready">ready</Chip>}
-              </li>
-            ))}
-          </ul>
-        </section>
+      {graph && (
+        <ChildTasks
+          items={graph.children.filter(
+            (child) => child.status === "done" || child.status === "closed",
+          )}
+          title="Completed and closed tasks on this page"
+        />
       )}
       {concept.activity.length > 0 && (
         <section>
@@ -1016,23 +1689,43 @@ function Palette({ sections }: { sections: string[] }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [hits, setHits] = useState<SearchHit[]>([]);
+  const [resultPage, setResultPage] = useState(1);
+  const [searchPage, setSearchPage] = useState<PageInfo>();
+  useEffect(() => {
+    void q;
+    setResultPage(1);
+  }, [q]);
+  const [searchState, setSearchState] = useState<"idle" | "loading" | "error">(
+    "idle",
+  );
+  const searchGate = useRef(createRequestGate());
   const [active, setActive] = useState(0);
+  const dialogRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const restoreRef = useRef<HTMLElement | null>(null);
 
   const show = useCallback(() => {
+    if (open) {
+      inputRef.current?.focus();
+      return;
+    }
     restoreRef.current =
       document.activeElement instanceof HTMLElement
         ? document.activeElement
         : null;
     setQ("");
     setHits([]);
+    setSearchState("idle");
+    setSearchPage(undefined);
+    setResultPage(1);
     setActive(0);
     setOpen(true);
-  }, []);
+  }, [open]);
   const hide = (restoreFocus: boolean) => {
+    searchGate.current.cancel();
     setOpen(false);
     if (restoreFocus) restoreRef.current?.focus();
+    else queueMicrotask(() => document.querySelector("main")?.focus());
   };
 
   useEffect(() => {
@@ -1063,24 +1756,82 @@ function Palette({ sections }: { sections: string[] }) {
     if (!open || !q.trim()) {
       setHits([]);
       setActive(0);
+      setSearchState("idle");
       return;
     }
+    setSearchState("loading");
+    const current = searchGate.current.begin();
+    const controller = new AbortController();
     const t = setTimeout(() => {
-      getJson<{ hits: SearchHit[] }>(`/api/search?q=${encodeURIComponent(q)}`)
+      getJson<{ hits: SearchHit[]; page: PageInfo }>(
+        `/api/search?q=${encodeURIComponent(q)}&page=${resultPage}&limit=10`,
+        controller.signal,
+      )
         .then((d) => {
+          if (!current()) return;
           setHits(d.hits);
+          setSearchPage(d.page);
           setActive(0);
+          setSearchState("idle");
         })
-        .catch(() => {});
+        .catch(() => {
+          if (current()) setSearchState("error");
+        });
     }, 150);
-    return () => clearTimeout(t);
-  }, [q, open]);
+    return () => {
+      clearTimeout(t);
+      controller.abort();
+      searchGate.current.cancel();
+    };
+  }, [q, open, resultPage]);
 
-  const items = paletteItems(viewCatalog(sections), hits, q);
+  const views = viewCatalog(sections).map((item) =>
+    ["Board", "Tasks", "Epics"].includes(item.label)
+      ? { ...item, hash: rememberedView(item.label.toLowerCase()) }
+      : item,
+  );
+  const items = paletteItems(views, hits, q);
   // The view rows update synchronously with q while hits lag the fetch, so
   // the active index can briefly point past the end — clamp, don't trust it.
   const sel = Math.max(0, Math.min(active, items.length - 1));
 
+  useEffect(() => {
+    void open;
+    void active;
+    void hits;
+    dialogRef.current
+      ?.querySelector(".palette-results a.active")
+      ?.scrollIntoView({ block: "nearest" });
+  }, [active, open, hits]);
+  const groupFor = (item: PaletteItem | undefined) =>
+    !item
+      ? ""
+      : item.kind === "concept"
+        ? "Concepts"
+        : item.hash.startsWith("#/docs")
+          ? "Wiki sections"
+          : "Workspace";
+  const modalKeys = (e: React.KeyboardEvent) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      hide(true);
+    }
+    if (e.key !== "Tab") return;
+    const elements = [
+      ...(dialogRef.current?.querySelectorAll<HTMLElement>(
+        "input, a[href], button:not(:disabled)",
+      ) ?? []),
+    ];
+    const first = elements[0],
+      last = elements.at(-1);
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last?.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first?.focus();
+    }
+  };
   const go = (item: PaletteItem) => {
     location.hash = itemHash(item);
     hide(false);
@@ -1095,8 +1846,6 @@ function Palette({ sections }: { sections: string[] }) {
       setActive(Math.max(sel - 1, 0));
     } else if (e.key === "Enter" && items[sel]) {
       go(items[sel]);
-    } else if (e.key === "Escape") {
-      hide(true);
     }
   };
 
@@ -1106,9 +1855,13 @@ function Palette({ sections }: { sections: string[] }) {
         type="button"
         className="palette-open"
         aria-label="open command palette"
+        title="Search — / or ⌘ K"
         onClick={show}
       >
-        search — / or ⌘k
+        <Icon name="Search" />
+        <span className="nav-label">
+          Search <kbd>⌘ K</kbd>
+        </span>
       </button>
       {open && (
         // biome-ignore lint/a11y/noStaticElementInteractions: backdrop click-away; escape is the keyboard path
@@ -1119,18 +1872,47 @@ function Palette({ sections }: { sections: string[] }) {
             if (e.target === e.currentTarget) hide(true);
           }}
         >
-          <div className="palette" role="dialog" aria-label="command palette">
+          <div
+            ref={dialogRef}
+            className="palette"
+            role="dialog"
+            aria-label="command palette"
+            aria-modal="true"
+            onKeyDown={modalKeys}
+          >
             <input
               ref={inputRef}
               value={q}
               placeholder="jump to a concept or view…"
               aria-label="search concepts and views"
-              onChange={(e) => setQ(e.target.value)}
+              onChange={(e) => {
+                searchGate.current.cancel();
+                setQ(e.target.value);
+                setSearchPage(undefined);
+                setHits([]);
+                setActive(0);
+                setSearchState(e.target.value.trim() ? "loading" : "idle");
+              }}
               onKeyDown={onKeyDown}
             />
-            <ul className="palette-results">
+            <div className="palette-status muted" role="status">
+              {searchState === "loading" && (
+                <>
+                  <span className="palette-spinner" aria-hidden="true" />
+                  Searching…
+                </>
+              )}
+              {searchState === "error" && "Search failed. Try again."}
+            </div>
+            <ul
+              className="palette-results"
+              aria-busy={searchState === "loading"}
+            >
               {items.map((item, i) => (
                 <li key={itemHash(item)}>
+                  {(i === 0 || groupFor(items[i - 1]) !== groupFor(item)) && (
+                    <div className="palette-group">{groupFor(item)}</div>
+                  )}
                   <a
                     href={itemHash(item)}
                     className={i === sel ? "active" : ""}
@@ -1139,14 +1921,21 @@ function Palette({ sections }: { sections: string[] }) {
                   >
                     {item.kind === "view" ? (
                       <span className="hit-title">
+                        <Icon
+                          name={
+                            item.hash.startsWith("#/docs") ? "Wiki" : item.label
+                          }
+                        />
                         {item.label}
-                        <span className="muted"> — view</span>
                       </span>
                     ) : (
                       <>
                         <span className="hit-title">
-                          {item.id ? `${item.id} — ` : ""}
                           {item.title ?? item.path}
+                        </span>
+                        <span className="hit-meta muted">
+                          {item.type ?? "Concept"}
+                          {item.id ? ` · ${item.id}` : ""}
                         </span>
                         <span className="hit-text muted">{item.text}</span>
                       </>
@@ -1154,10 +1943,26 @@ function Palette({ sections }: { sections: string[] }) {
                   </a>
                 </li>
               ))}
-              {items.length === 0 && (
+              {items.length === 0 && searchState === "idle" && (
                 <li className="palette-empty muted">no matches</li>
               )}
             </ul>
+            <p className="sr-only" role="status">
+              {items[sel]
+                ? `Selected: ${items[sel]?.kind === "view" ? (items[sel] as { label: string }).label : (items[sel] as { title?: string }).title}`
+                : ""}
+            </p>
+            {q.trim() && (
+              <Pager
+                page={searchPage}
+                onPage={setResultPage}
+                label="Search result pages"
+                disabled={searchState === "loading"}
+              />
+            )}
+            <footer className="palette-help muted">
+              ↑ ↓ Navigate · Enter Open · Esc Close
+            </footer>
           </div>
         </div>
       )}
@@ -1166,7 +1971,7 @@ function Palette({ sections }: { sections: string[] }) {
 }
 
 // Header count: terminal columns are capped server-side, so say what's hidden.
-const columnCount = (data: BoardData, state: string): string => {
+const _columnCount = (data: BoardData, state: string): string => {
   const shown = data.cards.filter((c) => c.status === state).length;
   const total = data.totals[state] ?? shown;
   return total > shown ? `latest ${shown} of ${total}` : String(total);
@@ -1194,20 +1999,30 @@ function Column({
   onCycle,
   onMove,
   onReorder,
+  page,
+  onPage,
+  loading,
+  collapsed,
+  onExpand,
 }: {
+  collapsed: boolean;
+  onExpand: () => void;
+  page?: PageInfo;
+  onPage: (page: number) => void;
+  loading: boolean;
   state: string;
   cards: BoardCard[];
   count: string;
   mode: SortMode;
   onCycle: () => void;
   onMove: (id: string, to: string) => void;
-  onReorder: (id: string, beforeId: string | null) => void;
+  onReorder: (id: string, beforeId: string | null, afterId?: string) => void;
 }) {
   // A drop from inside the column reorders; one from another column
   // keeps moving status. Membership decides — no dragged-state bookkeeping.
-  const drop = (id: string, beforeId: string | null) =>
+  const drop = (id: string, beforeId: string | null, afterId?: string) =>
     cards.some((c) => c.id === id)
-      ? onReorder(id, beforeId)
+      ? onReorder(id, beforeId, afterId)
       : onMove(id, state);
   const dropped = (e: React.DragEvent): string => {
     e.preventDefault();
@@ -1215,7 +2030,7 @@ function Column({
   };
   return (
     <div
-      className="column"
+      className={`column${collapsed ? " column-collapsed" : ""}`}
       role="listbox"
       aria-label={`${state} column`}
       onDragOver={(e) => e.preventDefault()}
@@ -1224,44 +2039,74 @@ function Column({
         if (id) drop(id, null);
       }}
     >
-      <h3>
-        {state} <span className="muted">{count}</span>
+      {collapsed ? (
         <button
+          className="expand-column"
           type="button"
-          className="sort"
-          title="cycle sort: default / priority / recency / id"
-          aria-label={`sort ${state} column`}
-          onClick={onCycle}
+          onClick={onExpand}
+          aria-label={`Expand ${state} column`}
         >
-          {modeLabel(mode)}
+          {state.replaceAll("-", " ")} · 0
         </button>
-      </h3>
-      {sortCards(cards, mode).map((card, i, displayed) => (
-        <a
-          key={card.id}
-          className="card"
-          href={`#/c/${card.path}`}
-          draggable
-          onDragStart={(e) => e.dataTransfer.setData("text/plain", card.id)}
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={(e) => {
-            e.stopPropagation();
-            const id = dropped(e);
-            if (!id) return;
-            // Pointer height decides above/below the target, so dragging a
-            // card one slot down (onto its neighbor's lower half) works.
-            const rect = e.currentTarget.getBoundingClientRect();
-            const below = e.clientY > rect.top + rect.height / 2;
-            drop(id, below ? (displayed[i + 1]?.id ?? null) : card.id);
-          }}
-        >
-          <span className="card-id">
-            {card.id}
-            {card.priority && <Chip kind="priority">{card.priority}</Chip>}
-          </span>
-          {card.title}
-        </a>
-      ))}
+      ) : (
+        <>
+          <h3>
+            {state.replaceAll("-", " ")} <span className="muted">{count}</span>
+            <button
+              type="button"
+              className="sort"
+              title="cycle sort: default / priority / recency / id"
+              aria-label={`sort ${state} column`}
+              onClick={onCycle}
+            >
+              {modeLabel(mode)}
+            </button>
+          </h3>
+          {page && page.total > page.limit && (
+            <Pager
+              page={page}
+              onPage={onPage}
+              label={`${state} task pages`}
+              disabled={loading}
+            />
+          )}
+          {cards.map((card, i, displayed) => (
+            <a
+              key={card.id}
+              className="card"
+              href={`#/c/${card.path}`}
+              draggable
+              onDragStart={(e) => e.dataTransfer.setData("text/plain", card.id)}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.stopPropagation();
+                const id = dropped(e);
+                if (!id) return;
+                // Pointer height decides above/below the target, so dragging a
+                // card one slot down (onto its neighbor's lower half) works.
+                const rect = e.currentTarget.getBoundingClientRect();
+                const below = e.clientY > rect.top + rect.height / 2;
+                drop(
+                  id,
+                  below ? (displayed[i + 1]?.id ?? null) : card.id,
+                  below ? card.id : undefined,
+                );
+              }}
+            >
+              <span className="card-title">{card.title}</span>
+              <span className="card-id">
+                {card.id}
+                {card.priority && <Chip kind="priority">{card.priority}</Chip>}
+              </span>
+            </a>
+          ))}
+          {cards.length === 0 && (
+            <p className="column-empty muted">
+              No tasks here. Drop a card to move it.
+            </p>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -1271,24 +2116,57 @@ function Column({
 // hash query; the per-column sort stays a local
 // preference in localStorage.
 function BoardView({ query, revision }: { query: string; revision: string }) {
-  const {
-    data,
-    error: loadError,
-    load,
-  } = useLiveJson<BoardData>("/api/board", revision);
+  const [expandedEmpty, setExpandedEmpty] = useState<string[]>([]);
+  const [dragging, setDragging] = useState(false);
   const [writeError, setWriteError] = useState<string>();
   const [sorts, setSorts] = useState<Record<string, SortMode>>(loadSorts);
   const [state, setState] = useState<BoardState>(() => parseBoardState(query));
+  const [page, setPage] = usePage(query);
+  const columnParams = new URLSearchParams(
+    [...new URLSearchParams(query)].filter(([key]) =>
+      key.startsWith("column."),
+    ),
+  );
+  const setColumnPage = (status: string, number: number) => {
+    const params = new URLSearchParams(query);
+    params.set(`column.${status}`, String(number));
+    history.pushState(null, "", `#/board?${params}`);
+    window.dispatchEvent(new HashChangeEvent("hashchange"));
+  };
+  const {
+    data,
+    error: loadError,
+    loading,
+    load,
+  } = useLiveJson<BoardData>(
+    "/api/board?" +
+      boardStateQuery(state) +
+      "&page=" +
+      page +
+      "&sorts=" +
+      encodeURIComponent(JSON.stringify(sorts)) +
+      "&" +
+      columnParams,
+    revision,
+  );
   const cycleSort = (state: string) => {
+    setPage(1, false);
     const next = { ...sorts, [state]: nextMode(sorts[state] ?? null) };
     setSorts(next);
-    localStorage.setItem(SORT_KEY, JSON.stringify(next));
+    writePreference(SORT_KEY, JSON.stringify(next));
+    const params = new URLSearchParams(query);
+    for (const key of [...params.keys()])
+      if (key.startsWith("column.")) params.delete(key);
+    params.delete("page");
+    history.replaceState(null, "", `#/board${params.size ? `?${params}` : ""}`);
+    window.dispatchEvent(new HashChangeEvent("hashchange"));
   };
   useEffect(() => setState(parseBoardState(query)), [query]);
 
   const update = (patch: Partial<BoardState>) => {
     const next = { ...state, ...patch };
     setState(next);
+    setPage(1, false);
     const qs = boardStateQuery(next);
     history.replaceState(null, "", qs ? `#/board?${qs}` : "#/board");
   };
@@ -1307,7 +2185,10 @@ function BoardView({ query, revision }: { query: string; revision: string }) {
       }
       const res = await fetch(url, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          "X-Docket-Trigger": "explicit",
+        },
         body: JSON.stringify({ to, ...(note ? { note: note.trim() } : {}) }),
       });
       if (!res.ok) setWriteError((await res.json()).error);
@@ -1332,6 +2213,7 @@ function BoardView({ query, revision }: { query: string; revision: string }) {
     colState: string,
     id: string,
     beforeId: string | null,
+    afterId?: string,
   ) => {
     if ((sorts[colState] ?? null) !== null) {
       setWriteError(
@@ -1339,34 +2221,59 @@ function BoardView({ query, revision }: { query: string; revision: string }) {
       );
       return;
     }
-    const to = dropRank(lane, id, beforeId);
-    if (to !== null) await post(`/api/tasks/${id}/rank`, to);
+    try {
+      const response = await fetch(`/api/tasks/${id}/reorder`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "X-Docket-Trigger": "explicit",
+        },
+        body: JSON.stringify({
+          beforeId,
+          afterId,
+          status: colState,
+          query: boardStateQuery(state),
+          ...(state.group ? { epic: lane[0]?.epic?.id ?? "" } : {}),
+        }),
+      });
+      if (!response.ok) throw new Error((await response.json()).error);
+      setWriteError(undefined);
+    } catch (error) {
+      setWriteError(error instanceof Error ? error.message : String(error));
+    }
+    load();
   };
 
   const error = writeError ?? loadError;
   if (error && !data) return <ErrorNote message={error} />;
   if (!data) return <p className="muted">loading…</p>;
 
-  const shown = filterCards(data.cards, state);
+  const terminal = (status: string) => status === "done" || status === "closed";
+  const visibleStates = data.states.filter(
+    (status) =>
+      dragging ||
+      state.visibility === "all" ||
+      (state.visibility === "completed" ? terminal(status) : !terminal(status)),
+  );
+  const shown = data.cards.filter((card) =>
+    visibleStates.includes(card.status),
+  );
+  const totalFor = (completed: boolean) =>
+    data.columns
+      ?.filter((column) => terminal(column.status) === completed)
+      .reduce((sum, column) => sum + column.page.total, 0) ?? 0;
   const filtered = !!(state.epic || state.tag || state.assignee);
-  const idNum = (id: string) => Number(id.split("-").pop());
-  const epics = data.cards
-    .flatMap((c) => (c.epic ? [c.epic] : []))
-    .filter((e, i, all) => all.findIndex((x) => x.id === e.id) === i)
-    .sort((a, z) => idNum(z.id) - idNum(a.id));
-  const tags = [...new Set(data.cards.flatMap((c) => c.tags))].sort();
-  const assignees = [
-    ...new Set(data.cards.flatMap((c) => (c.assignee ? [c.assignee] : []))),
-  ].sort();
-  // Unfiltered flat columns keep the true totals (with terminal caps called
-  // out); filtered and lane columns count what they show.
-  const countFor = (colState: string, cards: BoardCard[]) =>
-    filtered ? String(cards.length) : columnCount(data, colState);
+  const countFor = (status: string, cards: BoardCard[]) => {
+    const total =
+      data.columns?.find((column) => column.status === status)?.page.total ??
+      cards.length;
+    return `${cards.length} of ${total}`;
+  };
   const columns = (
     cards: BoardCard[],
     count: (s: string, c: BoardCard[]) => string,
   ) =>
-    data.states.map((s) => {
+    visibleStates.map((s) => {
       const colCards = cards.filter((c) => c.status === s);
       return (
         <Column
@@ -1374,54 +2281,119 @@ function BoardView({ query, revision }: { query: string; revision: string }) {
           state={s}
           cards={colCards}
           count={count(s, colCards)}
+          page={
+            state.group
+              ? undefined
+              : data.columns?.find((column) => column.status === s)?.page
+          }
+          onPage={(page) => setColumnPage(s, page)}
+          loading={loading}
+          collapsed={
+            !dragging &&
+            state.collapseEmpty &&
+            !expandedEmpty.includes(s) &&
+            colCards.length === 0 &&
+            (!data.columns?.find((column) => column.status === s)?.page.total ||
+              state.group)
+          }
+          onExpand={() => setExpandedEmpty((statuses) => [...statuses, s])}
           mode={sorts[s] ?? null}
           onCycle={() => cycleSort(s)}
           onMove={(id, to) => void move(id, to)}
-          onReorder={(id, beforeId) => void reorder(colCards, s, id, beforeId)}
+          onReorder={(id, beforeId, afterId) =>
+            void reorder(colCards, s, id, beforeId, afterId)
+          }
         />
       );
     });
 
   return (
-    <div>
+    // biome-ignore lint/a11y/noStaticElementInteractions: observes bubbling card drag lifecycle; linked concept provides keyboard status editing
+    <div
+      className="board-view"
+      onDragStart={() => setDragging(true)}
+      onDragEnd={() => setDragging(false)}
+      onDropCapture={() => setDragging(false)}
+    >
+      <header className="view-heading">
+        <h1>Board</h1>
+        <p className="muted">
+          {state.epic ? `Epic ${state.epic}` : "Project-wide work"} · Open a
+          card to edit its status.
+        </p>
+      </header>
+      <div className="board-toolbar">
+        <fieldset className="view-segments" aria-label="Workflow visibility">
+          <button
+            type="button"
+            aria-pressed={state.visibility === "active"}
+            onClick={() => update({ visibility: "active" })}
+          >
+            Active <span>{totalFor(false)}</span>
+          </button>
+          <button
+            type="button"
+            aria-pressed={state.visibility === "completed"}
+            onClick={() => update({ visibility: "completed" })}
+          >
+            Done &amp; Closed <span>{totalFor(true)}</span>
+          </button>
+          <button
+            type="button"
+            aria-pressed={state.visibility === "all"}
+            onClick={() => update({ visibility: "all" })}
+          >
+            All states
+          </button>
+        </fieldset>
+        <label className="group-toggle">
+          <input
+            type="checkbox"
+            checked={state.collapseEmpty}
+            onChange={(e) => {
+              setExpandedEmpty([]);
+              update({ collapseEmpty: e.target.checked });
+            }}
+          />{" "}
+          Collapse empty columns
+        </label>
+      </div>
       {error && <ErrorNote message={error} />}
       <div className="filters">
-        <select
+        <button
+          type="button"
+          className="icon-button"
+          aria-label="Refresh board"
+          title="Refresh board"
+          disabled={loading}
+          onClick={() => load()}
+        >
+          <Icon name="Refresh" />
+        </button>
+        <span className="refresh-status muted" role="status">
+          {loading ? "Refreshing…" : ""}
+        </span>
+        <FacetInput
+          field="epic"
+          label="filter by epic"
           value={state.epic}
-          aria-label="filter by epic"
-          onChange={(e) => update({ epic: e.target.value })}
-        >
-          <option value="">any epic</option>
-          {epics.map((e) => (
-            <option key={e.id} value={e.id}>
-              {e.id} — {e.title ?? e.path}
-            </option>
-          ))}
-        </select>
-        <select
+          onChange={(epic) => update({ epic })}
+          revision={revision}
+        />
+        <FacetInput
+          field="tag"
+          label="filter by tag"
           value={state.tag}
-          aria-label="filter by tag"
-          onChange={(e) => update({ tag: e.target.value })}
-        >
-          <option value="">any tag</option>
-          {tags.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
-        </select>
-        <select
+          onChange={(tag) => update({ tag })}
+          revision={revision}
+        />
+        <FacetInput
+          field="assignee"
+          label="filter by assignee"
           value={state.assignee}
-          aria-label="filter by assignee"
-          onChange={(e) => update({ assignee: e.target.value })}
-        >
-          <option value="">any assignee</option>
-          {assignees.map((a) => (
-            <option key={a} value={a}>
-              {a}
-            </option>
-          ))}
-        </select>
+          onChange={(assignee) => update({ assignee })}
+          revision={revision}
+        />
         <label className="group-toggle">
           <input
             type="checkbox"
@@ -1434,7 +2406,14 @@ function BoardView({ query, revision }: { query: string; revision: string }) {
           <button
             type="button"
             className="clear"
-            onClick={() => update({ ...DEFAULT_BOARD, group: state.group })}
+            onClick={() =>
+              update({
+                ...DEFAULT_BOARD,
+                group: state.group,
+                visibility: state.visibility,
+                collapseEmpty: state.collapseEmpty,
+              })
+            }
           >
             clear
           </button>
@@ -1443,6 +2422,27 @@ function BoardView({ query, revision }: { query: string; revision: string }) {
           <a href="#/tasks">All tasks →</a>
         </span>
       </div>
+      {state.group && (
+        <div className="board-pages">
+          {data.columns
+            ?.filter(
+              (column) =>
+                visibleStates.includes(column.status) &&
+                column.page.total > column.page.limit,
+            )
+            .map((column) => (
+              <div key={column.status}>
+                <strong>{column.status}</strong>
+                <Pager
+                  page={column.page}
+                  onPage={(page) => setColumnPage(column.status, page)}
+                  label={`${column.status} task pages across epic groups`}
+                  disabled={loading}
+                />
+              </div>
+            ))}
+        </div>
+      )}
       {state.group ? (
         <>
           {groupByEpic(shown).map((lane) => (
@@ -1487,7 +2487,8 @@ export function EpicList({
           <div className="epic-title">
             <span className="epic-heading">
               <a href={`#/c/${epic.path}`}>
-                <code>{epic.id}</code> {epic.title}
+                <strong>{epic.title}</strong>{" "}
+                <code className="muted">{epic.id}</code>
               </a>{" "}
               {epic.status && <Chip kind={epic.status}>{epic.status}</Chip>}
               {epic.needsCleanup && (
@@ -1500,11 +2501,13 @@ export function EpicList({
               )}
             </span>
             <span className="muted">
-              {epic.done}/{epic.total} done
+              {epic.total
+                ? `${epic.done} of ${epic.total} done`
+                : "No child tasks yet"}
               {epic.closed > 0 ? `, ${epic.closed} closed` : ""}
             </span>
           </div>
-          <div className="bar">
+          <div className="bar" aria-hidden="true">
             <div
               className="bar-fill"
               style={{
@@ -1554,16 +2557,21 @@ const EPIC_SORTS: { key: EpicSortKey; label: string }[] = [
 // State lives in the URL hash query; terminal epics
 // hide by default so the page leads with what's alive.
 function EpicsView({ query, revision }: { query: string; revision: string }) {
-  const { data, error, load } = useLiveJson<EpicsData>("/api/epics", revision);
   const [editError, setEditError] = useState<string>();
   const [state, setState] = useState<EpicListState>(() =>
     parseEpicListState(query),
+  );
+  const [page, setPage] = usePage(query);
+  const { data, error, load } = useLiveJson<EpicsData>(
+    `/api/epics?${epicListQuery(state)}&page=${page}`,
+    revision,
   );
   useEffect(() => setState(parseEpicListState(query)), [query]);
 
   const update = (patch: Partial<EpicListState>) => {
     const next = { ...state, ...patch };
     setState(next);
+    setPage(1, false);
     const qs = epicListQuery(next);
     history.replaceState(null, "", qs ? `#/epics?${qs}` : "#/epics");
   };
@@ -1573,15 +2581,23 @@ function EpicsView({ query, revision }: { query: string; revision: string }) {
     load();
   };
 
-  if (error) return <ErrorNote message={error} />;
+  if (error && !data) return <ErrorNote message={error} />;
   if (!data) return <p className="muted">loading…</p>;
 
-  const rows = applyEpicList(data.epics, state);
-  const tags = [...new Set(data.epics.flatMap((e) => e.tags))].sort();
+  const rows = data.epics;
+
   const filtered = !!(state.status || state.tag || state.done || state.cleanup);
   return (
     <div>
-      {editError && <ErrorNote message={editError} />}
+      <header className="view-heading">
+        <h1>Epics</h1>
+        <p className="muted">
+          Outcomes, progress, and work that still needs review.
+        </p>
+      </header>
+      {(editError || error) && (
+        <ErrorNote message={editError ?? error ?? "Refresh failed"} />
+      )}
       <div className="filters">
         <select
           value={state.status}
@@ -1595,18 +2611,13 @@ function EpicsView({ query, revision }: { query: string; revision: string }) {
             </option>
           ))}
         </select>
-        <select
+        <FacetInput
+          field="tag"
+          label="filter by tag"
           value={state.tag}
-          aria-label="filter by tag"
-          onChange={(e) => update({ tag: e.target.value })}
-        >
-          <option value="">any tag</option>
-          {tags.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
-        </select>
+          onChange={(tag) => update({ tag })}
+          revision={revision}
+        />
         <select
           value={state.sort}
           aria-label="sort epics"
@@ -1644,11 +2655,11 @@ function EpicsView({ query, revision }: { query: string; revision: string }) {
           </button>
         )}
         <span className="muted count">
-          {rows.length === data.epics.length
-            ? `${rows.length} epics`
-            : `${rows.length} of ${data.epics.length}`}
+          {data.page?.total ?? rows.length} matching of{" "}
+          {data.total ?? rows.length} epics
         </span>
       </div>
+      <Pager page={data.page} onPage={setPage} label="Epic list pages" />
       <EpicList
         epics={rows}
         states={data.states}
@@ -1662,6 +2673,8 @@ function EpicsView({ query, revision }: { query: string; revision: string }) {
 }
 
 interface TasksData {
+  page?: PageInfo;
+  total?: number;
   states: string[];
   items: TaskRow[];
 }
@@ -1670,40 +2683,18 @@ interface TasksData {
 // item. The URL hash query is the source of truth for filter/sort state —
 // control edits replaceState (no history spam), external navigation
 // (back/forward, pasted links) re-parses via the query prop.
-function TasksView({ query, revision }: { query: string; revision: string }) {
-  const { data, error, load } = useLiveJson<TasksData>("/api/tasks", revision);
-  const [editError, setEditError] = useState<string>();
-  const [state, setState] = useState<ListState>(() => parseListState(query));
-  useEffect(() => setState(parseListState(query)), [query]);
-
-  const edit = async (id: string, field: EditField, to: string | null) => {
-    setEditError(await postEdit(id, field, to));
-    load();
-  };
-
-  const update = (patch: Partial<ListState>) => {
-    const next = { ...state, ...patch };
-    setState(next);
-    const qs = listStateQuery(next);
-    history.replaceState(null, "", qs ? `#/tasks?${qs}` : "#/tasks");
-  };
-
-  if (error) return <ErrorNote message={error} />;
-  if (!data) return <p className="muted">loading…</p>;
-
-  const rows = applyList(data.items, data.states, state);
-  const epics = data.items
-    .flatMap((r) => (r.epic ? [r.epic] : []))
-    .filter((e, i, all) => all.findIndex((x) => x.id === e.id) === i);
-  // Row-edit options: every epic, not just the referenced ones the filter shows.
-  const allEpics = data.items.filter((r) => r.type === "Epic");
-  const priorities = [...new Set(data.items.map((r) => r.priority))].sort();
-  const tags = [...new Set(data.items.flatMap((r) => r.tags))].sort();
-  // Whatever work-item types the bundle holds — not a hard-coded pair.
-  const types = [...new Set(data.items.map((r) => r.type))].sort();
-  const filtered = listStateQuery({ ...state, sort: "id", dir: "desc" }) !== "";
-
-  const Th = ({ k, label }: { k: SortKey; label: string }) => (
+function TaskHeading({
+  k,
+  label,
+  state,
+  update,
+}: {
+  k: SortKey;
+  label: string;
+  state: ListState;
+  update: (patch: Partial<ListState>) => void;
+}) {
+  return (
     <th
       aria-sort={
         state.sort === k
@@ -1728,10 +2719,52 @@ function TasksView({ query, revision }: { query: string; revision: string }) {
       </button>
     </th>
   );
+}
+
+function TasksView({ query, revision }: { query: string; revision: string }) {
+  const [pendingEdits, setPendingEdits] = useState<string[]>([]);
+  const [editError, setEditError] = useState<string>();
+  const [state, setState] = useState<ListState>(() => parseListState(query));
+  const [page, setPage] = usePage(query);
+  const { data, error, load } = useLiveJson<TasksData>(
+    `/api/tasks?${listStateQuery(state)}&page=${page}`,
+    revision,
+  );
+  useEffect(() => setState(parseListState(query)), [query]);
+
+  const edit = async (id: string, field: EditField, to: string | null) => {
+    if (pendingEdits.includes(id)) return;
+    setPendingEdits((ids) => [...ids, id]);
+    setEditError(await postEdit(id, field, to));
+    setPendingEdits((ids) => ids.filter((value) => value !== id));
+    load();
+  };
+
+  const update = (patch: Partial<ListState>) => {
+    const next = { ...state, ...patch };
+    setState(next);
+    setPage(1, false);
+    const qs = listStateQuery(next);
+    history.replaceState(null, "", qs ? `#/tasks?${qs}` : "#/tasks");
+  };
+
+  if (error && !data) return <ErrorNote message={error} />;
+  if (!data) return <p className="muted">loading…</p>;
+
+  const rows = data.items;
+  const filtered = listStateQuery({ ...state, sort: "id", dir: "desc" }) !== "";
 
   return (
-    <div>
-      {editError && <ErrorNote message={editError} />}
+    <div className="task-view">
+      <header className="view-heading">
+        <h1>Tasks</h1>
+        <p className="muted">
+          Every work item, with the context to move it forward.
+        </p>
+      </header>
+      {(editError || error) && (
+        <ErrorNote message={editError ?? error ?? "Refresh failed"} />
+      )}
       <div className="filters">
         <input
           value={state.q}
@@ -1739,18 +2772,13 @@ function TasksView({ query, revision }: { query: string; revision: string }) {
           aria-label="filter tasks by text"
           onChange={(e) => update({ q: e.target.value })}
         />
-        <select
+        <FacetInput
+          field="type"
+          label="filter by type"
           value={state.type}
-          aria-label="filter by type"
-          onChange={(e) => update({ type: e.target.value })}
-        >
-          <option value="">any type</option>
-          {types.map((t) => (
-            <option key={t} value={t}>
-              {t.toLowerCase()}
-            </option>
-          ))}
-        </select>
+          onChange={(type) => update({ type })}
+          revision={revision}
+        />
         <select
           value={state.status}
           aria-label="filter by status"
@@ -1763,42 +2791,27 @@ function TasksView({ query, revision }: { query: string; revision: string }) {
             </option>
           ))}
         </select>
-        <select
+        <FacetInput
+          field="epic"
+          label="filter by epic"
           value={state.epic}
-          aria-label="filter by epic"
-          onChange={(e) => update({ epic: e.target.value })}
-        >
-          <option value="">any epic</option>
-          {epics.map((e) => (
-            <option key={e.id} value={e.id}>
-              {e.id} — {e.title ?? e.path}
-            </option>
-          ))}
-        </select>
-        <select
+          onChange={(epic) => update({ epic })}
+          revision={revision}
+        />
+        <FacetInput
+          field="priority"
+          label="filter by priority"
           value={state.priority}
-          aria-label="filter by priority"
-          onChange={(e) => update({ priority: e.target.value })}
-        >
-          <option value="">any priority</option>
-          {priorities.map((p) => (
-            <option key={p} value={p}>
-              {p}
-            </option>
-          ))}
-        </select>
-        <select
+          onChange={(priority) => update({ priority })}
+          revision={revision}
+        />
+        <FacetInput
+          field="tag"
+          label="filter by tag"
           value={state.tag}
-          aria-label="filter by tag"
-          onChange={(e) => update({ tag: e.target.value })}
-        >
-          <option value="">any tag</option>
-          {tags.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
-        </select>
+          onChange={(tag) => update({ tag })}
+          revision={revision}
+        />
         {filtered && (
           <button
             type="button"
@@ -1809,87 +2822,112 @@ function TasksView({ query, revision }: { query: string; revision: string }) {
           </button>
         )}
         <span className="muted count">
-          {rows.length === data.items.length
-            ? `${rows.length} items`
-            : `${rows.length} of ${data.items.length}`}
+          {data.page?.total ?? rows.length} matching of{" "}
+          {data.total ?? rows.length} items
         </span>
       </div>
-      <table className="tasks">
-        <thead>
-          <tr>
-            <Th k="id" label="ID" />
-            <Th k="title" label="Title" />
-            <Th k="status" label="Status" />
-            <Th k="priority" label="Priority" />
-            <th>Epic</th>
-            <th>Tags</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.id}>
-              <td>
-                <a href={`#/c/${r.path}`}>
-                  <code>{r.id}</code>
-                </a>
-              </td>
-              <td>
-                <a href={`#/c/${r.path}`}>{r.title ?? r.path}</a>
-                {r.type === "Epic" && <Chip kind="type">epic</Chip>}
-              </td>
-              <td>
-                <select
-                  className="inline-select"
-                  aria-label={`status of ${r.id}`}
-                  value={r.status}
-                  onChange={(e) => void edit(r.id, "status", e.target.value)}
-                >
-                  {data.states.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-                {r.ready && <Chip kind="ready">ready</Chip>}
-              </td>
-              <td>
-                <select
-                  className="inline-select"
-                  aria-label={`priority of ${r.id}`}
-                  value={r.priority}
-                  onChange={(e) => void edit(r.id, "priority", e.target.value)}
-                >
-                  {PRIORITIES.map((p) => (
-                    <option key={p} value={p}>
-                      {p}
-                    </option>
-                  ))}
-                </select>
-              </td>
-              <td>
-                {r.type === "Task" && (
+      <Pager page={data.page} onPage={setPage} label="Task list pages" />
+      {/* biome-ignore lint/a11y/noNoninteractiveTabindex: keyboard users need to scroll the bounded table horizontally */}
+      <section className="table-scroll" aria-label="Task list" tabIndex={0}>
+        <table className="tasks">
+          <thead>
+            <tr>
+              <TaskHeading
+                state={state}
+                update={update}
+                k="title"
+                label="Title"
+              />
+              <TaskHeading state={state} update={update} k="id" label="ID" />
+              <TaskHeading
+                state={state}
+                update={update}
+                k="status"
+                label="Status"
+              />
+              <TaskHeading
+                state={state}
+                update={update}
+                k="priority"
+                label="Priority"
+              />
+              <th>Epic</th>
+              <th>Tags</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.id}>
+                <td>
+                  <a href={`#/c/${r.path}`}>{r.title ?? r.path}</a>
+                  {r.type === "Epic" && <Chip kind="type">epic</Chip>}
+                  {pendingEdits.includes(r.id) && (
+                    <span className="muted" role="status">
+                      {" "}
+                      Saving…
+                    </span>
+                  )}
+                </td>
+                <td>
+                  <a href={`#/c/${r.path}`}>
+                    <code>{r.id}</code>
+                  </a>
+                </td>
+
+                <td>
                   <select
                     className="inline-select"
-                    aria-label={`epic of ${r.id}`}
-                    value={r.epic ? `/${r.epic.path}` : ""}
-                    onChange={(e) =>
-                      void edit(r.id, "epic", e.target.value || null)
-                    }
+                    disabled={pendingEdits.includes(r.id)}
+                    aria-label={`status of ${r.id}`}
+                    value={r.status}
+                    onChange={(e) => void edit(r.id, "status", e.target.value)}
                   >
-                    <option value="">no epic</option>
-                    {allEpics.map((e) => (
-                      <option key={e.id} value={`/${e.path}`}>
-                        {e.id} — {e.title ?? e.path}
+                    {data.states.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
                       </option>
                     ))}
                   </select>
-                )}
-              </td>
-              <td className="muted">{r.tags.join(", ")}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+                  {r.ready && <Chip kind="ready">ready</Chip>}
+                </td>
+                <td>
+                  <select
+                    className="inline-select"
+                    disabled={pendingEdits.includes(r.id)}
+                    aria-label={`priority of ${r.id}`}
+                    value={r.priority}
+                    onChange={(e) =>
+                      void edit(r.id, "priority", e.target.value)
+                    }
+                  >
+                    {PRIORITIES.map((p) => (
+                      <option key={p} value={p}>
+                        {p}
+                      </option>
+                    ))}
+                  </select>
+                </td>
+                <td>
+                  {r.type === "Task" && (
+                    <fieldset
+                      className="inline-editor"
+                      disabled={pendingEdits.includes(r.id)}
+                    >
+                      <EpicPicker
+                        current={r.epic ? { ...r.epic, status: null } : null}
+                        label={`epic of ${r.id}`}
+                        revision={revision}
+                        onChange={(to) => void edit(r.id, "epic", to)}
+                      />
+                    </fieldset>
+                  )}
+                </td>
+                <td className="muted">{r.tags.join(", ")}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
       {rows.length === 0 && <p className="muted">nothing matches</p>}
     </div>
   );
@@ -1898,10 +2936,33 @@ function TasksView({ query, revision }: { query: string; revision: string }) {
 export function App() {
   const route = useRoute();
   const revision = useBundleRevision();
+  const [collapsed, setCollapsed] = useState(
+    () => readPreference("docket.sidebar.collapsed") === "true",
+  );
+  const previousRoute = useRef(route);
+  const [returnRoute, setReturnRoute] = useState<{
+    href: string;
+    label: string;
+  }>();
+  useEffect(() => {
+    if (["board", "tasks", "epics"].includes(route.view))
+      rememberView(route.view, location.hash);
+    if (
+      route.view === "concept" &&
+      ["board", "tasks", "epics"].includes(previousRoute.current.view)
+    ) {
+      const view = previousRoute.current.view;
+      setReturnRoute({
+        href: rememberedView(view),
+        label: view.charAt(0).toUpperCase() + view.slice(1),
+      });
+    } else if (route.view !== "concept") setReturnRoute(undefined);
+    previousRoute.current = route;
+  }, [route]);
   const { data: navData } = useLiveJson<{
     project: string;
     sections: string[];
-  }>("/api/nav", revision);
+  }>("/api/nav?summary=1", revision);
   const project = navData?.project ?? "docket";
   const sections = navData?.sections ?? [];
 
@@ -1922,22 +2983,27 @@ export function App() {
   const docConcept =
     route.view === "concept" && isDocPath(route.path, sections);
   const nav = [
+    { hash: "#/", label: "Home", active: route.view === "home" },
     {
-      hash: "#/",
-      label: "Home",
-      active: route.view === "home",
+      hash: rememberedView("board"),
+      label: "Board",
+      active: route.view === "board",
     },
     {
       hash: "#/wiki",
       label: "Wiki",
-      active:
-        route.view === "wiki" ||
-        route.view === "docs" ||
-        route.view === "concept",
+      active: ["wiki", "docs", "concept"].includes(route.view),
     },
-    { hash: "#/tasks", label: "Tasks", active: route.view === "tasks" },
-    { hash: "#/board", label: "Board", active: route.view === "board" },
-    { hash: "#/epics", label: "Epics", active: route.view === "epics" },
+    {
+      hash: rememberedView("tasks"),
+      label: "Tasks",
+      active: route.view === "tasks",
+    },
+    {
+      hash: rememberedView("epics"),
+      label: "Epics",
+      active: route.view === "epics",
+    },
     {
       hash: "#/activity",
       label: "Activity",
@@ -1946,23 +3012,79 @@ export function App() {
   ];
 
   return (
-    <div className="layout">
-      <nav className="topbar">
-        <a className="brand" href="#/">
-          docket <span className="muted">· {project}</span>
+    <div className={`layout workspace${collapsed ? " sidebar-collapsed" : ""}`}>
+      <aside className="workspace-sidebar">
+        <a
+          className="workspace-brand"
+          href="#/"
+          title={`Docket · ${project}`}
+          aria-label={`Docket · ${project}`}
+        >
+          <span className="brand-mark" aria-hidden="true">
+            d
+          </span>
+          <span className="nav-label">
+            <strong>Docket</strong>
+            <small>{project}</small>
+          </span>
         </a>
         <Palette sections={sections} />
-        {nav.map((item) => (
-          <a
-            key={item.hash}
-            href={item.hash}
-            className={item.active ? "active" : ""}
-          >
-            {item.label}
-          </a>
-        ))}
-      </nav>
-      <main>
+        <nav className="workspace-nav" aria-label="Workspace">
+          {nav.map((item) => (
+            <a
+              key={item.label}
+              href={item.hash}
+              className={item.active ? "active" : ""}
+              aria-current={item.active ? "page" : undefined}
+              aria-label={item.label}
+              title={item.label}
+            >
+              <Icon name={item.label} />
+              <span className="nav-label">{item.label}</span>
+            </a>
+          ))}
+        </nav>
+        <button
+          className="sidebar-toggle"
+          type="button"
+          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          aria-expanded={!collapsed}
+          onClick={() => {
+            setCollapsed(!collapsed);
+            writePreference("docket.sidebar.collapsed", String(!collapsed));
+          }}
+        >
+          <Icon name={collapsed ? "Expand" : "Collapse"} />
+        </button>
+      </aside>
+      <main id="main-content" tabIndex={-1}>
+        <nav className="breadcrumbs" aria-label="Breadcrumb">
+          <span>{project}</span>
+          <span aria-hidden="true">/</span>
+          {route.view === "concept" || route.view === "docs" ? (
+            <a href="#/wiki">Wiki</a>
+          ) : (
+            <span>{nav.find((item) => item.active)?.label}</span>
+          )}
+          {route.view === "docs" && route.dir && (
+            <>
+              <span aria-hidden="true">/</span>
+              <span>{route.dir}</span>
+            </>
+          )}
+          {route.view === "concept" && (
+            <>
+              <span aria-hidden="true">/</span>
+              <span>Concept</span>
+            </>
+          )}
+          {route.view === "concept" && returnRoute && (
+            <a className="return-context" href={returnRoute.href}>
+              ← Back to {returnRoute.label}
+            </a>
+          )}
+        </nav>
         {route.view === "home" && <HomeView revision={revision} />}
         {route.view === "wiki" && <WikiView revision={revision} />}
         {route.view === "concept" &&

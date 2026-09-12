@@ -10,7 +10,8 @@ import { join } from "node:path";
 import type { DocketConfig } from "@gitdocket/core";
 import { type Assets, createApp, localRequestBoundary } from "./app";
 import { createCommitter } from "./commit";
-import { createRepoContext } from "./state";
+import { watchGit } from "./git-watch";
+import { createRepoContext, type RepoContext } from "./state";
 
 export interface ServeOptions {
   port?: number;
@@ -47,11 +48,13 @@ export async function buildAssets(
 const RELOAD_JS = `\n;new EventSource("/dev/reload").onmessage = () => location.reload();\n`;
 
 interface DevWatcher {
+  close(): void;
   /** Serve /dev/reload; undefined lets the request fall through to the app. */
   handle(req: Request): Response | undefined;
 }
 
 interface DataWatcher {
+  close(): void;
   /** Serve /api/events; undefined lets the request fall through to the app. */
   handle(req: Request): Response | undefined;
 }
@@ -59,56 +62,167 @@ interface DataWatcher {
 // Files remain the source of truth: the watcher carries only a monotonically
 // increasing invalidation id. On every connection we send the current id, so
 // EventSource reconnects catch up even if mutations happened while offline.
-function startDataWatcher(
+async function startDataWatcher(
   root: string,
-  config: DocketConfig,
-  invalidate: () => void,
-): DataWatcher {
+  ctx: RepoContext,
+): Promise<DataWatcher> {
   const encoder = new TextEncoder();
-  const clients = new Set<ReadableStreamDefaultController<Uint8Array>>();
+  const clients = new Map<
+    ReadableStreamDefaultController<Uint8Array>,
+    ReturnType<typeof setInterval>
+  >();
+  const instance = crypto.randomUUID();
   let revision = 0;
+  let stopped = false;
   let debounce: ReturnType<typeof setTimeout> | undefined;
-
-  const event = () => encoder.encode(`id: ${revision}\ndata: ${revision}\n\n`);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let bundleWatcher: ReturnType<typeof watch> | undefined;
+  let watchedRoot: string | undefined;
+  let signalRequested = false;
+  const event = () =>
+    encoder.encode(
+      "id: " +
+        instance +
+        ":" +
+        revision +
+        "\ndata: " +
+        instance +
+        ":" +
+        revision +
+        "\n\n",
+    );
+  const end = (client: ReadableStreamDefaultController<Uint8Array>) => {
+    clearInterval(clients.get(client));
+    clients.delete(client);
+    try {
+      client.close();
+    } catch {
+      /* Already disconnected. */
+    }
+  };
+  const send = (
+    client: ReadableStreamDefaultController<Uint8Array>,
+    message: Uint8Array,
+  ) => {
+    try {
+      if ((client.desiredSize ?? 0) <= 0) {
+        end(client);
+        return;
+      }
+      client.enqueue(message);
+    } catch {
+      end(client);
+    }
+  };
   const publish = () => {
-    invalidate();
+    if (stopped) return;
     revision++;
-    const message = event();
-    for (const client of clients) {
-      try {
-        client.enqueue(message);
-      } catch {
-        clients.delete(client);
+    signalRequested = false;
+    attachBundleWatcher();
+    for (const client of clients.keys()) send(client, event());
+  };
+  const schedule = (paths?: readonly string[]) => {
+    if (stopped) return;
+    ctx.invalidate(paths);
+    signalRequested = true;
+    clearTimeout(debounce);
+    debounce = setTimeout(() => {
+      void ctx
+        .state()
+        .then(() => {
+          if (signalRequested) publish();
+        })
+        .catch(() => {});
+    }, 25);
+  };
+  const attachBundleWatcher = () => {
+    if (bundleWatcher && watchedRoot === ctx.store.root) return;
+    bundleWatcher?.close();
+    watchedRoot = ctx.store.root;
+    try {
+      bundleWatcher = watch(watchedRoot, { recursive: true }, () => {
+        // Recursive watchers can omit nested changes while reporting a root
+        // change from the same write burst. Reconcile metadata for every file;
+        // the bundle index still reads and parses only changed versions.
+        schedule();
+      });
+      bundleWatcher.on("error", () => {
+        bundleWatcher?.close();
+        bundleWatcher = undefined;
+        schedule();
+      });
+      bundleWatcher.unref();
+    } catch {
+      bundleWatcher = undefined;
+    }
+  };
+  attachBundleWatcher();
+  let configWatcher: ReturnType<typeof watch> | undefined;
+  try {
+    configWatcher = watch(root, (_event, filename) => {
+      if (!filename || String(filename) === "docket.yaml") schedule();
+    });
+    configWatcher.on("error", () => {
+      configWatcher?.close();
+      configWatcher = undefined;
+      schedule();
+    });
+    configWatcher.unref();
+  } catch {
+    /* Periodic reconciliation remains authoritative. */
+  }
+  const unsubscribe = ctx.subscribe(publish);
+  const closeGit = await watchGit(root, () => {
+    ctx.invalidateGit();
+    schedule([]);
+  });
+  const reconcile = async () => {
+    try {
+      attachBundleWatcher();
+      await ctx.refresh({ background: true });
+    } catch {
+      /* Existing readers retain explicitly marked last-known data. */
+    } finally {
+      if (!stopped) {
+        timer = setTimeout(reconcile, 500);
+        timer.unref();
       }
     }
   };
-
-  watch(join(root, config.bundle), { recursive: true }, () => {
-    clearTimeout(debounce);
-    debounce = setTimeout(publish, 80);
-  }).unref();
-
+  void reconcile();
   return {
+    close() {
+      if (stopped) return;
+      stopped = true;
+      unsubscribe();
+      clearTimeout(timer);
+      clearTimeout(debounce);
+      bundleWatcher?.close();
+      configWatcher?.close();
+      closeGit();
+      for (const client of [...clients.keys()]) end(client);
+    },
     handle(req) {
       if (new URL(req.url).pathname !== "/api/events") return undefined;
       let opened: ReadableStreamDefaultController<Uint8Array> | undefined;
-      let heartbeat: ReturnType<typeof setInterval> | undefined;
-      const stream = new ReadableStream<Uint8Array>({
-        start(controller) {
-          opened = controller;
-          clients.add(controller);
-          controller.enqueue(event());
-          heartbeat = setInterval(
-            () => controller.enqueue(encoder.encode(": keepalive\n\n")),
-            8000,
-          );
-          heartbeat.unref();
+      const stream = new ReadableStream<Uint8Array>(
+        {
+          start(controller) {
+            opened = controller;
+            const heartbeat = setInterval(
+              () => send(controller, encoder.encode(": keepalive\n\n")),
+              8000,
+            );
+            heartbeat.unref();
+            clients.set(controller, heartbeat);
+            send(controller, event());
+          },
+          cancel() {
+            if (opened) end(opened);
+          },
         },
-        cancel() {
-          if (opened) clients.delete(opened);
-          clearInterval(heartbeat);
-        },
-      });
+        { highWaterMark: 8 },
+      );
       return new Response(stream, {
         headers: {
           "content-type": "text/event-stream",
@@ -126,10 +240,13 @@ function startDataWatcher(
 function startWatcher(assets: Assets): DevWatcher {
   const encoder = new TextEncoder();
   const clients = new Set<ReadableStreamDefaultController<Uint8Array>>();
+  const heartbeats = new Set<ReturnType<typeof setInterval>>();
+  let stopped = false;
 
   const rebuild = async () => {
     try {
       const next = await buildAssets({ dev: true });
+      if (stopped) return;
       assets.js = next.js + RELOAD_JS;
       assets.css = next.css;
       console.log("docket serve — client rebuilt, reloading tabs");
@@ -151,12 +268,32 @@ function startWatcher(assets: Assets): DevWatcher {
 
   assets.js += RELOAD_JS;
   let debounce: ReturnType<typeof setTimeout> | undefined;
-  watch(join(import.meta.dir, "client"), { recursive: true }, () => {
-    clearTimeout(debounce);
-    debounce = setTimeout(rebuild, 80);
-  }).unref(); // Bun.serve holds the process open; the watcher shouldn't.
+  const watcher = watch(
+    join(import.meta.dir, "client"),
+    { recursive: true },
+    () => {
+      clearTimeout(debounce);
+      debounce = setTimeout(rebuild, 80);
+    },
+  );
+  watcher.unref();
 
   return {
+    close() {
+      stopped = true;
+      watcher.close();
+      clearTimeout(debounce);
+      for (const heartbeat of heartbeats) clearInterval(heartbeat);
+      heartbeats.clear();
+      for (const client of clients) {
+        try {
+          client.close();
+        } catch {
+          /* Already disconnected. */
+        }
+      }
+      clients.clear();
+    },
     handle(req) {
       if (new URL(req.url).pathname !== "/dev/reload") return undefined;
       let opened: ReadableStreamDefaultController<Uint8Array> | undefined;
@@ -171,10 +308,12 @@ function startWatcher(assets: Assets): DevWatcher {
             8000,
           );
           heartbeat.unref();
+          heartbeats.add(heartbeat);
         },
         cancel() {
           if (opened) clients.delete(opened);
           clearInterval(heartbeat);
+          if (heartbeat) heartbeats.delete(heartbeat);
         },
       });
       return new Response(stream, {
@@ -199,21 +338,40 @@ export async function startServe(
     : await buildAssets({ dev: opts.watch });
   const ctx = createRepoContext(root, config, { ttlMs: opts.ttlMs });
   const app = createApp(ctx, assets, {
-    commit: opts.commit ? createCommitter(root, config.bundle) : undefined,
+    committerFor: opts.commit
+      ? (bundle) => createCommitter(root, bundle)
+      : undefined,
   });
-  const data = startDataWatcher(root, config, () => ctx.invalidate());
-  const dev = opts.watch ? startWatcher(assets) : undefined;
-  return Bun.serve({
-    // Docket serves a repository read/write API. The first public contract is
-    // deliberately same-computer only; there is no host override.
-    hostname: "127.0.0.1",
-    port: opts.port ?? 4180,
-    // Both SSE streams send keepalives below Bun's default idle timeout.
-    fetch: (req) => {
-      const boundaryError = localRequestBoundary(req);
-      if (boundaryError)
-        return Response.json({ error: boundaryError }, { status: 403 });
-      return data.handle(req) ?? dev?.handle(req) ?? app.fetch(req);
-    },
-  });
+  let data: DataWatcher | undefined;
+  let dev: DevWatcher | undefined;
+  try {
+    data = await startDataWatcher(root, ctx);
+    dev = opts.watch ? startWatcher(assets) : undefined;
+    const server = Bun.serve({
+      // Docket serves a repository read/write API. The first public contract is
+      // deliberately same-computer only; there is no host override.
+      hostname: "127.0.0.1",
+      port: opts.port ?? 4180,
+      // Both SSE streams send keepalives below Bun's default idle timeout.
+      fetch: (req) => {
+        const boundaryError = localRequestBoundary(req);
+        if (boundaryError)
+          return Response.json({ error: boundaryError }, { status: 403 });
+        return data?.handle(req) ?? dev?.handle(req) ?? app.fetch(req);
+      },
+    });
+    const stop = server.stop.bind(server);
+    server.stop = (...args) => {
+      ctx.close();
+      data?.close();
+      dev?.close();
+      return stop(...args);
+    };
+    return server;
+  } catch (error) {
+    ctx.close();
+    data?.close();
+    dev?.close();
+    throw error;
+  }
 }
