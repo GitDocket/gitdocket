@@ -1,5 +1,5 @@
 {
-  "description": "Captured from the 0.2.0 tool surface via tools/list on 2026-09-12. Illustrative IDs in descriptions are normalized to HBR/ADR; schemas are otherwise unchanged. Connect to your installed server for its exact contract.",
+  "description": "Captured from the 0.2.1 tool surface via tools/list on 2026-09-12. Illustrative IDs in descriptions are normalized to HBR/ADR; schemas are otherwise unchanged. Connect to your installed server for its exact contract.",
   "tools": [
     {
       "name": "overview",

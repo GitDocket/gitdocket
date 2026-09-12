@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseConfig } from "@gitdocket/core";
 import { createApp } from "./app";
@@ -7,7 +8,7 @@ import { createRepoContext, type RepoContext } from "./state";
 
 let root: string, ctx: RepoContext, app: ReturnType<typeof createApp>;
 beforeEach(async () => {
-  root = await mkdtemp("/private/tmp/docket-collections-");
+  root = await mkdtemp(join(tmpdir(), "docket-collections-"));
   await mkdir(join(root, "docs/tasks"), { recursive: true });
   await mkdir(join(root, "docs/reference"));
   await writeFile(
@@ -36,8 +37,8 @@ beforeEach(async () => {
   app = createApp(ctx);
 });
 afterEach(async () => {
-  ctx.close();
-  await rm(root, { recursive: true, force: true });
+  ctx?.close();
+  if (root) await rm(root, { recursive: true, force: true });
 });
 const get = async (path: string) => {
   const response = await app.request(`http://localhost/api/${path}`);
