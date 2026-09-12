@@ -48,11 +48,7 @@ docket init --agent codex
 docket init --agent claude
 ```
 
-Once initialized, ask your agent to create and run a small “Welcome guide” epic:
-write a short contributor guide, then link it from README, with concrete checks
-for each task. Review the completed work, reconciled docs, and task-linked
-receipt—or the concrete blocker. The [first-run walkthrough](docs/getting-started.md#3-try-a-small-epic-with-your-agent)
-shows the expected result and how a later session recovers context.
+Once initialized, ask your agent to create and run a small “Welcome guide” epic: write a short contributor guide, then link it from README, with concrete checks for each task. Review the completed work, reconciled docs, and task-linked receipt—or the concrete blocker. The [first-run walkthrough](docs/getting-started.md#3-try-a-small-epic-with-your-agent) shows the expected result and how a later session recovers context.
 
 ## What is in a bundle?
 
