@@ -27,6 +27,6 @@
   "dependencies": {
     "@gitdocket/core": "workspace:*",
     "@gitdocket/web": "workspace:*",
-    "commander": "^14.0.3"
+    "commander": "^15.0.0"
   }
 }
