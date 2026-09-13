@@ -24,6 +24,7 @@ import {
   runGit,
   serializeReleasePlan,
 } from "./release-contract";
+import { verifyUpgradeCompatibility } from "./upgrade-compatibility";
 
 export const STAGE_SCHEMA = 1 as const;
 // Schema-1 receipts from releases before source paging remain valid. New
@@ -423,6 +424,37 @@ export async function runInstalledSmoke(
     ) as { dryRun?: boolean };
     if (upgrade.dryRun !== true)
       throw new Error("docket upgrade did not stay dry-run");
+    await verifyUpgradeCompatibility({
+      history: JSON.parse(
+        await readFile(
+          join(root, "node_modules/@gitdocket/core/src/shipped-history.json"),
+          "utf8",
+        ),
+      ),
+      version: options.version,
+      upgrade: async (fixture, dryRun) => {
+        const result = Bun.spawnSync(
+          [cli, "upgrade", ...(dryRun ? ["--dry-run"] : []), "--json"],
+          {
+            cwd: fixture,
+            env: { ...process.env, ...env },
+            stdout: "pipe",
+            stderr: "pipe",
+          },
+        );
+        const report = JSON.parse(result.stdout.toString());
+        // The historical conflict fixture deliberately exercises CLI exit 1.
+        if (
+          result.exitCode !== 0 &&
+          !(result.exitCode === 1 && report.conflicts?.length > 0)
+        ) {
+          throw new Error(
+            `upgrade compatibility failed: ${result.stderr.toString()}`,
+          );
+        }
+        return report;
+      },
+    });
     return { packageVersions, mcpTools, serveStatus };
   } finally {
     await rm(root, { recursive: true, force: true });

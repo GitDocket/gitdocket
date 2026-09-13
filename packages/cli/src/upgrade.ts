@@ -41,6 +41,7 @@ export interface UpgradeItem {
   /** Provenance version before the upgrade; absent for pre-stamp markers. */
   from?: string;
   reason?: string;
+  reviewRequired?: true;
 }
 
 export interface UpgradeReport {
@@ -50,6 +51,8 @@ export interface UpgradeReport {
   dryRun: boolean;
   items: UpgradeItem[];
   conflicts: string[];
+  /** Cleanly retained differences, including potentially stale instructions. */
+  reviewRequired: string[];
   /** Reconcile task filed for the conflicts (--file-task). */
   filedTask?: { id: string; path: string };
 }
@@ -191,6 +194,7 @@ export async function runUpgrade(
         action: result.action,
         ...(result.from ? { from: result.from } : {}),
         ...(result.reason ? { reason: result.reason } : {}),
+        ...(result.reviewRequired ? { reviewRequired: true } : {}),
       },
       result.content,
       (content) => store.write(rel, content),
@@ -379,7 +383,16 @@ export async function runUpgrade(
     }
   }
 
-  const report: UpgradeReport = { root, available, dryRun, items, conflicts };
+  const report: UpgradeReport = {
+    root,
+    available,
+    dryRun,
+    items,
+    conflicts,
+    reviewRequired: items
+      .filter((item) => item.reviewRequired)
+      .map((item) => item.path),
+  };
 
   // Agent-first touch: conflicts are leftover judgment work — file them into
   // the repo's own ready queue instead of dropping them on the floor.

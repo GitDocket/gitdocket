@@ -68,6 +68,7 @@ describe("upgradeWorkflowFile", () => {
     const result = upgradeWorkflowFile(source, opts);
     expect(result.action).toBe("up-to-date");
     expect(result.content).toBe(source);
+    expect(result.reviewRequired).toBeUndefined();
   });
 
   test("diverged with nothing to propagate (base == theirs) → up-to-date, but says so", () => {
@@ -78,6 +79,7 @@ describe("upgradeWorkflowFile", () => {
     );
     expect(result.action).toBe("up-to-date");
     expect(result.reason).toContain("local text kept");
+    expect(result.reviewRequired).toBe(true);
   });
 
   test("diverged in an untouched region → merged, customization survives", () => {
@@ -90,6 +92,7 @@ describe("upgradeWorkflowFile", () => {
     expect(result.content).toContain("LOCAL RULE: always ask first.");
     expect(result.content).toContain("Step three, improved.");
     expect(result.content).toContain("origin: docket-task@2.0.0");
+    expect(result.reviewRequired).toBe(true);
   });
 
   test("diverged in the changed region → conflict with markers, new origin stamped", () => {

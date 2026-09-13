@@ -498,19 +498,25 @@ program
             await print("nothing vendored here to upgrade");
           }
           for (const item of report.items) {
-            const note =
-              item.action === "skipped"
+            const note = item.reviewRequired
+              ? item.reason
+              : item.action === "skipped"
                 ? item.reason
                 : item.action === "up-to-date"
                   ? (item.reason ?? report.available)
                   : `${item.from ?? "unversioned"} → ${report.available}`;
             await print(
-              `${item.action.padEnd(12)} ${item.path}${note ? ` (${note})` : ""}`,
+              `${(item.reviewRequired ? "review" : item.action).padEnd(12)} ${item.path}${note ? ` (${note})` : ""}`,
             );
           }
           if (report.conflicts.length > 0) {
             await print(
               `\n${report.conflicts.length} conflict(s) — resolve the markers, keeping local customizations where they still apply${report.filedTask ? ` (filed ${report.filedTask.id})` : ""}`,
+            );
+          }
+          if (report.reviewRequired.length > 0) {
+            await print(
+              `\n${report.reviewRequired.length} workflow(s) require review — retained differences may be stale instructions. Compare with the current shipped workflow; a current origin stamp does not certify its contents.`,
             );
           }
           if (report.dryRun) await print("\ndry run — nothing written");

@@ -6,7 +6,7 @@ The loop is simple: read project context → choose a change → implement and v
 
 Docket's engine manages IDs, allowed status changes, dependency readiness and generated views. Your coding agent follows editable supplied workflows to verify work and reconcile affected docs. A done status records a conclusion; review the checks and Git diff that support it. No hosted account is needed: the files and history stay yours.
 
-> GitDocket 0.3.0 is a public preview. File formats and commands are tested, but the compatibility surface may still change as external use provides evidence.
+> GitDocket 0.3.1 is a public preview. File formats and commands are tested, but the compatibility surface may still change as external use provides evidence.
 
 ![Current GitDocket Home showing project context and ready work in the synthetic Harbor project](site/assets/current-home.jpg)
 
@@ -27,7 +27,7 @@ bun add --global @gitdocket/cli @gitdocket/mcp
 docket --version
 ```
 
-The version command should report `0.3.0`. Both packages require Bun 1.3.14 or newer; the installed binaries remain `docket` and `docket-mcp`.
+The version command should report `0.3.1`. Both packages require Bun 1.3.14 or newer; the installed binaries remain `docket` and `docket-mcp`.
 
 ## Quickstart
 

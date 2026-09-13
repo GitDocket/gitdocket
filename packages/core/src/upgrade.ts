@@ -31,6 +31,8 @@ export interface UpgradeResult {
   /** Provenance version the file carried before, when determinable. */
   from?: string;
   reason?: string;
+  /** Retained workflow differences need judgment; a version stamp is not equivalence. */
+  reviewRequired?: true;
 }
 
 /**
@@ -155,23 +157,24 @@ export function upgradeWorkflowFile(
   const content = rebuild(merged.content);
   if (merged.conflict)
     return { action: "conflict", content, from: origin.version };
+  const review =
+    merged.content.trim() === available.trim()
+      ? {}
+      : {
+          reviewRequired: true as const,
+          reason: `differs from shipped ${current} — local text kept; review against the current workflow for stale instructions as well as intentional customization`,
+        };
   if (content === source) {
     // Nothing propagated. When the copy still differs from the shipped text,
     // say so instead of a bare up-to-date — this is either a customization
     // (fine) or a copy vendored from a since-edited pre-release template
     // A bare report would hide this change.
-    const reason =
-      body === available.trim()
-        ? {}
-        : {
-            reason: `differs from shipped ${current} — local text kept (customized, or the template changed in place)`,
-          };
     return {
       action: "up-to-date",
       content: source,
       from: origin.version,
-      ...reason,
+      ...review,
     };
   }
-  return { action: "merged", content, from: origin.version };
+  return { action: "merged", content, from: origin.version, ...review };
 }

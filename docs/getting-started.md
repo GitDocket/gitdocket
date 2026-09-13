@@ -4,7 +4,7 @@ GitDocket helps your coding agent resume with less re-explanation. Try one small
 
 ## 1. Install and initialize
 
-Requires Git and Bun 1.3.14 or newer on macOS or Linux. The published preview is 0.3.0. Install it with:
+Requires Git and Bun 1.3.14 or newer on macOS or Linux. The published preview is 0.3.1. Install it with:
 
 ```sh
 bun add --global @gitdocket/cli @gitdocket/mcp
@@ -40,7 +40,7 @@ docket serve
 
 Open the printed local URL. Inspect the completed task on the Board, or read its file under `docket/work/tasks/`. Expect exactly one done task with checked criteria and an Outcome explaining what shipped and what was checked. Open the README link, verify both guide sections, read the documentation decision, and review the task-linked Git diff. The task and checks explain the result; the reference doc leaves useful knowledge for later work. A clean fixture has no next ready task. Docket does not invent one.
 
-An empty Home briefing is valid. Task files, docs and Git history still provide context; the agent does not need to fabricate a summary. Default browser edits save local, uncommitted files. Review Git status before committing. GitDocket 0.3.0 includes the shared document editor and optional project guidance; neither is required for this tutorial.
+An empty Home briefing is valid. Task files, docs and Git history still provide context; the agent does not need to fabricate a summary. Default browser edits save local, uncommitted files. Review Git status before committing. GitDocket 0.3.1 includes the shared document editor and optional project guidance; neither is required for this tutorial.
 
 ## 4. Use the knowledge in a fresh session
 

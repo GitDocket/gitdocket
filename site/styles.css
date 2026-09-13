@@ -334,8 +334,9 @@ summary {
   color: var(--muted);
   font-size: 19px;
 }
-.docs-content section {
-  margin-top: 38px;
+.docs-content section,
+.docs-content h2 {
+  margin-top: 48px;
 }
 .docs-content h2 {
   font-size: 27px;
@@ -343,7 +344,11 @@ summary {
 }
 .docs-content h3 {
   font-size: 21px;
+  margin-top: 32px;
   margin-bottom: 12px;
+}
+.docs-content :is(h2, h3):first-child {
+  margin-top: 0;
 }
 .docs-content p,
 .docs-content li {
@@ -527,6 +532,13 @@ td code {
   }
   .docs-content h2 {
     font-size: 25px;
+  }
+  .docs-content section,
+  .docs-content h2 {
+    margin-top: 40px;
+  }
+  .docs-content h3 {
+    margin-top: 28px;
   }
   pre {
     padding: 16px;

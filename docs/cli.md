@@ -34,3 +34,5 @@ sampled runtime memory. Add `--json` for structured evidence.
 the current checkout's enrollment and observations; exports remain user-owned.
 Docket never uploads observations and excludes document contents, prompts,
 search terms, task IDs, and file paths. Storage lives outside the repository.
+
+Upgrade reports distinguish file operations from retained workflow differences. Human output labels retained differences `review`; JSON includes a `reviewRequired` path list and `reviewRequired: true` on those items. Compare these files with the current shipped workflow to distinguish intentional project requirements from stale instructions, including after resolving merge conflicts. An `up-to-date` action or current origin stamp does not establish content equivalence. Exit status remains nonzero for merge conflicts; review items preserve project-owned text and do not change the exit status.
