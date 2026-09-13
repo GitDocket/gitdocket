@@ -1672,3 +1672,198 @@ textarea {
   border-style: dashed;
   -webkit-text-fill-color: currentColor;
 }
+
+.document-editor {
+  margin: 1.25rem 0;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.65rem;
+  overflow-wrap: anywhere;
+}
+.document-editor fieldset {
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  margin: 1rem 0;
+}
+.document-editor label {
+  display: block;
+  font-weight: 600;
+  margin: 0.85rem 0 0.4rem;
+}
+.document-editor input,
+.document-editor textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.65rem;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 0.35rem;
+  font: inherit;
+}
+.document-editor textarea {
+  resize: vertical;
+}
+.document-editor .editor-body {
+  font-family: ui-monospace, monospace;
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+.editor-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.editor-comparison {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1.5rem;
+}
+.editor-latest {
+  min-width: 0;
+}
+.editor-conflict {
+  margin: 1rem 0;
+  padding: 0.75rem;
+  border: 2px solid var(--border);
+  border-radius: 0.35rem;
+}
+.editor-preview {
+  overflow: auto;
+}
+@media (max-width: 900px) {
+  .editor-comparison {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .document-editor {
+    padding: 0.75rem;
+  }
+}
+
+/* The editor belongs to the document canvas, using the workspace control family. */
+.concept-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.concept-title-row h1 {
+  margin-bottom: 0.75rem;
+}
+.concept-page-actions {
+  flex-shrink: 0;
+}
+.document-editor {
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  margin: 0;
+}
+.document-editor.is-editing {
+  max-width: 78ch;
+  margin: 0 0 2rem;
+}
+.document-editor.is-comparing {
+  max-width: none;
+}
+.editor-actions {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  padding: 0.75rem 0;
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.editor-draft-state {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-bottom: 0.5rem;
+}
+.document-editor .editor-save {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg);
+  font-weight: 600;
+}
+.document-editor .editor-save:hover:not(:disabled) {
+  filter: brightness(0.92);
+  background: var(--accent);
+}
+.document-editor .editor-save:disabled {
+  background: var(--bg-soft);
+  border-color: var(--border);
+  color: var(--muted);
+}
+.editor-recovery {
+  margin: 0.75rem 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.editor-recovery summary {
+  cursor: pointer;
+}
+.document-editor input[id$="-title"] {
+  font-size: 1.35rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.document-editor .editor-body {
+  min-height: 24rem;
+  padding: 1rem;
+}
+.editor-latest {
+  padding: 0 1rem 1rem;
+  background: var(--bg-soft);
+  border-radius: var(--radius);
+}
+.editor-conflict {
+  border-width: 1px;
+  background: var(--bg-soft);
+}
+@media (max-width: 900px) {
+  .document-editor {
+    padding: 0;
+  }
+}
+@media (max-width: 420px) {
+  .concept-title-row {
+    gap: 0.5rem;
+  }
+  .concept-title-row h1 {
+    font-size: 1.55rem;
+  }
+}
+
+.guidance-view {
+  max-width: 1100px;
+  overflow-wrap: anywhere;
+}
+.guidance-tools {
+  margin-block: 1.5rem;
+  border-block: 1px solid var(--border);
+  padding-block: 1rem;
+}
+.guidance-tools-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.5rem;
+}
+.guidance-tools select {
+  max-width: 100%;
+  width: 100%;
+  padding: 0.6rem;
+  color: inherit;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+}
+.guidance-tools button {
+  margin-block: 0.5rem;
+}
+@media (max-width: 650px) {
+  .guidance-tools-grid {
+    grid-template-columns: 1fr;
+  }
+}

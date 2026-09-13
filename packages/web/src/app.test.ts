@@ -4,7 +4,14 @@
 // index tests.
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  rename,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseConfig } from "@gitdocket/core";
@@ -49,6 +56,148 @@ const get = async (path: string) => {
   const res = await app.request(path);
   return { status: res.status, body: await res.json() };
 };
+
+describe("ticket-number routes", () => {
+  test("section links into large work items open a bounded source page at the heading", async () => {
+    const path = "work/tasks/DKT-1-do.md";
+    const source = `${FILES[path]}\n${"A long paragraph.\n\n".repeat(2500)}# Outcome\n\nThe result.\n\n${"More evidence.\n\n".repeat(2000)}`;
+    await writeFile(join(root, "docs", path), source);
+    const detail = (await get("/api/work/1?page=1")).body;
+    expect(detail.sourcePath).toBe(path);
+    expect(detail.html).toBe("");
+    const page = (await get(`/api/source/${path}?anchor=outcome`)).body;
+    expect(page.text).toStartWith("# Outcome\n");
+    expect(page.text.length).toBeLessThanOrEqual(16384);
+    expect(page.startLine).toBeGreaterThan(2500);
+    const next = (
+      await get(
+        `/api/source/${path}?cursor=${encodeURIComponent(JSON.stringify(page.nextCursor))}`,
+      )
+    ).body;
+    expect(next.startLine).toBe(page.endLine + 1);
+  });
+
+  test("opens tasks and epics with the same bounded concept contract", async () => {
+    for (const [number, path] of [
+      ["1", "work/tasks/DKT-1-do.md"],
+      ["2", "work/epics/DKT-2-fixture-epic.md"],
+    ]) {
+      const direct = await get(`/api/work/${number}?page=1`);
+      const byPath = await get(`/api/concept/${path}?page=1`);
+      expect(direct.status).toBe(200);
+      expect(direct.body).toEqual(byPath.body);
+      expect((await get(`/api/work/${number}?page=1`)).body.fm.id).toBe(
+        `DKT-${number}`,
+      );
+    }
+  });
+
+  test("invalid and unknown numbers never resolve a prefix match or a decision", async () => {
+    await mkdir(join(root, "docs/decisions"));
+    await writeFile(
+      join(root, "docs/decisions/DEC-99-example.md"),
+      "---\ntype: Decision\ntitle: Decision\nid: DEC-99\n---\n",
+    );
+    for (const number of [
+      "",
+      "0",
+      "01",
+      "-1",
+      "1.0",
+      "1x",
+      "DKT-1",
+      "99",
+      "999",
+      "%25",
+      "1/extra",
+    ]) {
+      const result = await get(`/api/work/${number}`);
+      expect(result.status).toBe(404);
+      expect(result.body.error).toContain("Work item not found");
+      expect(result.body.fm).toBeUndefined();
+    }
+  });
+
+  test("title and filename changes keep task and epic addresses stable", async () => {
+    for (const [number, original] of [
+      ["1", "work/tasks/DKT-1-do.md"],
+      ["2", "work/epics/DKT-2-fixture-epic.md"],
+    ] as const) {
+      const originalPath = join(root, "docs", original);
+      const renamed = original.replace(/[^/]+$/, `DKT-${number}-renamed.md`);
+      await rename(originalPath, join(root, "docs", renamed));
+      const source = await readFile(join(root, "docs", renamed), "utf8");
+      await writeFile(
+        join(root, "docs", renamed),
+        source.replace(/title: .*/, "title: New title"),
+      );
+      const result = await get(`/api/work/${number}`);
+      expect(result.status).toBe(200);
+      expect(result.body.path).toBe(renamed);
+      expect(result.body.fm.title).toBe("New title");
+    }
+  });
+
+  test("uses the configured project key and actual identity, not the path slug", async () => {
+    await writeFile(
+      join(root, "docs/work/tasks/DKT-1-do.md"),
+      "---\ntype: Task\ntitle: Custom project\nid: APP-7\nstatus: todo\n---\n\n# Context\n",
+    );
+    const context = createRepoContext(
+      root,
+      parseConfig("project: APP\nbundle: docs/"),
+      { ttlMs: 0 },
+    );
+    try {
+      const custom = createApp(context);
+      const response = await custom.request("/api/work/7");
+      expect(response.status).toBe(200);
+      expect((await response.json()).fm.id).toBe("APP-7");
+      expect((await custom.request("/api/work/1")).status).toBe(404);
+    } finally {
+      context.close();
+    }
+  });
+
+  test("Markdown, navigation, search and backlink metadata retain canonical identity and anchors", async () => {
+    await writeFile(
+      join(root, "docs/specs/feature.md"),
+      FILES["specs/feature.md"] +
+        "\n[Epic](/work/epics/DKT-2-fixture-epic.md#e)\n[Task](../work/tasks/DKT-1-do.md#context)\n",
+    );
+    await writeFile(
+      join(root, "docs/work/tasks/DKT-1-do.md"),
+      FILES["work/tasks/DKT-1-do.md"] +
+        "\n[Context](#context)\n[Spec](/specs/feature.md#feature)\n",
+    );
+    await writeFile(
+      join(root, "docs/index.md"),
+      `${FILES["index.md"]}\n[Task](/work/tasks/DKT-1-do.md)\n`,
+    );
+    const spec = (await get("/api/concept/specs/feature.md?page=1")).body;
+    expect(spec.html).toContain('href="#/work/2#e"');
+    expect(spec.html).toContain('href="#/work/1#context"');
+    expect(spec.backlinks).toContainEqual({
+      path: "work/tasks/DKT-1-do.md",
+      id: "DKT-1",
+      type: "Task",
+      title: "Do the thing",
+    });
+    const task = (await get("/api/work/1?page=1")).body;
+    expect(task.html).toContain('id="context"');
+    expect(task.html).toContain('href="#/work/1#context"');
+    expect(task.html).toContain('href="#/c/specs/feature.md#feature"');
+    expect((await get("/api/nav")).body.html).toContain('href="#/work/1"');
+    for (const [number, type] of [
+      ["1", "Task"],
+      ["2", "Epic"],
+    ]) {
+      const search = (await get(`/api/search?q=${number}&page=1`)).body;
+      expect(search.hits[0].id).toBe(`DKT-${number}`);
+      expect(search.hits[0].type).toBe(type);
+    }
+  });
+});
 
 describe("local request boundary", () => {
   test("HEAD requests acquire the same coherent API generation", async () => {
@@ -135,7 +284,7 @@ describe("wiki", () => {
     const { status, body } = await get("/api/concept/specs/feature.md");
     expect(status).toBe(200);
     expect(body.fm.type).toBe("Spec");
-    expect(body.html).toContain('href="#/c/work/tasks/DKT-1-do.md"');
+    expect(body.html).toContain('href="#/work/1"');
     expect(body.html).not.toContain("type: Spec"); // frontmatter stripped
     expect(body.verification).toBeNull(); // no verify config: fully dormant
   });
@@ -439,6 +588,7 @@ No linked decisions.
     await writeFile(join(root, "docs", "overview.md"), "No watermark.\n");
     const { body } = await get("/api/home");
     expect(body.narrative).toBeNull();
+    expect(body.narrativeProblem).toBe("malformed");
     expect(body.overview.upNext.id).toBe("DKT-1");
   });
 
@@ -509,7 +659,7 @@ No linked decisions.
       "# Log\n\n- **Create** — [The Feature](/specs/feature.md) filed.\n",
     );
     const { body } = await get("/api/activity");
-    expect(body.log).toContain("<h1>Log</h1>");
+    expect(body.log).toContain('<h1 id="log">Log</h1>');
     expect(body.log).toContain('href="#/c/specs/feature.md"');
   });
 

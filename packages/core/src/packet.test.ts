@@ -53,6 +53,34 @@ Spec again: [format](/specs/format.md). External: [okf](https://okf.md/). Broken
   );
 
 describe("buildContextPacket", () => {
+  test("tracked context reads fresh guidance and scoped pointers without procedure bodies", async () => {
+    const store = seed();
+    const bundle = await loadBundle(store, config);
+    expect(
+      (await buildContextPacket(store, bundle, "DKT-3")).guidance.status,
+    ).toBe("absent");
+    const source =
+      "---\ntype: Reference\n---\nRequirement: use TDD for behavior changes.\nWhen deploying: [procedure](/playbooks/deploy.md).\n";
+    store.files.set("reference/project-guidance.md", source);
+    store.files.set(
+      "playbooks/deploy.md",
+      "---\ntype: Playbook\n---\nPrivate procedure body",
+    );
+    const reads: string[] = [];
+    const read = store.read.bind(store);
+    store.read = async (path) => {
+      reads.push(path);
+      return read(path);
+    };
+    const packet = await buildContextPacket(store, bundle, "DKT-3");
+    expect(packet.guidance.source?.text).toBe(source);
+    expect(packet.guidance.links[0]?.path).toBe("playbooks/deploy.md");
+    expect(reads).toEqual([
+      "work/tasks/DKT-3-wire-parser.md",
+      "reference/project-guidance.md",
+    ]);
+    expect(JSON.stringify(packet)).not.toContain("Private procedure body");
+  });
   test("rejects changed frontmatter instead of mixing it with the retained packet metadata", async () => {
     const store = seed();
     const bundle = await loadBundle(store, config);

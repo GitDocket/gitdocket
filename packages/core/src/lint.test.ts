@@ -61,7 +61,7 @@ describe("conformance errors", () => {
 });
 
 describe("practice warnings", () => {
-  test("epic without spec, slug drift, done with unchecked criteria", async () => {
+  test("slug drift and done with unchecked criteria", async () => {
     const diags = await lint({
       "work/epics/DKT-1-e.md": item({
         type: "Epic",
@@ -81,7 +81,7 @@ describe("practice warnings", () => {
       ),
     });
     expect(diags.every((d) => d.severity === "warning")).toBe(true);
-    expect(messages(diags)).toContain("epic has no spec link");
+    expect(messages(diags)).not.toContain("epic has no spec link");
     expect(messages(diags)).toContain("DKT-3- (slug drift?)");
     expect(messages(diags)).toContain("unchecked criteria");
   });
@@ -334,5 +334,54 @@ describe("verify markers", () => {
       now: NOW,
     });
     expect(diags).toHaveLength(0);
+  });
+});
+
+describe("optional planning hierarchy", () => {
+  test("standalone tasks and spec-less epics need no setup", async () => {
+    const diags = await lint({
+      "work/tasks/DKT-1-small.md": item({
+        type: "Task",
+        title: "Small change",
+        id: "DKT-1",
+        status: "todo",
+      }),
+      "work/epics/DKT-2-outcome.md": item({
+        type: "Epic",
+        title: "Outcome",
+        id: "DKT-2",
+        status: "todo",
+      }),
+    });
+    expect(diags).toEqual([]);
+  });
+  test("explicit broken hierarchy links still warn and unknown dependencies still error", async () => {
+    const diags = await lint({
+      "work/tasks/DKT-1-small.md": item({
+        type: "Task",
+        title: "Small change",
+        id: "DKT-1",
+        status: "todo",
+        epic: "/work/epics/DKT-99-missing.md",
+        depends_on: "[DKT-99]",
+      }),
+      "work/epics/DKT-2-outcome.md": item({
+        type: "Epic",
+        title: "Outcome",
+        id: "DKT-2",
+        status: "todo",
+        spec: "/specs/missing.md",
+      }),
+    });
+    expect(
+      diags.some(
+        (d) => d.severity === "error" && d.message.includes("depends_on"),
+      ),
+    ).toBe(true);
+    expect(
+      diags.filter(
+        (d) => d.severity === "warning" && d.message.includes("broken link"),
+      ),
+    ).toHaveLength(2);
   });
 });

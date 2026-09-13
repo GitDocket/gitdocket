@@ -9,6 +9,7 @@ const HITS: SearchHit[] = [
     line: 3,
     text: "boards…",
     id: "DKT-1",
+    type: "Task",
     title: "Fix boards",
   },
   { path: "specs/feature.md", line: 1, text: "…", title: "The Feature" },
@@ -21,6 +22,7 @@ describe("view catalog", () => {
       "Home",
       "Board",
       "Wiki",
+      "Project guidance",
       "Tasks",
       "Epics",
       "Activity",
@@ -59,6 +61,6 @@ describe("merging", () => {
     expect(itemHash(items[0] ?? { kind: "view", label: "", hash: "" })).toBe(
       "#/board",
     );
-    expect(items[1] && itemHash(items[1])).toBe("#/c/work/tasks/DKT-1-x.md");
+    expect(items[1] && itemHash(items[1])).toBe("#/work/1");
   });
 });

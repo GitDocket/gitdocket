@@ -18,7 +18,7 @@ Keep setup aligned with `docs/getting-started.md`; verify CLI examples against
 command help and MCP schemas against a real `tools/list` response.
 
 `site/docs/mcp/tools.json` was captured from the development server on
-2026-09-12. It is a reference snapshot, not a promise that all installed
+2026-09-13 for 0.3.0. It is a reference snapshot, not a promise that all installed
 versions expose the same tools. Example project IDs in descriptions are
 normalized to HBR/ADR. No published OpenAPI specification exists; the HTTP page
 identifies its routes as a small subset of the local UI implementation.
@@ -30,7 +30,7 @@ Historical scripted demo evidence and replay instructions remain in `site/demo/`
 Its original completed-epic image is historical run evidence, not a current UI
 showcase. The homepage and README use `current-home.jpg`.
 
-Before production deployment, preview the exact public commit. Verify all five
+Before production deployment, preview the exact public commit. Verify all eight
 HTML pages, stylesheet, favicon, current images, schema download, and demo links
 return 200. Check desktop and narrow layouts, keyboard navigation, the expandable
 Board, and the browser console. Confirm no third-party network requests.

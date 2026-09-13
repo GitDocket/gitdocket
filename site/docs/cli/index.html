@@ -24,6 +24,7 @@
       <main class="docs-content" id="main" tabindex="-1"><p class="eyebrow">GitDocket docs</p><h1>CLI commands.</h1><p class="doc-lede">A short reference for working from the terminal. Run commands inside your initialized repository.</p>
         <section aria-labelledby="read"><h2 id="read">Find the context</h2><div class="table-wrap"><table><thead><tr><th>Command</th><th>Purpose</th></tr></thead><tbody>
 <tr><td><code>docket overview --json</code></td><td>Read the project briefing, active work, and next frontier.</td></tr>
+<tr><td><code>docket guidance --json</code></td><td>Read optional project standards and scoped source links.</td></tr>
 <tr><td><code>docket ready --json</code></td><td>Find todo tasks whose dependencies are done.</td></tr>
 <tr><td><code>docket task list --all</code></td><td>List tracked work, including done and closed items.</td></tr>
 <tr><td><code>docket search "welcome guide"</code></td><td>Search the Markdown bundle.</td></tr>
@@ -46,7 +47,7 @@
 <tr><td><code>docket verify status</code></td><td>Inspect spec-to-test linkage; this does not run tests.</td></tr>
 <tr><td><code>docket upgrade</code></td><td>Merge updates to vendored workflows and regenerate adapters.</td></tr>
 <tr><td><code>docket serve</code></td><td>Open the browser interface on this computer.</td></tr>
-</tbody></table></div><p>Use <code>docket --help</code> or <code>docket task create --help</code> for the exact flags in your installed version. Add <code>--json</code> where supported for programmatic output. This reference includes the 0.2.1 CLI; installed release capabilities can differ.</p></section>        <section aria-labelledby="telemetry"><h2 id="telemetry">Local telemetry</h2><p>Telemetry is off by default and requires enrollment per checkout. Observations stay outside your repository on this computer; Docket never uploads them. Document contents, prompts, search terms, and file paths are excluded.</p>
+</tbody></table></div><p>Use <code>docket --help</code> or <code>docket task create --help</code> for the exact flags in your installed version. Add <code>--json</code> where supported for programmatic output. This reference includes the 0.3.0 CLI; installed release capabilities can differ.</p></section>        <section aria-labelledby="telemetry"><h2 id="telemetry">Local telemetry</h2><p>Telemetry is off by default and requires enrollment per checkout. Observations stay outside your repository on this computer; Docket never uploads them. Document contents, prompts, search terms, and file paths are excluded.</p>
 <pre><code>docket telemetry status
 docket telemetry enable
 docket telemetry report

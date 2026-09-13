@@ -1,10 +1,12 @@
 # GitDocket
 
-GitDocket keeps project documentation and work tracking together as linked Markdown files in your repository, with a small CLI and local web interface for humans and coding agents.
+GitDocket helps your coding agent pick up a project with less re-explanation. It keeps project docs, tasks, and working instructions together as linked Markdown in your repository, so you can review what changed, why, and what was checked.
 
-It is for teams that want durable, reviewable project context without moving the source of truth into a hosted tracker. Files remain authoritative; GitDocket derives readiness, indexes, activity, and browser views from them.
+The loop is simple: read project context → choose a change → implement and verify → update the project's knowledge → use that knowledge for the next change. For example, a completed contributor-guide task can record a decision to use repository-relative links; a later agent can use that decision when planning a new guide.
 
-> GitDocket 0.2.1 is a public preview. File formats and commands are tested, but the compatibility surface may still change as external use provides evidence.
+Docket's engine manages IDs, allowed status changes, dependency readiness and generated views. Your coding agent follows editable supplied workflows to verify work and reconcile affected docs. A done status records a conclusion; review the checks and Git diff that support it. No hosted account is needed: the files and history stay yours.
+
+> GitDocket 0.3.0 is a public preview. File formats and commands are tested, but the compatibility surface may still change as external use provides evidence.
 
 ![Current GitDocket Home showing project context and ready work in the synthetic Harbor project](site/assets/current-home.jpg)
 
@@ -25,7 +27,7 @@ bun add --global @gitdocket/cli @gitdocket/mcp
 docket --version
 ```
 
-The version command should report `0.2.1`. Both packages require Bun 1.3.14 or newer; the installed binaries remain `docket` and `docket-mcp`.
+The version command should report `0.3.0`. Both packages require Bun 1.3.14 or newer; the installed binaries remain `docket` and `docket-mcp`.
 
 ## Quickstart
 
@@ -48,13 +50,13 @@ docket init --agent codex
 docket init --agent claude
 ```
 
-Once initialized, ask your agent to create and run a small “Welcome guide” epic: write a short contributor guide, then link it from README, with concrete checks for each task. Review the completed work, reconciled docs, and task-linked receipt—or the concrete blocker. The [first-run walkthrough](docs/getting-started.md#3-try-a-small-epic-with-your-agent) shows the expected result and how a later session recovers context.
+Once initialized, ask your agent to create and complete one small contributor-guide task. Review its criteria, Outcome, checks, affected docs and task-linked Git changes. The [one-task walkthrough](docs/getting-started.md) provides exact commands and a fresh-session prompt that uses a recorded project decision. No spec or epic is required; [epics](docs/epics.md) are a follow-on for larger outcomes.
 
 ## What is in a bundle?
 
 A Docket bundle is one link graph containing documentation, decisions, tasks, epics, and agent workflows. Work state is ordinary frontmatter. Ready work is derived from `status: todo` plus completed dependencies; it is never another stored state.
 
-The [basic example](examples/basic/) is a complete synthetic bundle. See [Getting started](docs/getting-started.md), [Concepts](docs/concepts.md), [CLI reference](docs/cli.md), [local-server safety](docs/serve.md), and [agent integration](docs/agents.md).
+The [basic example](examples/basic/) is a complete synthetic bundle. See [Getting started](docs/getting-started.md), [Everyday use](docs/everyday-use.md), [Concepts](docs/concepts.md), [CLI reference](docs/cli.md), [local-server safety](docs/serve.md), and [agent integration](docs/agents.md).
 
 ## Stability and upgrades
 

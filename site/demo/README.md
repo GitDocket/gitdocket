@@ -1,4 +1,6 @@
-# Harbor welcome-guide demonstration
+# Historical Harbor epic demonstration
+
+Start with the [one-task example](single-task/README.md). This older epic replay remains a follow-on example.
 
 This small synthetic project was executed with real GitDocket commands. A
 script supplied the work and verification steps; this is not a captured agent

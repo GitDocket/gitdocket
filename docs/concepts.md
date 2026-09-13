@@ -1,5 +1,9 @@
 # Concepts and files
 
+Start with docs that explain your project, tasks that describe a change and its checks, and editable workflows that tell your agent how to track and finish work. One task can stand alone. Add an epic when several tasks contribute to an outcome; add a spec when describing intended behavior helps.
+
+Completed tasks retain Outcomes and Git evidence. The agent's close workflow updates affected docs so the next session can use what was learned. The engine validates state changes and computes readiness; it cannot establish that an agent's checks were sufficient.
+
 Every document in a Docket bundle is a Markdown concept. YAML frontmatter gives tools enough structure to connect the files without owning their prose.
 
 ## Documentation
@@ -41,3 +45,9 @@ Decisions are numbered separately and record why an alternative was selected. Wo
 ## Derived files
 
 `index.md` is committed for review and navigation but regenerated below its marker. `.docket/cache.sqlite` and `.docket/active-task` are local, gitignored checkout state. Deleting the cache loses no source data.
+
+## Remembering how to work
+
+Optional project guidance records your standards and scoped procedures, while task Outcomes and reference docs record what happened and why. Docket's supplied tracker workflows describe activities such as pickup and close; your project procedures can describe activities such as deployment, used only when that activity is requested. Guidance discovery helps an agent find relevant instructions; it does not guarantee model compliance.
+
+Guidance and the shared browser editor are included in 0.3.0. Upgrade older installations to use them. Supplied workflow Markdown can already be edited and merged by `docket upgrade`; installable team or extension packages remain planned work.

@@ -92,11 +92,21 @@ export function markdownSection(
 
 function extractLinks(tree: ReturnType<typeof processor.parse>): Link[] {
   const links: Link[] = [];
-  visit(tree, "link", (node: { url?: string }) => {
-    if (!node.url) return;
+  const definitions = new Map<string, string>();
+  visit(tree, "definition", (node: { identifier: string; url: string }) => {
+    const key = node.identifier.toLowerCase();
+    if (!definitions.has(key)) definitions.set(key, node.url);
+  });
+  visit(tree, ["link", "linkReference"], (node) => {
+    if (node.type !== "link" && node.type !== "linkReference") return;
+    const target =
+      node.type === "link"
+        ? node.url
+        : definitions.get(node.identifier.toLowerCase());
+    if (!target) return;
     links.push({
-      target: node.url,
-      internal: !/^[a-z][a-z0-9+.-]*:/i.test(node.url),
+      target,
+      internal: !/^(?:[a-z][a-z0-9+.-]*:|\/\/)/i.test(target),
     });
   });
   return links;

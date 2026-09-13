@@ -7,6 +7,8 @@ GitDocket’s CLI is intentionally small. Use `--json` when another program or c
 | `docket init` | Adopt a repository additively and finish its first index/cache pass. |
 | `docket overview` | Read the current project briefing, in-flight work, and next frontier. |
 | `docket ready` | List tasks whose stored state and dependencies make them ready. |
+| `docket guidance --json` | Read optional project guidance with exact source, link diagnostics and continuation. |
+| `docket source <path> --json` | Read an exact bounded bundle source page; follow its returned cursor. |
 | `docket search <terms>` | Search concepts and return their link neighborhood. |
 | `docket task list` | List tracked work with filters. |
 | `docket task create` | Create a conformant task, epic, or decision. |

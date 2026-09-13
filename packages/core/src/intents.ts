@@ -13,6 +13,7 @@ export const DOCKET_INTENT_IDS = [
   "epic-supervision",
   "task-management",
   "project-maintenance",
+  "project-guidance",
 ] as const;
 
 export type DocketIntentId = (typeof DOCKET_INTENT_IDS)[number];
@@ -75,7 +76,7 @@ export const DIRECT_WORK_INTENT = {
   authority:
     "The concrete request authorizes only its stated product or repository scope; generic implementation language such as work, task, fix, or implement does not authorize Docket pickup or any tracker mutation.",
   inspectionScope:
-    "Inspect and change only the product or repository surfaces needed for the user's concrete request, subject to the ordinary safety and approval policy of the harness.",
+    "Read optional project guidance and relevant scoped sources before planning; inspect and change only the product or repository surfaces needed for the user's concrete request, subject to the ordinary safety and approval policy of the harness.",
   positiveExamples: [
     "fix the mobile navigation overflow",
     "implement validation for this form",
@@ -231,6 +232,29 @@ export const DOCKET_INTENTS = {
       "task implementation or tracker mutation outside the named procedure",
     ],
   },
+  "project-guidance": {
+    id: "project-guidance",
+    title: "Manage project guidance",
+    discovery:
+      "Manage explicitly requested project guidance — remember, show, revise or retire standards and scoped procedures without task pickup or procedure execution.",
+    defaultEntrypoint: { kind: "workflow", value: "docket-guidance" },
+    mode: "operation-scoped",
+    authority:
+      "Inspection is read-only. Explicit remember, revise and retire requests authorize only guidance sources and required index reconciliation; never read, adopt or clear an unrelated active-task marker. Independently requested tracking retains separate authority.",
+    inspectionScope:
+      "Read the optional guidance entry point and relevant existing authoritative sources; inspect only the material needed to resolve meaning, scope, duplication or a material conflict.",
+    positiveExamples: [
+      "remember that we use GraphQL for backend APIs",
+      "show our project instructions",
+      "update the deployment steps",
+      "retire our GraphQL instruction",
+    ],
+    exclusions: [
+      "descriptive implementation observations without a request to save a standard",
+      "executing a stored procedure without a request",
+      "implicit tracker coordination",
+    ],
+  },
 } as const satisfies Record<DocketIntentId, DocketIntentContract>;
 
 export const AGENT_INTENTS = {
@@ -243,6 +267,7 @@ export const AGENT_INTENT_DISAMBIGUATION = [
   "Pickup is authorized only by a Docket ID, an unambiguous reference to an existing tracked item, or an explicit request for Docket or backlog selection.",
   "If a tracked-item reference cannot be resolved unambiguously, resolve or clarify that reference; never degrade to bare pickup or top-ready selection.",
   "Direct work does not create, start, stop, adopt, clear, or otherwise mutate .docket/active-task or any tracked item. Existing active or ready work does not change the direct request's scope.",
+  "Remember, show, revise or retire project instructions selects project-guidance. Inspection is read-only; explicitly requested guidance changes do not authorize task pickup, active-marker inspection or procedure execution. A repeated request reuses its existing authoritative source.",
   "Ordinary review, status, and what-is-next language defaults to read-only orientation.",
   "Specific Docket action language beats a generic word such as review: groom or audit selects backlog hygiene; tracked start, pick up, resume, or continue selects pickup; run, start, or supervise a named epic selects epic supervision; a named tracker operation selects task management.",
   "A negative constraint such as do not start narrows permitted actions but never selects a broader workflow by itself.",

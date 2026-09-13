@@ -30,6 +30,12 @@ const paths: Record<string, ReactNode> = {
       <path d="m12 3 9 5-9 5-9-5Zm-9 9 9 5 9-5m-18 5 9 5 9-5" />
     </>
   ),
+  "Project guidance": (
+    <>
+      <path d="M5 3h14v18H5Z" />
+      <path d="m8 9 2 2 5-5M8 15h8M8 18h6" />
+    </>
+  ),
   Activity: <path d="M3 12h4l3-8 4 16 3-8h4" />,
   Search: (
     <>

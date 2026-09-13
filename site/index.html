@@ -3,11 +3,11 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>GitDocket — turn project context into verified work</title>
-    <meta name="description" content="Run a scoped epic with your coding agent. Keep project knowledge, verified work, and a reviewable receipt together in Git." />
+    <title>GitDocket — pick up with less re-explanation</title>
+    <meta name="description" content="Help your coding agent use project knowledge across sessions. Review what changed, why, and what was checked in your own repository." />
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="GitDocket — turn project context into verified work" />
-    <meta property="og:description" content="Run a scoped epic with your coding agent. Keep project knowledge, verified work, and a reviewable receipt together in Git." />
+    <meta property="og:title" content="GitDocket — pick up with less re-explanation" />
+    <meta property="og:description" content="Help your coding agent use project knowledge across sessions. Review what changed, why, and what was checked in your own repository." />
     <meta property="og:image" content="https://gitdocket.com/assets/current-home.jpg" />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
@@ -22,9 +22,10 @@
     <main id="main" tabindex="-1">
       <section class="hero shell" aria-labelledby="hero-title">
         <p class="eyebrow">For humans and coding agents</p>
-        <h1 id="hero-title">Turn project context<br class="desktop-break" /> into verified work.</h1>
-        <p class="lede">Ask your coding agent to run a scoped epic. Docket keeps the tasks, project knowledge, and verified outcomes together in Git—ready for your review and the next session.</p>
+        <h1 id="hero-title">Pick up with<br class="desktop-break" /> less re-explanation.</h1>
+        <p class="lede">Keep project docs, tasks, and working instructions together in your repository. Your coding agent can use what the last change taught the project, while you review what changed, why, and what was checked.</p>
         <div class="actions"><a class="button primary" href="/docs/">Get started</a><a class="button quiet" href="#workflow">See the workflow <span aria-hidden="true">↓</span></a></div>
+        <p class="workflow-note">GitDocket 0.3.0 includes optional project guidance and shared browser editing.</p>
         <p class="proof-line">Local-first <span>·</span> Plain Markdown <span>·</span> Reviewed through Git</p>
       </section>
       <section class="product shell" id="product" aria-labelledby="product-title">
@@ -38,19 +39,19 @@
       <section class="workflow" id="workflow" aria-labelledby="workflow-title">
         <div class="shell">
           <p class="eyebrow">A repeatable loop</p><h2 id="workflow-title">Finish the work. Keep the knowledge.</h2>
-          <p class="example-prompt">“Run the welcome-guide epic through completion.”</p>
+          <p class="example-prompt">“Track and complete one small contributor-guide change.”</p>
           <ol class="steps">
-            <li><span>01</span><h3>Read &amp; choose</h3><p>Read project context and select a scoped task with completed dependencies.</p></li>
+            <li><span>01</span><h3>Read &amp; choose</h3><p>Read the project docs and choose one useful change. A task records the intended result and checks.</p></li>
             <li><span>02</span><h3>Build &amp; verify</h3><p>Make the change and check it against the task’s acceptance criteria.</p></li>
-            <li><span>03</span><h3>Close &amp; carry forward</h3><p>Reconcile docs, record Git-linked evidence, and leave the next step ready.</p></li>
+            <li><span>03</span><h3>Record &amp; reuse</h3><p>Update affected docs and record the checks. In the next session, use that knowledge to guide another change.</p></li>
           </ol>
-          <p class="workflow-note">Your agent follows the checked-in procedures, reviews the whole epic, and returns a completion receipt or a concrete blocker. You direct the work and review the result.</p>
-          <a class="text-link" href="/docs/mcp/#demo">Inspect a scripted run with real CLI evidence <span aria-hidden="true">↗</span></a>
+          <p class="workflow-note">For example, a contributor-guide task records an offline-link decision. The next session uses it to plan a troubleshooting guide with relative links. Docket records task state and calculates what is ready. Your coding agent is responsible for checking changes and updating affected docs, following editable workflows, then reporting evidence or a blocker. Review the result: status alone does not prove the work is correct.</p>
+          <a class="text-link" href="/docs/example/">See one task help the next session <span aria-hidden="true">↗</span></a>
         </div>
       </section>
       <section class="foundation shell" aria-labelledby="foundation-title">
         <div><p class="eyebrow">An open foundation</p><h2 id="foundation-title">Your knowledge stays yours.</h2></div>
-        <div><p>Built on Open Knowledge Format v0.1, <a href="https://cloud.google.com/blog/products/data-analytics/how-the-open-knowledge-format-can-improve-data-sharing/">introduced by Google Cloud</a>. Linked Markdown holds the context; Docket adds tasks, dependencies, agent workflows, and evidence.</p><p>Read it in your editor. Review it in Git. Bring it to your next agent session.</p><a class="text-link" href="/docs/">Start with a small epic <span aria-hidden="true">→</span></a></div>
+        <div><p>Run Docket locally with your own coding agent. Start with docs and one task; add epics or specs when useful. Built on Open Knowledge Format v0.1, <a href="https://cloud.google.com/blog/products/data-analytics/how-the-open-knowledge-format-can-improve-data-sharing/">introduced by Google Cloud</a>. Linked Markdown holds the context; Docket adds tasks, dependencies, agent workflows, and evidence.</p><p>Read and edit the Markdown in your editor. Supplied workflows can be customized and merged during upgrades. Optional project standards and the shared browser editor are included in 0.3.0. Installable extension packages are planned.</p><a class="text-link" href="/docs/">Start with one task <span aria-hidden="true">→</span></a></div>
       </section>
     </main>
     <footer class="shell footer"><a class="brand" href="/">GitDocket</a><p>Project knowledge and work, together in Git.</p><a href="https://github.com/GitDocket/gitdocket">Source on GitHub ↗</a></footer>

@@ -1,0 +1,15 @@
+[
+  {
+    "method": "Real Chromium interaction with shared editor; scripted input, no model execution",
+    "steps": [
+      "created optional instruction in Project guidance",
+      "inspected source",
+      "edited instruction with shared editor",
+      "previewed Markdown",
+      "saved locally, no commit",
+      "confirmed exact file contains revised instruction"
+    ],
+    "guidanceBefore": "---\ntype: Reference\ntitle: Project guidance\ndescription: Project-authored standards and scoped procedure links.\n---\n\n\n# Active guidance\n\n- Requirement: Prefer short imperative sentences. Scope: Contributor-facing documentation.\n",
+    "guidanceAfter": "---\ntype: Reference\ntitle: Project guidance\ndescription: Project-authored standards and scoped procedure links.\n---\n# Active guidance\n\n- Requirement: Use numbered steps for contributor instructions. Prefer short imperative sentences, with an explanation when a step needs context. Scope: Contributor-facing documentation."
+  }
+]

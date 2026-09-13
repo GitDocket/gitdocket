@@ -1,10 +1,15 @@
-// PM 101 encoded as lint, not UI. Errors are profile conformance
+// Structural validation and actionable hygiene. Errors are profile conformance
 // per the spec's Conformance section; warnings are practice. Core stays
 // git-free: callers with a repo (the CLI) compute git-derived inputs like
 // the trailerless-commit count and pass them in.
 
 import type { Bundle } from "./bundle";
 import type { FileStore } from "./filestore";
+import { readProjectGuidance } from "./guidance";
+import { resolveLink } from "./links";
+
+export { resolveLink } from "./links";
+
 import { type Diagnostic, isReserved } from "./parse";
 import {
   parseStateOfPlay,
@@ -59,27 +64,6 @@ export function findFreshnessWatermark(
   return undefined;
 }
 
-/** Resolve an internal link against the bundle root; undefined = not checkable (non-md, escapes bundle). */
-export function resolveLink(
-  fromPath: string,
-  target: string,
-): string | undefined {
-  const clean = target.split("#")[0] ?? "";
-  if (!clean.endsWith(".md")) return undefined;
-  const parts = clean.startsWith("/")
-    ? clean.slice(1).split("/")
-    : [...fromPath.split("/").slice(0, -1), ...clean.split("/")];
-  const out: string[] = [];
-  for (const part of parts) {
-    if (part === "" || part === ".") continue;
-    if (part === "..") {
-      if (out.length === 0) return undefined;
-      out.pop();
-    } else out.push(part);
-  }
-  return out.join("/");
-}
-
 export async function lintBundle(
   store: FileStore,
   bundle: Bundle,
@@ -105,15 +89,21 @@ export async function lintBundle(
         error(item.path, `depends_on ${dep} does not resolve to a work item`);
     }
 
+    // Optional relationships need no placeholder, but declared targets must exist.
+    for (const field of ["epic", "spec"] as const) {
+      const target = item.fm[field];
+      if (!target) continue;
+      const resolved = resolveLink(item.path, target);
+      if (resolved && !files.has(resolved))
+        warn(item.path, `broken link: ${target} (${field})`);
+    }
+
     const filename = item.path.split("/").at(-1) ?? item.path;
     if (!filename.startsWith(`${item.fm.id}-`))
       warn(
         item.path,
         `filename does not start with ${item.fm.id}- (slug drift?)`,
       );
-
-    if (item.fm.type === "Epic" && !item.fm.spec)
-      warn(item.path, "epic has no spec link");
 
     if (
       item.fm.status === "done" &&
@@ -138,6 +128,20 @@ export async function lintBundle(
       if (resolved && !files.has(resolved))
         warn(concept.path, `broken link: ${link.target}`);
     }
+  }
+
+  // Guidance is authored and optional; validate its explicit entry-point contract.
+  // Do not duplicate parse diagnostics already present in the bundle.
+  const guidance = await readProjectGuidance(store, bundle.config);
+  for (const diagnostic of guidance.diagnostics) {
+    if (
+      !out.some(
+        (existing) =>
+          existing.path === diagnostic.path &&
+          existing.message === diagnostic.message,
+      )
+    )
+      out.push(diagnostic);
   }
 
   // overview.md is optional. The linked re-entry note expires on either

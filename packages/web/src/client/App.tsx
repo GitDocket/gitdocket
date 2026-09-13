@@ -3,6 +3,7 @@
 // Inline field edits round-trip through the server's
 // core-ops endpoints.
 
+import type { ProjectGuidance } from "@gitdocket/core";
 import {
   REENTRY_CONTEXT_V1_FORMAT,
   type StateOfPlayView,
@@ -15,6 +16,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { conceptHref, hashQuery, workHref } from "../urls";
 import {
   type BoardState,
   boardStateQuery,
@@ -29,6 +31,8 @@ import {
   isDocPath,
   sidebarSections,
 } from "./docs";
+import { allowEditorNavigation } from "./document-draft";
+import { DocumentEditor } from "./document-editor";
 import {
   DEFAULT_EPICS,
   type EpicListState,
@@ -38,6 +42,7 @@ import {
   epicListQuery,
   parseEpicListState,
 } from "./epiclist";
+import { GuidanceTools } from "./guidance-tools";
 import { createRequestGate } from "./live";
 import { createJsonRequests } from "./requests";
 
@@ -71,15 +76,25 @@ import {
 export type Route =
   | { view: "home" }
   | { view: "wiki" }
+  | { view: "guidance" }
   | { view: "board"; query: string }
   | { view: "epics"; query: string }
   | { view: "tasks"; query: string }
   | { view: "activity" }
   | { view: "docs"; dir: string }
-  | { view: "concept"; path: string };
+  | { view: "concept"; path: string; ticket?: string; anchor?: string };
 
 export function parseHashValue(hash: string): Route {
-  const raw = hash.replace(/^#\/?/, "");
+  const [routePart = "", fragment] = hash.replace(/^#\/?/, "").split("#");
+  const raw = routePart;
+  const decode = (value: string) => {
+    try {
+      return decodeURIComponent(value);
+    } catch {
+      return value;
+    }
+  };
+  const anchor = fragment === undefined ? {} : { anchor: decode(fragment) };
   // Tasks and board keep their filter state in the query part; URLSearchParams
   // decodes it, so it must not be pre-decoded with the rest.
   if (raw === "tasks" || raw.startsWith("tasks?"))
@@ -88,14 +103,18 @@ export function parseHashValue(hash: string): Route {
     return { view: "board", query: raw.slice("board?".length) };
   if (raw === "epics" || raw.startsWith("epics?"))
     return { view: "epics", query: raw.slice("epics?".length) };
-  const h = decodeURIComponent(raw.split("?")[0] ?? raw);
+  const h = decode(raw.split("?")[0] ?? raw);
+  if (h === "work" || h.startsWith("work/"))
+    return { view: "concept", path: h, ticket: h.slice(5), ...anchor };
+  if (h === "guidance") return { view: "guidance" };
   if (h === "wiki") return { view: "wiki" };
   if (h === "activity") return { view: "activity" };
   // Bare #/docs is the Docs tab; #/docs/<dir> renders into the same view with
   // that section's articles up.
   if (h === "docs") return { view: "docs", dir: "" };
   if (h.startsWith("docs/")) return { view: "docs", dir: h.slice(5) };
-  if (h.startsWith("c/")) return { view: "concept", path: h.slice(2) };
+  if (h.startsWith("c/"))
+    return { view: "concept", path: h.slice(2), ...anchor };
   return { view: "home" };
 }
 
@@ -106,7 +125,15 @@ function parseHash(): Route {
 function useRoute(): Route {
   const [route, setRoute] = useState<Route>(parseHash);
   useEffect(() => {
-    const onChange = () => setRoute(parseHash());
+    let acceptedHash = location.hash;
+    const onChange = () => {
+      if (location.hash !== acceptedHash && !allowEditorNavigation()) {
+        history.replaceState(null, "", acceptedHash || "#/");
+        return;
+      }
+      acceptedHash = location.hash;
+      setRoute(parseHash());
+    };
     window.addEventListener("hashchange", onChange);
     window.addEventListener("popstate", onChange);
     return () => {
@@ -245,14 +272,17 @@ function usePage(query = "") {
   useEffect(() => setPage(requested), [requested]);
   const change = (next: number, push = true) => {
     setPage(next);
-    const [base, qs] = location.hash.split("?");
+    const [route = "", anchor] = location.hash.slice(1).split("#");
+    const [base, qs] = `#${route}`.split("?");
     const params = new URLSearchParams(qs);
     if (next === 1) params.delete("page");
     else params.set("page", String(next));
     history[push ? "pushState" : "replaceState"](
       null,
       "",
-      base + (params.size ? `?${params}` : ""),
+      base +
+        (params.size ? `?${params}` : "") +
+        (anchor === undefined ? "" : `#${anchor}`),
     );
     // History API writes do not emit hashchange. Defer until a filter's
     // accompanying replaceState has finished, then synchronize route props.
@@ -337,7 +367,7 @@ function EpicPicker({
   if (!editing)
     return (
       <span>
-        {current && <a href={`#/c/${current.path}`}>{current.id}</a>}{" "}
+        {current && <a href={workHref(current)}>{current.id}</a>}{" "}
         <button
           type="button"
           ref={trigger}
@@ -393,19 +423,24 @@ function SourceReader({
   path,
   revision,
   readable = false,
+  anchor,
 }: {
   path: string;
   revision: string;
   readable?: boolean;
+  anchor?: string;
 }) {
   const [cursors, setCursors] = useState<(unknown | undefined)[]>([undefined]);
   const [at, setAt] = useState(0);
+  const [skipAnchor, setSkipAnchor] = useState(false);
   useEffect(() => {
     void path;
     void revision;
     setCursors([undefined]);
     setAt(0);
-  }, [path, revision]);
+    void anchor;
+    setSkipAnchor(false);
+  }, [path, revision, anchor]);
   const cursor = cursors[at];
   const { data, error, load, loading } = useLiveJson<{
     text: string;
@@ -418,11 +453,15 @@ function SourceReader({
   }>(
     "/api/source/" +
       path +
-      `?${readable ? "readable=1&" : ""}${cursor ? `cursor=${encodeURIComponent(JSON.stringify(cursor))}` : ""}`,
+      `?${readable ? "readable=1&" : ""}${cursor ? `cursor=${encodeURIComponent(JSON.stringify(cursor))}` : anchor && !skipAnchor ? `anchor=${encodeURIComponent(anchor)}` : ""}`,
     revision,
   );
+  const section = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (data && anchor && !skipAnchor) section.current?.scrollIntoView();
+  }, [data, anchor, skipAnchor]);
   return (
-    <section aria-label={`Source ${path}`}>
+    <section ref={section} aria-label={`Source ${path}`}>
       {error && (
         <>
           <ErrorNote message={error} />
@@ -431,6 +470,7 @@ function SourceReader({
             onClick={() => {
               setCursors([undefined]);
               setAt(0);
+              setSkipAnchor(true);
               if (!at) load();
             }}
           >
@@ -535,6 +575,8 @@ interface GraphRef {
 }
 
 interface Concept {
+  editScope: string;
+  editing: { editable: boolean; reason?: string };
   sourcePath?: string;
   relationPage?: PageInfo;
   path: string;
@@ -542,7 +584,12 @@ interface Concept {
   states: string[];
   ready: boolean;
   html: string;
-  backlinks: { path: string; title: string | null }[];
+  backlinks: {
+    path: string;
+    title: string | null;
+    id?: string;
+    type?: string;
+  }[];
   activity: { sha: string; date: string; subject: string }[];
   unmergedActivity: GitActivityObservation[];
   graph: {
@@ -626,7 +673,7 @@ export function EpicEditor({
       {current && (
         <a
           className="edit-link"
-          href={`#/c/${current.path}`}
+          href={workHref(current)}
           aria-label={`View epic ${current.id}`}
         >
           view {current.id}
@@ -670,6 +717,30 @@ async function postEdit(
   }
 }
 
+export function WorkHelp() {
+  return (
+    <details className="work-help muted">
+      <summary>Saving, completion and follow-up</summary>
+      <p>
+        Changes save to local files and remain uncommitted by default. Start the
+        server with <code>docket serve --commit</code> to request a commit per
+        edit. If a commit fails after saving, the source is still saved locally;
+        inspect Git status before retrying the commit.
+      </p>
+      <p>
+        Done records completed acceptance criteria. Review the Outcome, checks
+        and affected docs; changing status alone does not verify or reconcile
+        them. Closed means work ended without completion and requires a reason;
+        it does not unblock dependencies.
+      </p>
+      <p>
+        Done and closed are terminal. Ask your agent to create a new follow-up
+        task linked to the original when more work is needed.
+      </p>
+    </details>
+  );
+}
+
 function Chip({ kind, children }: { kind: string; children: string }) {
   return (
     <span className={`chip chip-${kind.replace(/\s/g, "")}`}>{children}</span>
@@ -678,6 +749,117 @@ function Chip({ kind, children }: { kind: string; children: string }) {
 
 function ErrorNote({ message }: { message: string }) {
   return <p className="error">{message}</p>;
+}
+
+function GuidanceView({ revision }: { revision: string }) {
+  const { data, error, load } = useLiveJson<{
+    guidance: ProjectGuidance;
+    editScope: string;
+    editing: { editable: boolean; reason?: string };
+    html: string | null;
+  }>("/api/guidance", revision);
+  const [editing, setEditing] = useState(false);
+  return (
+    <article className="guidance-view">
+      <header className="view-header">
+        <h1>Project guidance</h1>
+      </header>
+      <p>
+        Project-authored standards and scoped procedure links. Agents read these
+        sources and apply relevant instructions; a procedure link does not
+        authorize execution.
+      </p>
+      {error && <p role="alert">{error}</p>}
+      {!data && !error && <p>Loading guidance…</p>}
+      {data && (
+        <>
+          {data.guidance.status === "absent" ? (
+            <p>
+              No project guidance yet. Setup is optional. Add an instruction or
+              reuse an existing procedure to start a draft.
+            </p>
+          ) : (
+            <p>
+              Source:{" "}
+              <a href={conceptHref({ path: data.guidance.path })}>
+                {data.guidance.path}
+              </a>{" "}
+              · {data.guidance.status}
+            </p>
+          )}
+          {data.guidance.status === "empty" && (
+            <p>This source has no active guidance content yet.</p>
+          )}
+          {data.guidance.diagnostics.length > 0 && (
+            <ul aria-label="Guidance diagnostics">
+              {data.guidance.diagnostics.map((diagnostic) => (
+                <li key={diagnostic.message}>{diagnostic.message}</li>
+              ))}
+            </ul>
+          )}
+          {data.editing.editable ? (
+            <DocumentEditor
+              path={data.guidance.path}
+              sourceScope={data.editScope}
+              onSaved={() => void load()}
+              onEditingChange={setEditing}
+              editLabel={
+                data.guidance.status === "absent"
+                  ? "Add project guidance"
+                  : "Edit guidance"
+              }
+              draftTools={(body, changeBody) => (
+                <GuidanceTools body={body} changeBody={changeBody} />
+              )}
+            />
+          ) : (
+            <p className="muted">{data.editing.reason}</p>
+          )}
+          {!editing &&
+            data.guidance.source &&
+            (data.html !== null ? (
+              <Markdown html={data.html} />
+            ) : (
+              <SourceReader
+                path={data.guidance.path}
+                revision={revision}
+                readable
+              />
+            ))}
+          {data.guidance.links.length > 0 && (
+            <section aria-label="Linked guidance sources">
+              <h2>Linked sources</h2>
+              <p>
+                Open a source to read its full content or edit it with the
+                shared document editor. Availability does not establish
+                authority or scope.
+              </p>
+              <ul>
+                {data.guidance.links.map((link) => (
+                  <li key={link.target}>
+                    {link.path && link.status === "available" ? (
+                      <a href={conceptHref({ path: link.path })}>
+                        {link.target}
+                      </a>
+                    ) : (
+                      <span>{link.target}</span>
+                    )}{" "}
+                    · {link.status}
+                  </li>
+                ))}
+              </ul>
+              {data.guidance.linksTruncated && (
+                <p>
+                  Only the first 100 distinct links are listed. Read the
+                  complete source for the remaining links.
+                </p>
+              )}
+            </section>
+          )}
+        </>
+      )}
+    </article>
+  );
 }
 
 function Markdown({ html }: { html: string }) {
@@ -689,6 +871,7 @@ function Markdown({ html }: { html: string }) {
 export interface HomeData {
   preambleSourcePath?: string;
   narrativeSourcePath?: string;
+  narrativeProblem?: "missing" | "malformed";
   project: string;
   preamble: string;
   narrative:
@@ -849,7 +1032,8 @@ function StateOfPlay({ note }: { note: NonNullable<HomeData["narrative"]> }) {
         <h2>Earlier state of play</h2>
         <p className="state-of-play-review" role="status">
           Context needs review. This older prose remains inspectable but is not
-          presented as current project context.
+          presented as current project context. Ask your agent to refresh the
+          project re-entry note from repository evidence.
         </p>
         <Markdown html={note.html} />
         <p className="state-of-play-stamp">
@@ -865,7 +1049,8 @@ function StateOfPlay({ note }: { note: NonNullable<HomeData["narrative"]> }) {
         <h2>Earlier product context</h2>
         <p className="state-of-play-review" role="status">
           Context needs review. This superseded format remains inspectable and
-          will be replaced only by a meaningful refresh.
+          will be replaced only by a meaningful refresh. Ask your agent to
+          refresh the project re-entry note from repository evidence.
         </p>
         <Markdown html={note.html} />
         <p className="state-of-play-stamp">
@@ -880,9 +1065,9 @@ function StateOfPlay({ note }: { note: NonNullable<HomeData["narrative"]> }) {
   if (!html) return null;
   const reviewMessage =
     note.review.status === "needs-review"
-      ? "Context needs review. This last-known note remains useful, but newer evidence or time may have moved beyond it."
+      ? "Context needs review. This last-known note remains useful, but newer evidence or time may have moved beyond it. Ask your agent to refresh the project re-entry note from repository evidence."
       : note.review.status === "age-unavailable"
-        ? "Evidence age is unavailable. The note is shown with its review time, but its Git age could not be confirmed."
+        ? "Evidence age is unavailable. The note is shown with its review time, but its Git age could not be confirmed. Use the Board for current work and ask your agent to review the note against available repository evidence."
         : null;
   const sections: { kind: string; label: string; html: string }[] = [
     {
@@ -987,9 +1172,18 @@ export function HomeBriefing({
         <StateOfPlay note={data.narrative} />
       ) : (
         !data.narrativeSourcePath && (
-          <p className="context-unavailable muted">
-            No usable project re-entry note is available.
-          </p>
+          <div className="context-unavailable muted">
+            <p>
+              {data.narrativeProblem === "malformed"
+                ? "The project re-entry note could not be read as a valid briefing. Ask your agent to inspect and repair overview.md from repository evidence."
+                : "No project re-entry note yet. This is optional. Ask your agent to create a project re-entry note from repository evidence when a summary would help."}
+            </p>
+            <p>
+              <a href="#/board">View current work</a> or{" "}
+              <a href="#/wiki">read project docs</a>. A briefing refresh updates
+              authored context; reloading this page only reads the saved files.
+            </p>
+          </div>
         )
       )}
     </div>
@@ -1080,7 +1274,7 @@ export function BoardPreview({
                 </span>
               </h3>
               {cards.map((card) => (
-                <a key={card.id} href={`#/c/${card.path}`}>
+                <a key={card.id} href={workHref(card)}>
                   <span>{card.title}</span>
                   <code>{card.id}</code>
                 </a>
@@ -1199,7 +1393,7 @@ export function WikiLanding({ sections }: { sections: DocSection[] }) {
 }
 
 function WikiView({ revision }: { revision: string }) {
-  const [page, setPage] = usePage(location.hash.split("?")[1]);
+  const [page, setPage] = usePage(hashQuery(location.hash));
   const { data, error } = useLiveJson<{
     sections: DocSection[];
     page: PageInfo;
@@ -1243,7 +1437,7 @@ function DocsShell({
     "/api/docs",
     revision,
   );
-  const [page, setPage] = usePage(location.hash.split("?")[1]);
+  const [page, setPage] = usePage(hashQuery(location.hash));
   const { data: listingData, error: listingError } = useLiveJson<{
     sections: DocSection[];
     page: PageInfo;
@@ -1324,7 +1518,7 @@ function DocsShell({
 // The curated log.md narrative above the raw commit feed; a bundle
 // without log.md just shows the feed.
 function ActivityView({ revision }: { revision: string }) {
-  const params = new URLSearchParams(location.hash.split("?")[1]);
+  const params = new URLSearchParams(hashQuery(location.hash));
   const tab =
     params.get("tab") === "git"
       ? "git"
@@ -1339,7 +1533,7 @@ function ActivityView({ revision }: { revision: string }) {
     history.pushState(null, "", `#/activity${params.size ? `?${params}` : ""}`);
     window.dispatchEvent(new HashChangeEvent("hashchange"));
   };
-  const [page, setPage] = usePage(location.hash.split("?")[1]);
+  const [page, setPage] = usePage(hashQuery(location.hash));
   const { data, error } = useLiveJson<{
     activity: ActivityEntry[];
     git: GitEvidence;
@@ -1494,7 +1688,7 @@ function ChildTasks({
       <ul className="items">
         {items.map((child) => (
           <li key={child.id}>
-            <a href={`#/c/${child.path}`}>
+            <a href={workHref(child)}>
               {child.title ?? child.path}{" "}
               <code className="muted">{child.id}</code>
             </a>
@@ -1507,14 +1701,32 @@ function ChildTasks({
   );
 }
 
-function ConceptView({ path, revision }: { path: string; revision: string }) {
-  const [page, setPage] = usePage(location.hash.split("?")[1]);
+function ConceptView({
+  path,
+  ticket,
+  anchor,
+  revision,
+}: {
+  path: string;
+  ticket?: string;
+  anchor?: string;
+  revision: string;
+}) {
+  const [page, setPage] = usePage(hashQuery(location.hash));
   const {
     data: concept,
     error,
     load,
-  } = useLiveJson<Concept>(`/api/concept/${path}?page=${page}`, revision);
+  } = useLiveJson<Concept>(
+    `/api/${ticket === undefined ? `concept/${path.split("/").map(encodeURIComponent).join("/")}` : `work/${encodeURIComponent(ticket)}`}?page=${page}`,
+    revision,
+  );
   const [editError, setEditError] = useState<string>();
+  const [editorAction, setEditorAction] = useState<HTMLDivElement | null>(null);
+  const [editingContent, setEditingContent] = useState(false);
+  useEffect(() => {
+    if (concept && anchor) document.getElementById(anchor)?.scrollIntoView();
+  }, [concept, anchor]);
   // Tab title tracks the loaded concept; the path stands in until it arrives
   // (and stays for title-less files).
   useEffect(() => {
@@ -1541,7 +1753,10 @@ function ConceptView({ path, revision }: { path: string; revision: string }) {
     <div>
       {fm && (
         <header className="concept-head">
-          <h1>{fm.title ?? concept.path}</h1>
+          <div className="concept-title-row">
+            <h1>{fm.title ?? concept.path}</h1>
+            <div ref={setEditorAction} className="concept-page-actions" />
+          </div>
           <div className="chips">
             <Chip kind="type">{fm.type}</Chip>
             {fm.id && <Chip kind="id">{fm.id}</Chip>}
@@ -1592,12 +1807,13 @@ function ConceptView({ path, revision }: { path: string; revision: string }) {
               )}
             </div>
           )}
+          {editable && <WorkHelp />}
           {editError && <ErrorNote message={editError} />}
           {graph && graph.deps.length > 0 && (
             <div className="deps">
               <span className="muted">depends on</span>
               {graph.deps.map((dep) => (
-                <a key={dep.id} className="dep" href={`#/c/${dep.path}`}>
+                <a key={dep.id} className="dep" href={workHref(dep)}>
                   {dep.id}
                   {dep.status && <Chip kind={dep.status}>{dep.status}</Chip>}
                 </a>
@@ -1623,11 +1839,33 @@ function ConceptView({ path, revision }: { path: string; revision: string }) {
           )}
         </section>
       )}
-      {concept.sourcePath ? (
-        <SourceReader path={concept.sourcePath} revision={revision} />
+      {concept.editing?.editable ? (
+        <DocumentEditor
+          key={`${concept.editScope}:${concept.path}`}
+          path={concept.path}
+          sourceScope={concept.editScope}
+          onSaved={() => load()}
+          actionContainer={editorAction}
+          onEditingChange={setEditingContent}
+        />
       ) : (
-        <Markdown html={concept.html} />
+        <p className="muted" role="status">
+          Read-only here.{" "}
+          {concept.editing?.reason ??
+            "Use the source file’s own workflow to make changes."}
+        </p>
       )}
+      <div hidden={editingContent}>
+        {concept.sourcePath ? (
+          <SourceReader
+            path={concept.sourcePath}
+            revision={revision}
+            anchor={anchor}
+          />
+        ) : (
+          <Markdown html={concept.html} />
+        )}
+      </div>
       <Pager
         page={concept.relationPage}
         onPage={setPage}
@@ -1670,7 +1908,7 @@ function ConceptView({ path, revision }: { path: string; revision: string }) {
           <ul>
             {concept.backlinks.map((b) => (
               <li key={b.path}>
-                <a href={`#/c/${b.path}`}>{b.title ?? b.path}</a>
+                <a href={conceptHref(b)}>{b.title ?? b.path}</a>
               </li>
             ))}
           </ul>
@@ -2074,7 +2312,7 @@ function Column({
             <a
               key={card.id}
               className="card"
-              href={`#/c/${card.path}`}
+              href={workHref(card)}
               draggable
               onDragStart={(e) => e.dataTransfer.setData("text/plain", card.id)}
               onDragOver={(e) => e.preventDefault()}
@@ -2449,7 +2687,7 @@ function BoardView({ query, revision }: { query: string; revision: string }) {
             <section key={lane.epic?.id ?? "no-epic"} className="lane">
               <h2 className="lane-title">
                 {lane.epic ? (
-                  <a href={`#/c/${lane.epic.path}`}>
+                  <a href={workHref(lane.epic)}>
                     <code>{lane.epic.id}</code>{" "}
                     {lane.epic.title ?? lane.epic.path}
                   </a>
@@ -2486,7 +2724,7 @@ export function EpicList({
         <article key={epic.id} className="epic">
           <div className="epic-title">
             <span className="epic-heading">
-              <a href={`#/c/${epic.path}`}>
+              <a href={workHref(epic)}>
                 <strong>{epic.title}</strong>{" "}
                 <code className="muted">{epic.id}</code>
               </a>{" "}
@@ -2535,7 +2773,7 @@ export function EpicList({
                   ))}
                 </select>
               </label>
-              <a href={`#/c/${epic.path}`}>review epic</a>
+              <a href={workHref(epic)}>review epic</a>
             </div>
           )}
         </article>
@@ -2859,7 +3097,7 @@ function TasksView({ query, revision }: { query: string; revision: string }) {
             {rows.map((r) => (
               <tr key={r.id}>
                 <td>
-                  <a href={`#/c/${r.path}`}>{r.title ?? r.path}</a>
+                  <a href={workHref(r)}>{r.title ?? r.path}</a>
                   {r.type === "Epic" && <Chip kind="type">epic</Chip>}
                   {pendingEdits.includes(r.id) && (
                     <span className="muted" role="status">
@@ -2869,7 +3107,7 @@ function TasksView({ query, revision }: { query: string; revision: string }) {
                   )}
                 </td>
                 <td>
-                  <a href={`#/c/${r.path}`}>
+                  <a href={workHref(r)}>
                     <code>{r.id}</code>
                   </a>
                 </td>
@@ -2972,6 +3210,8 @@ export function App() {
     else if (route.view === "tasks") document.title = "Tasks · docket";
     else if (route.view === "epics") document.title = "Epics · docket";
     else if (route.view === "activity") document.title = "Activity · docket";
+    else if (route.view === "guidance")
+      document.title = "Project guidance · docket";
     else if (route.view === "wiki") document.title = "Wiki · docket";
     else if (route.view === "docs")
       document.title = route.dir ? `${route.dir} · docket` : "Docs · docket";
@@ -2993,6 +3233,11 @@ export function App() {
       hash: "#/wiki",
       label: "Wiki",
       active: ["wiki", "docs", "concept"].includes(route.view),
+    },
+    {
+      hash: "#/guidance",
+      label: "Project guidance",
+      active: route.view === "guidance",
     },
     {
       hash: rememberedView("tasks"),
@@ -3087,12 +3332,15 @@ export function App() {
         </nav>
         {route.view === "home" && <HomeView revision={revision} />}
         {route.view === "wiki" && <WikiView revision={revision} />}
+        {route.view === "guidance" && <GuidanceView revision={revision} />}
         {route.view === "concept" &&
           (docConcept ? (
             <DocsShell current={route.path} revision={revision}>
               <ConceptView
                 key={route.path}
                 path={route.path}
+                ticket={route.ticket}
+                anchor={route.anchor}
                 revision={revision}
               />
             </DocsShell>
@@ -3100,6 +3348,8 @@ export function App() {
             <ConceptView
               key={route.path}
               path={route.path}
+              ticket={route.ticket}
+              anchor={route.anchor}
               revision={revision}
             />
           ))}

@@ -97,6 +97,7 @@ describe("HomeBriefing", () => {
     );
     expect(html).toContain("Context needs review");
     expect(html).toContain("Needs review");
+    expect(html).toContain("Ask your agent to refresh");
     expect(html).toContain("Shipped the shared overview.");
     expect(html).toContain("8 task-linked commits after this revision");
     expect(html).not.toContain("Worth knowing");
@@ -131,7 +132,7 @@ describe("HomeBriefing", () => {
       <HomeBriefing data={data({ narrative: null })} />,
     );
     expect(html).toContain("Project orientation.");
-    expect(html).toContain("No usable project re-entry note is available.");
+    expect(html).toContain("No project re-entry note yet.");
     expect(html).not.toContain("No tasks yet");
     expect(html).not.toContain("Current work");
     expect(html).not.toContain("Explore the project");
@@ -201,4 +202,28 @@ test("Board preview is a bounded linked sample with explicit scope and full matc
   expect(html).toContain("Task 1");
   expect(html).not.toContain("Task 2");
   expect(html).not.toContain("draggable");
+});
+
+test("malformed briefing offers repair and read-only navigation without invented context", () => {
+  const html = renderToStaticMarkup(
+    <HomeBriefing
+      data={data({ narrative: null, narrativeProblem: "malformed" })}
+    />,
+  );
+  expect(html).toContain("inspect and repair overview.md");
+  expect(html).toContain('href="#/board"');
+  expect(html).toContain('href="#/wiki"');
+  expect(html).toContain("reloading this page only reads");
+  expect(html).not.toContain("What&#x27;s up next");
+});
+
+test("work help distinguishes local saves, commit failure, completion and follow-up", async () => {
+  const { WorkHelp } = await import("./App");
+  const html = renderToStaticMarkup(<WorkHelp />);
+  expect(html).toContain("<summary>");
+  expect(html).toContain("uncommitted by default");
+  expect(html).toContain("docket serve --commit");
+  expect(html).toContain("source is still saved locally");
+  expect(html).toContain("does not unblock dependencies");
+  expect(html).toContain("new follow-up task linked to the original");
 });

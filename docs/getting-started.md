@@ -1,87 +1,59 @@
-# Getting started
+# Complete one useful change
 
-GitDocket runs locally against a repository. It writes Markdown and generated project files into that repository; no hosted account or database is required.
+GitDocket helps your coding agent resume with less re-explanation. Try one small tracked change, review its checks, and see how the knowledge helps the next session. No spec, epic, populated wiki, Home briefing or project guidance is required.
 
-## 1. Install GitDocket
+## 1. Install and initialize
 
-Install Bun 1.3.14 or newer on macOS or Linux, then install the CLI and MCP server from npm:
+Requires Git and Bun 1.3.14 or newer on macOS or Linux. The published preview is 0.3.0. Install it with:
 
 ```sh
 bun add --global @gitdocket/cli @gitdocket/mcp
 docket --version
-```
-
-The version command should report `0.2.1`. The package names live under the `@gitdocket` scope; the commands remain `docket` and `docket-mcp`.
-
-## 2. Initialize a project
-
-Run this in the project you want GitDocket to track:
-
-```sh
-docket init
-```
-
-Init is additive. It creates `docket.yaml`, a `docket/` bundle, portable agent instructions, a composing commit-message hook, the generated index, and a disposable `.docket/cache.sqlite`. It never moves or rewrites existing Markdown during brownfield discovery.
-
-If existing Markdown lacks `type` frontmatter, init prints an adoption worklist with suggested types. Review that list, add only the correct metadata, run `docket index`, and commit the result. If the worklist is empty, init’s next step is simply to commit the new files.
-
-## 3. Try a small epic with your agent
-
-Start in a scratch Git repository if you want to try the full loop before using
-it on your project. Install the native adapter for your agent:
-
-```sh
+mkdir docket-playground
+cd docket-playground
+git init
+printf '# Harbor\n\nA synthetic documentation project.\n' > README.md
 docket init --agent codex
+git add .
+git commit -m "Initialize Harbor with Docket"
 ```
 
-Use `--agent claude` for Claude Code; omit the flag for portable `AGENTS.md`
-guidance. Open the initialized repository in your coding agent and ask:
+Use `--agent claude` for Claude Code, or omit the agent flag for portable `AGENTS.md` guidance. Open the initialized repository in a new coding-agent session so it discovers those instructions. If Git cannot commit, configure your usual Git author identity and retry. Init adds a local Markdown bundle, configuration, workflow instructions, index and commit hook. It leaves existing files in place. In an existing project, review its adoption worklist before adding metadata to existing docs; a complete document migration is not a prerequisite for one task.
 
-> Create a “Welcome guide” epic with two dependent tasks: write a short
-> contributor guide, then link it from README. Give each task concrete
-> acceptance criteria. Run that epic through completion, verify the guide
-> and links, and reconcile the docs.
+## 2. Ask for one tracked change
 
-The agent uses the checked-in workflows to create the epic and scoped tasks,
-select work whose dependencies are done, perform and verify changes, and update
-affected documentation. It reviews the overall epic before closing it and
-returns a completion receipt or a concrete blocker. You direct the work and
-review the result; this runs in the agent session, with that agent's permissions.
+Paste this into your coding agent:
 
-Inspect the result:
+> Read this project's context. Create one standalone Docket task to add a short contributor guide at docket/reference/contributing.md and link it from README.md. Use Reference frontmatter on the guide, with First step and Review sections. Since this project should remain useful offline, record the decision to use repository-relative documentation links in docket/reference/documentation.md, and explain how future guides should follow it. Acceptance criteria: both guide sections exist, the README link resolves, and the documentation decision is recorded. Start the created task by its actual ID, complete and verify it, reconcile affected docs, and close it with an Outcome and task-linked Git evidence. Do not create a spec or epic.
+
+The agent reads context, creates a task with verifiable criteria, implements the change and checks it. The close workflow asks the agent to update affected docs and record evidence. Docket manages IDs, state changes and readiness; your agent performs the work with its own tools and permissions. If it reports a concrete blocker, resolve the named issue and ask it to resume that same task ID.
+
+## 3. Inspect the result
 
 ```sh
 docket task list --all
 docket ready
-```
-
-On a successful run, both child tasks and their epic are `done`; their Markdown
-contains checked criteria, an Outcome, and task-linked Git commits. Confirm the
-README link opens the guide and that the completion receipt explains its checks
-and documentation changes. If the agent reports a blocker, resolve the named
-issue before resuming the same epic.
-
-In a later session, ask “Where did we leave off?” The agent can read repository
-state and Git evidence without the previous conversation. A re-entry note is
-authored context and may need refreshing; current readiness comes from Docket.
-
-For an existing tracked item, use its real ID returned by `docket task list`:
-`docket task start <ID> --json`. Bare selection is reserved for an explicit
-request to choose the next backlog item. A new project has no pre-existing
-`DEMO-3` task.
-
-The [scripted Harbor demonstration](../site/demo/README.md) includes a repeatable
-CLI run and actual evidence. It illustrates the workflow; it is not a recording
-of autonomous agent execution.
-
-## 4. Open the local interface
-
-```sh
+git log -5 --format=full
+git status --short
 docket serve
 ```
 
-The printed URL uses `127.0.0.1` and is reachable only from the same computer. See [Local-server safety](serve.md).
+Open the printed local URL. Inspect the completed task on the Board, or read its file under `docket/work/tasks/`. Expect exactly one done task with checked criteria and an Outcome explaining what shipped and what was checked. Open the README link, verify both guide sections, read the documentation decision, and review the task-linked Git diff. The task and checks explain the result; the reference doc leaves useful knowledge for later work. A clean fixture has no next ready task. Docket does not invent one.
 
-## 5. Update generated views
+An empty Home briefing is valid. Task files, docs and Git history still provide context; the agent does not need to fabricate a summary. Default browser edits save local, uncommitted files. Review Git status before committing. GitDocket 0.3.0 includes the shared document editor and optional project guidance; neither is required for this tutorial.
 
-Most state-changing GitDocket commands update the source Markdown. Run `docket index` after direct file edits to regenerate the committed index and disposable cache. `docket lint` reports invalid links, frontmatter, and workflow hygiene issues.
+## 4. Use the knowledge in a fresh session
+
+Close the agent session, open a new one in the same repository, and ask:
+
+> Where did we leave off? Using repository evidence, explain how we should add a troubleshooting guide and make it discoverable. Cite the project decision that affects your recommendation. This is a read-only planning request; do not create or start work.
+
+Check that the answer finds the previous Outcome and recorded decision, proposes links consistent with it, and cites the file. The prompt deliberately does not repeat the decision. Recovering a done status alone is not the goal: earlier knowledge should shape the new recommendation. Authored briefings require an explicit refresh when they age; current readiness is derived from task files.
+
+See [one task and a fresh session](../site/demo/single-task/README.md) for the retained scripted run and separate agent response.
+
+## Continue at your own pace
+
+For an existing project, choose a small documentation fix, missing test or bounded bug with an observable result. Ask for a task when its criteria and durable receipt will help; a direct “fix this typo” request need not create tracked work. Use the real returned task ID when starting or resuming it. For a larger outcome, follow [Grow to an epic](epics.md). Optional saved standards and browser editing are explained in [Everyday use](everyday-use.md) once you are using a build that includes them; they are not required for this tutorial.
+
+`docket index` regenerates views after direct source edits. `docket lint` checks explicit links, metadata and workflow hygiene. The [concepts guide](concepts.md), [CLI reference](cli.md), [agent integration](agents.md), and [local-server safety](serve.md) provide details as you need them.

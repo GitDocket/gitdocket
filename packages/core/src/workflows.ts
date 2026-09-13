@@ -6,6 +6,7 @@
 // truth; adapters are regenerable and safe to gitignore.
 
 import { ENGINE_SEMANTICS } from "./engine-semantics";
+import { PROJECT_GUIDANCE_PATH } from "./guidance";
 import type { InitResult } from "./init";
 import { DOCKET_INTENTS, type DocketIntentId } from "./intents";
 import { DOCKET_VERSION } from "./version";
@@ -31,6 +32,22 @@ export const workflowPath = (w: WorkflowDef): string =>
 // through a package runner note that in their agent instructions.
 export const DOCKET_WORKFLOWS: readonly WorkflowDef[] = [
   {
+    slug: "docket-guidance",
+    title: "Manage project guidance",
+    intent: "project-guidance",
+    description: DOCKET_INTENTS["project-guidance"].discovery,
+    body: `Use this workflow for explicit remember, show, revise or retire requests about project standards and procedures. Inspection is read-only. Guidance authoring is not task pickup: do not create/start/stop work or read, adopt or clear an unrelated active-task marker. Combined explicit tracking requests keep their independent authority and workflow.
+
+1. **Resolve existing sources**. Read the optional \`reference/project-guidance.md\` relative to the configured bundle and relevant linked sources; absence is valid. Use ordinary file reads or the bounded \`docket source reference/project-guidance.md --json\` / MCP \`source_page\` reader, following continuation cursors. Inspect focused document/search results when needed to find an existing authoritative instruction or procedure before creating one. An unreadable or invalid entry point is not an empty policy: report the problem and repair only within the requested scope.
+2. **Inspect or settle meaning**. For show requests, return the actual instruction, readable scope, requirement/preference distinction and source links; do not change files, regenerate the index or inspect tracker state. For a requested change, preserve the user's meaning and scope. A descriptive observation is not automatically a selected standard. Apply explicit user direction and applicable host/repository instruction precedence. Surface unresolved contradictory guidance; ask only when material ambiguity affects meaning or blocks the request, without silently weakening either instruction. Continue independent authorized work.
+3. **Remember or revise**. Explicitly requested changes proceed in scope without another approval. Reuse or update the existing entry/source; a repeated unchanged request is a no-op. If the entry point is absent, create it as an ordinary \`type: Reference\` concept with a title and description. Keep short chosen requirements/preferences under \`# General standards\` and readable scoped links under \`# Scoped guidance\`; these are prose conventions, not a policy language. Link existing Reference or Playbook sources instead of duplicating their bodies or copying AGENTS.md. Read the latest source before editing and preserve unrelated changes. When revising a shared procedure, account for its other uses and limit the change to the user's authority.
+4. **Record procedures without executing them**. Capture reusable prerequisites, steps, checks and recovery context in the authoritative procedure, with a plain-language scope link. Exclude credentials and incidental runtime output. Saving or reading a deployment procedure never authorizes a deployment or rehearsal; execution requires a separate user request under host permissions.
+5. **Retire deliberately**. Remove the requested instruction or scoped link from the active entry point. Removing a link does not delete a shared source document. Keep the reason and any successor source reviewable in Git or a clearly inactive history document; do not leave the superseded rule as an unexplained active instruction. Retiring an already absent entry is a no-op. Do not delete other instructions or infer retirement from implementation divergence.
+6. **Verify and report the source change**. Review the diff for requested meaning, scope, duplicate authority and unresolved conflicts. Validate explicit links with \`docket lint --json\`; regenerate \`docket index\` only when guidance actually changed. These mechanics do not authorize work-state changes. Preserve normal Markdown/Git history under the user's commit policy without consulting an unrelated active marker. Return the source links and what changed (or the unchanged/absent result). Fresh sessions or an explicit reread observe saved guidance; an already-running agent is not guaranteed to refresh instantly.
+
+Docket supplies discoverable instructions and source evidence, not deterministic enforcement of agent behavior.`,
+  },
+  {
     slug: "docket-pickup",
     title: "Pick up a task",
     intent: "pickup",
@@ -42,7 +59,7 @@ export const DOCKET_WORKFLOWS: readonly WorkflowDef[] = [
 3. **Use the returned title intent**: read \`suggestedSessionTitle\` from the successful structured result. Do not rebuild it from prompt text or separately queried task fields.
 4. **Preserve a retained epic-manager identity**: inspect the available calling-session context before applying the task-title intent. If this session previously established a retained \`Epic <ID> — <title>\` manager identity through the epic workflow, keep that title and skip the task rename. A later pickup does not clear the manager identity merely because the task belongs to the same epic, a different epic, or no epic. Only an explicit user request to repurpose this session for the picked task permits its task-title intent to replace the retained manager identity; a newly supervised epic replaces it through the epic workflow.
 5. **Best-effort rename otherwise**: when no retained epic-manager identity takes precedence, ask the current harness's native adapter to name the calling session with the exact \`suggestedSessionTitle\`. If the host has no current-session naming capability, the capability is unavailable, or the rename fails, continue silently without retrying or treating pickup as failed.
-6. **Hand off context**: use the returned task, epic, dependency, linked-concept, and commit fields as the context packet, then begin the requested tracked work.
+6. **Hand off context**: use the returned task, epic, dependency, linked-concept, and commit fields as the context packet, then read its project-guidance source and relevant scoped links before planning or implementing the requested tracked work. Follow any source continuation cursor. An invalid or unavailable required source is a reported blocker, not permission to invent or weaken a standard.
 
 ${ENGINE_SEMANTICS.transitions}
 
@@ -110,10 +127,12 @@ Do not create an orchestration database, scheduler, permanent runner, or synthet
       "Create a task, epic, or decision as a conformant OKF concept file — ID generation, template, links, index update.",
     body: `Create a work item conformant with the OKF task profile (bundled at \`specs/okf-task-profile.md\` when the repo carries it). The request describes the item ("task: add X to Y, epic phase-1, depends on KEY-8").
 
+**Start small**: a standalone task is complete planning for a bounded change. Add an epic when several tasks serve one outcome; add a spec when describing intended behavior helps. Neither hierarchy nor project guidance is required. Preserve explicit existing links and the user's tracked-work intent; do not manufacture setup.
+
 **Prefer the engine**: \`docket task create --title "…" --epic /work/epics/… --deps KEY-x,KEY-y --priority p1 --description "…"\` handles ID assignment, file placement, and a conformant template. Then edit the created file to fill in real \`# Context\` links and \`# Acceptance Criteria\`, and run \`docket index\`. The manual steps below are the fallback when the engine is unavailable.
 
 1. **Assign the ID**: work items (tasks AND epics) take the next number in the project sequence under the key from \`docket.yaml\` — \`grep -rh "^id: KEY-" <bundle>/\`, max + 1. Decisions likewise on their own prefix (default \`DEC-\`). Verify the result is unused.
-2. **Write the file** at \`work/tasks/<ID>-<short-slug>.md\` (epics → \`work/epics/\`, decisions → \`decisions/\`) with frontmatter: \`type\`, \`title\`, \`description\` (one sentence), \`id\`, \`status: todo\`, \`epic\` (bundle-absolute link — ask or infer; a task without an epic is allowed but noted), \`depends_on\` (task IDs, omit if none), \`priority\` (default \`p2\`), \`assignee\`, \`tags\`, \`timestamp\` (current UTC ISO 8601).
+2. **Write the file** at \`work/tasks/<ID>-<short-slug>.md\` (epics → \`work/epics/\`, decisions → \`decisions/\`) with frontmatter: \`type\`, \`title\`, \`description\` (one sentence), \`id\`, \`status: todo\`, \`epic\` (optional bundle-absolute link when this task belongs to an existing epic; omit for standalone work), \`depends_on\` (task IDs, omit if none), \`priority\` (default \`p2\`), \`assignee\`, \`tags\`, \`timestamp\` (current UTC ISO 8601).
 3. **Body**: \`# Context\` — link the relevant specs/docs/decisions (bundle-absolute paths); \`# Acceptance Criteria\` — checkboxes, verifiable, few. Omit \`# Log\` until there's something to log.
 4. **Regenerate the index** (\`docket index\`) and add a \`log.md\` entry when the item is notable.
 5. If work starts now, follow [the pickup workflow](/workflows/docket-pickup.md). It delegates task state and context-packet mechanics to \`docket task start <ID> --json\`; never set the active task without the status move or vice versa. Pausing later is \`docket task stop\` (clears the active task, status stays).
@@ -137,7 +156,7 @@ ${ENGINE_SEMANTICS.mutationOwnership.grooming}
    - \`done\` tasks with unchecked acceptance criteria or missing \`# Outcome\`.
    - \`closed\` tasks without a concrete \`# Disposition\` and replacement links when applicable.
    - \`depends_on\` pointing at nonexistent or done-and-superseded IDs; broken bundle links (\`docket lint\`).
-   - Epics without a \`spec\` link; tasks without an \`epic\` link.
+   - Validate declared relationships, but do not flag a missing \`spec\` or \`epic\` alone: standalone tasks and spec-less epics are supported. Suggest optional grouping only when it serves a concrete user need.
    - \`index.md\` out of sync (\`docket index\` fixes; report if it changes anything).
 3. **Propose, then apply**: present findings compactly; on confirmation (or when running autonomously, for mechanical fixes only) update files via \`docket task move\`/\`docket task log\`, regenerate the index, and add a \`**YYYY-MM-DD**\` line to affected \`# Log\` sections explaining status changes.
 4. Commit as \`chore(docket): groom backlog\` (no task trailer — \`docket task stop\` first).
@@ -158,7 +177,7 @@ ${ENGINE_SEMANTICS.mutationOwnership.close}
 
 1. **Choose the terminal meaning explicitly**. Completion is the backward-compatible default: every acceptance criterion is checked (or explicitly waived in the Outcome with a reason), and the target state is \`done\`. Use non-completion only when the user explicitly intends to abandon, decline, supersede, or otherwise discontinue the work; leave unmet criteria unchecked, target \`closed\`, and require a concrete disposition reason. If neither meaning is supported, say so and stop.
 2. **Write the terminal narrative**. For completion, write \`# Outcome\`: what actually shipped, citing commit hashes found via \`git log --grep "Task: <ID>" --oneline\` plus the task file's history, with anything descoped or discovered. For non-completion, write \`# Disposition\`: why the work ended, what remains unmet, and any replacement task or decision links; do not claim that work shipped.
-3. **Reconcile the docs** (the LLM-first step): from the task diff and terminal narrative, identify wiki concepts (\`specs/\`, \`reference/\`, \`decisions/\`, plan documents) the conclusion invalidates or extends. Update them now. If a choice foreclosed alternatives, record it as a \`type: Decision\` concept and link it from the Outcome or Disposition.
+3. **Reconcile the docs** (the LLM-first step): from the task diff and terminal narrative, identify wiki concepts (\`specs/\`, \`reference/\`, \`decisions/\`, plan documents) the conclusion invalidates or extends. Update them now. Distinguish descriptive implementation facts from chosen project standards in the guidance entry point and its linked sources. A GraphQL requirement violated by REST code is a discrepancy to report or fix within authorized scope, not permission to rewrite the requirement to accept REST. Preserve requirements, preferences and readable scope; revise or retire a standard only under explicit user authority, recording the reason and successor if any. Removing an active link never deletes its shared source. Report broken explicit links or unresolved conflicts instead of inventing missing instructions. If a choice foreclosed alternatives, record it as a \`type: Decision\` concept and link it from the Outcome or Disposition.
 4. **Update state**: for completion, run \`docket task close <ID> --note "…"\`; for non-completion, run \`docket task close <ID> --without-completion --note "<disposition>"\`. Then run \`docket index\`, add a \`log.md\` entry that says completed or closed, and check dependency and epic effects. Only \`done\` unblocks dependents or counts toward epic completion; a terminal epic may be \`closed\` without all children being done.
 5. **Commit everything together** — task file + reconciled docs + index/log — with the \`Task: <ID>\` trailer (keep the task active so the hook injects it, or add it manually), then \`docket task stop\` to clear the active task.
 
@@ -233,7 +252,7 @@ A missing \`overview.md\` is valid and renders no placeholder. Earlier formats r
 2. **Collect the range**: \`git log <sha>..HEAD --name-only\` (keep trailers). Partition the commits:
    - **Trailerless** — the high-risk bucket: nobody ever asked the reconciliation question. Give each the full treatment: from its changed paths, which concepts (\`specs/\`, \`reference/\`, \`decisions/\`, plan documents) does it invalidate or extend?
    - **Trailered** (\`Task: KEY-n\`) — reconciliation should have happened at close. Spot-check: did closes that plausibly invalidated docs actually touch them?
-3. **Rotate a deep read**: pick the 1–2 concepts in \`specs/\` and \`reference/\` with the oldest last-modified commit and verify their content against current reality (code, plan). This catches drift that has no local commit at all — don't skip it just because the commit range is clean.
+3. **Rotate a deep read**: pick the 1–2 concepts in \`specs/\` and \`reference/\` with the oldest last-modified commit and verify their content against current reality (code, plan). This catches drift that has no local commit at all — don't skip it just because the commit range is clean. Distinguish descriptive implementation facts from chosen project standards in the guidance entry point and its linked sources. A GraphQL requirement violated by REST code is a discrepancy to report or fix within authorized scope, not permission to rewrite the requirement to accept REST. Preserve requirements, preferences and readable scope; revise or retire a standard only under explicit user authority, recording the reason and successor if any. Removing an active link never deletes its shared source. Report broken explicit links or unresolved conflicts instead of inventing missing instructions.
 4. **Propose, then apply**: present findings compactly (per doc: what's stale, which commit made it so). On confirmation — or autonomously for unambiguous factual fixes only — update the docs.
 5. **Stamp the watermark**: append to today's section of \`log.md\`:
 
@@ -444,6 +463,8 @@ This repo tracks docs and work with Docket: every doc and work item is a markdow
 **Engine** — the \`docket\` CLI is the write path: \`ready\`, \`overview\`, \`search\`, \`task list|create|start|stop|move|edit|close|log\`, \`lint\`, \`index\`, \`upgrade\` (all support \`--json\`). Use it for mechanics; never hand-edit status fields or the generated \`index.md\` body.
 
 **Orientation** — for “what's next,” status, orientation, or an ordinary review, run \`${orientation.defaultEntrypoint.value}\`. This path is read-only and bounded: start with its structured result, follow bundle links only when the requested explanation needs more evidence, and do not start a task, regenerate the index, invoke a mutating workflow, or search unrelated implementation and fixture content when the overview is sufficient. Native skills are optional: without one, run the CLI command directly; an MCP-only client calls the read-only \`overview\` tool, which returns the same model and selection.
+
+**Project guidance** — before planning or acting on direct or tracked implementation work, read optional \`${dir}${PROJECT_GUIDANCE_PATH}\` (or \`docket guidance --json\`; MCP: \`project_guidance\`). Follow source continuation pages, then read only the linked procedures relevant to the request using file reads or \`docket source <path> --json\` / MCP \`source_page\`. Scope is authored prose: apply API/testing standards to relevant implementation; deployment procedures only to deployment-related work, and execute them only when the user requested that activity. Absence is valid and creates no setup requirement. Invalid, unreadable or contradictory required guidance must be exposed; follow explicit user direction and applicable host/repository instruction precedence without silently weakening a standard. This read path never authorizes task creation, selection, pickup, stopping, or reading/adopting/clearing unrelated active-task state. Re-read after explicit guidance changes or at the next work boundary; Docket supplies source and instructions, not deterministic enforcement or instant updates to an already-running agent.
 
 **Workflows** — the judgment procedures live in the bundle; read the file and follow it:
 

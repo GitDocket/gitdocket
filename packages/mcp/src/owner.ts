@@ -6,6 +6,7 @@ import {
   type DocketConfig,
   type FileStore,
   loadMetadataBundle,
+  readProjectGuidance,
 } from "@gitdocket/core";
 import { GitEvidenceIndex } from "@gitdocket/core/cache";
 
@@ -117,6 +118,12 @@ export class RepositoryOwner {
         throw new Error(`not found: ${path}`);
       return store.read(path);
     });
+  }
+
+  guidance() {
+    return this.consistent(({ store, config }) =>
+      readProjectGuidance(store, config),
+    );
   }
 
   async sourceMap(path: string): Promise<ReadonlyMap<string, string>> {

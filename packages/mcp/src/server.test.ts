@@ -81,6 +81,7 @@ describe("tool surface", () => {
       lint: true,
       search: true,
       source_page: true,
+      project_guidance: true,
       task_create: false,
       set_status: false,
       append_log: false,
@@ -94,6 +95,44 @@ describe("tool surface", () => {
 });
 
 describe("read tools", () => {
+  test("project guidance reads are live, bounded and never fetch irrelevant procedure bodies", async () => {
+    const { client, store } = await connect();
+    const initial = new Map(store.files);
+    expect((await call(client, "project_guidance")).data.status).toBe("absent");
+    expect(store.files).toEqual(initial);
+    const source =
+      "---\ntype: Reference\n---\nWhen deploying: [procedure](/playbooks/deploy.md).\n" +
+      "A long standard. ".repeat(3000);
+    store.files.set("reference/project-guidance.md", source);
+    store.files.set("playbooks/deploy.md", "Do not eagerly load this");
+    const reads: string[] = [];
+    const read = store.read.bind(store);
+    store.read = async (path) => {
+      reads.push(path);
+      return read(path);
+    };
+    const guidance = (await call(client, "project_guidance")).data;
+    expect(reads).toEqual(["reference/project-guidance.md"]);
+    expect(guidance.source.text.length).toBeLessThanOrEqual(16384);
+    expect(guidance.source.nextCursor).toBeDefined();
+    expect(
+      (
+        await call(client, "source_page", {
+          path: guidance.path,
+          cursor: guidance.source.nextCursor,
+        })
+      ).isError,
+    ).toBe(false);
+    store.files.set(
+      guidance.path,
+      "---\ntype: Reference\n---\nRevised instruction",
+    );
+    expect((await call(client, "project_guidance")).data.source.text).toContain(
+      "Revised instruction",
+    );
+    store.files.delete(guidance.path);
+    expect((await call(client, "project_guidance")).data.status).toBe("absent");
+  });
   test("bounded retrieval preserves defaults, complete source and changed-cursor errors", async () => {
     const { client, store } = await connect();
     const all = (await call(client, "task_list")).data;

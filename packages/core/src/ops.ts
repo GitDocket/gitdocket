@@ -360,7 +360,10 @@ function withLogEntry(source: string, entry: string): string {
 // Hosted stores can supply their own transaction boundary. The fallback
 // serializes shared in-process stores; LocalFileStore also coordinates processes.
 const mutationQueues = new WeakMap<FileStore, Promise<void>>();
-function mutate<T>(store: FileStore, operation: () => Promise<T>): Promise<T> {
+export function mutate<T>(
+  store: FileStore,
+  operation: () => Promise<T>,
+): Promise<T> {
   if (store.withMutation) return store.withMutation(operation);
   const next = (mutationQueues.get(store) ?? Promise.resolve()).then(operation);
   mutationQueues.set(

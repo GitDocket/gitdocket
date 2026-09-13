@@ -61,6 +61,181 @@ const DIRECT_WORK_FORBIDDEN_ACTIONS = [
 
 export const PROMPT_ROUTING_FIXTURES: readonly PromptRoutingFixture[] = [
   {
+    id: "direct-work-with-guidance",
+    prompt:
+      "Add a health query to api/schema.ts using our recorded project guidance.",
+    expectedIntent: "direct-work",
+    expectedEntrypoint: {
+      kind: "direct",
+      value: "the user's concrete requested work",
+    },
+    allowedCommands: [
+      "docket guidance --json",
+      "docket source reference/api.md --json",
+    ],
+    permittedWritePaths: ["api/schema.ts"],
+    maximumInspectionScope: scope("direct-work"),
+    writesPermitted: true,
+    forbiddenActions: [
+      ...DIRECT_WORK_FORBIDDEN_ACTIONS,
+      "read unrelated .docket/active-task",
+      "execute a deployment",
+    ],
+    surfaceEvidence: [
+      "docket guidance --json",
+      "only the linked procedures relevant to the request",
+      "applicable host/repository instruction precedence",
+    ],
+  },
+  {
+    id: "guidance-and-explicit-tracking",
+    prompt:
+      "Remember this API convention and create a task to migrate the existing endpoints; do not start it.",
+    expectedIntent: "project-guidance",
+    composedIntents: ["task-management"],
+    expectedEntrypoint: { kind: "workflow", value: "docket-guidance" },
+    allowedCommands: [
+      "docket source reference/project-guidance.md --json",
+      "docket task create --title <migration-title> --json",
+      "docket lint --json",
+      "docket index",
+    ],
+    maximumInspectionScope: scope("project-guidance"),
+    writesPermitted: true,
+    forbiddenActions: [
+      "docket task start",
+      "read unrelated .docket/active-task",
+      "adopt existing .docket/active-task",
+      "execute a stored procedure",
+    ],
+    traits: ["combined-intents", "negative-constraint"],
+  },
+  {
+    id: "guidance-remember",
+    prompt: "Remember that we use GraphQL for backend APIs.",
+    expectedIntent: "project-guidance",
+    expectedEntrypoint: { kind: "workflow", value: "docket-guidance" },
+    allowedCommands: [
+      "docket source reference/project-guidance.md --json",
+      "docket lint --json",
+      "docket index",
+    ],
+    maximumInspectionScope: scope("project-guidance"),
+    writesPermitted: true,
+    forbiddenActions: [
+      "docket task create",
+      "docket task start",
+      "read unrelated .docket/active-task",
+      "adopt existing .docket/active-task",
+      "clear existing .docket/active-task",
+      "execute a stored procedure",
+    ],
+  },
+  {
+    id: "guidance-show",
+    prompt: "Show our project instructions.",
+    expectedIntent: "project-guidance",
+    expectedEntrypoint: { kind: "workflow", value: "docket-guidance" },
+    allowedCommands: ["docket source reference/project-guidance.md --json"],
+    maximumInspectionScope: scope("project-guidance"),
+    writesPermitted: false,
+    forbiddenActions: [
+      "docket task create",
+      "docket task start",
+      "read unrelated .docket/active-task",
+      "adopt existing .docket/active-task",
+      "clear existing .docket/active-task",
+      "execute a stored procedure",
+      "docket index",
+      "edit guidance",
+    ],
+  },
+  {
+    id: "guidance-revise",
+    prompt: "Update our API guidance to require schema compatibility tests.",
+    expectedIntent: "project-guidance",
+    expectedEntrypoint: { kind: "workflow", value: "docket-guidance" },
+    allowedCommands: [
+      "docket source reference/project-guidance.md --json",
+      "docket lint --json",
+      "docket index",
+    ],
+    maximumInspectionScope: scope("project-guidance"),
+    writesPermitted: true,
+    forbiddenActions: [
+      "docket task create",
+      "docket task start",
+      "read unrelated .docket/active-task",
+      "adopt existing .docket/active-task",
+      "clear existing .docket/active-task",
+      "execute a stored procedure",
+    ],
+  },
+  {
+    id: "guidance-retire",
+    prompt: "Retire our GraphQL instruction; preserve the shared API document.",
+    expectedIntent: "project-guidance",
+    expectedEntrypoint: { kind: "workflow", value: "docket-guidance" },
+    allowedCommands: [
+      "docket source reference/project-guidance.md --json",
+      "docket lint --json",
+      "docket index",
+    ],
+    maximumInspectionScope: scope("project-guidance"),
+    writesPermitted: true,
+    forbiddenActions: [
+      "docket task create",
+      "docket task start",
+      "read unrelated .docket/active-task",
+      "adopt existing .docket/active-task",
+      "clear existing .docket/active-task",
+      "execute a stored procedure",
+    ],
+  },
+  {
+    id: "guidance-procedure",
+    prompt: "Save our deployment procedure; do not deploy anything.",
+    expectedIntent: "project-guidance",
+    expectedEntrypoint: { kind: "workflow", value: "docket-guidance" },
+    allowedCommands: [
+      "docket source reference/project-guidance.md --json",
+      "docket lint --json",
+      "docket index",
+    ],
+    maximumInspectionScope: scope("project-guidance"),
+    writesPermitted: true,
+    forbiddenActions: [
+      "docket task create",
+      "docket task start",
+      "read unrelated .docket/active-task",
+      "adopt existing .docket/active-task",
+      "clear existing .docket/active-task",
+      "execute a stored procedure",
+    ],
+  },
+  {
+    id: "guidance-repeat",
+    prompt:
+      "Remember the same GraphQL backend API instruction again; reuse its source.",
+    expectedIntent: "project-guidance",
+    expectedEntrypoint: { kind: "workflow", value: "docket-guidance" },
+    allowedCommands: [
+      "docket source reference/project-guidance.md --json",
+      "docket lint --json",
+      "docket index",
+    ],
+    maximumInspectionScope: scope("project-guidance"),
+    writesPermitted: true,
+    forbiddenActions: [
+      "docket task create",
+      "docket task start",
+      "read unrelated .docket/active-task",
+      "adopt existing .docket/active-task",
+      "clear existing .docket/active-task",
+      "execute a stored procedure",
+    ],
+  },
+  {
     id: "direct-concrete-ux-request",
     prompt:
       "Work on this UX concern: in ui/mobile-settings-card.css only, change the mobile card gap from 8px to 12px. Do not change anything else.",
@@ -572,6 +747,10 @@ export interface IntentDiscoveryDiagnostic {
 const DISCOVERY_SIGNATURES: Readonly<
   Record<DocketIntentId, readonly string[]>
 > = {
+  "project-guidance": [
+    "manage explicitly requested project guidance",
+    "scoped procedures",
+  ],
   orientation: ["read-only orientation", "what comes next"],
   "backlog-hygiene": ["backlog hygiene audit", "stale or inconsistent"],
   pickup: [

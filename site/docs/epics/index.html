@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Grow to an epic — GitDocket</title>
+    <meta name="description" content="Use dependent tasks to complete a larger outcome with your coding agent." />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Grow to an epic — GitDocket" />
+    <meta property="og:description" content="Use dependent tasks to complete a larger outcome with your coding agent." />
+    <meta property="og:image" content="https://gitdocket.com/assets/current-home.jpg" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="shell nav">
+      <a class="brand" href="/" aria-label="GitDocket home"><span class="mark" aria-hidden="true">GD</span>GitDocket</a>
+      <nav aria-label="Primary navigation"><a href="/#product">Product</a><a href="/#workflow">Workflow</a><a href="/docs/">Docs</a><a href="https://github.com/GitDocket/gitdocket">GitHub</a></nav>
+    </header>
+    <div class="shell docs-layout">
+      <aside class="docs-sidebar"><p class="eyebrow">Reference</p><nav aria-label="Documentation"><a href="/docs/">Get started</a><a href="/docs/example/">One-task example</a><a href="/docs/everyday/">Everyday use</a><a href="/docs/epics/" aria-current="page">Epics</a><a href="/docs/cli/">CLI commands</a><a href="/docs/mcp/">MCP & workflows</a><a href="/docs/api/">Local HTTP reference</a></nav></aside>
+      <main class="docs-content" id="main" tabindex="-1"><h1>Grow to an epic</h1>
+<p>Use an epic when several dependent tasks contribute to one outcome. Start with the <a href="/docs/">one-task tutorial</a>.</p>
+<h2>Try a small epic with your agent</h2>
+<p>Start in a scratch Git repository if you want to try the full loop before using
+it on your project. Install the native adapter for your agent:</p>
+<pre><code class="language-sh">docket init --agent codex
+</code></pre>
+<p>Use <code>--agent claude</code> for Claude Code; omit the flag for portable <code>AGENTS.md</code>
+guidance. Open the initialized repository in your coding agent and ask:</p>
+<blockquote>
+<p>Create a “Welcome guide” epic with two dependent tasks: write a short
+contributor guide, then link it from README. Give each task concrete
+acceptance criteria. Run that epic through completion, verify the guide
+and links, and reconcile the docs.</p>
+</blockquote>
+<p>The agent uses the checked-in workflows to create the epic and scoped tasks,
+select work whose dependencies are done, perform and verify changes, and update
+affected documentation. It reviews the overall epic before closing it and
+returns a completion receipt or a concrete blocker. You direct the work and
+review the result; this runs in the agent session, with that agent's permissions.</p>
+<p>Inspect the result:</p>
+<pre><code class="language-sh">docket task list --all
+docket ready
+</code></pre>
+<p>On a successful run, both child tasks and their epic are <code>done</code>; their Markdown
+contains checked criteria, an Outcome, and task-linked Git commits. Confirm the
+README link opens the guide and that the completion receipt explains its checks
+and documentation changes. If the agent reports a blocker, resolve the named
+issue before resuming the same epic.</p>
+<p>In a later session, ask “Where did we leave off?” The agent can read repository
+state and Git evidence without the previous conversation. A re-entry note is
+authored context and may need refreshing; current readiness comes from Docket.</p>
+<p>For an existing tracked item, use its real ID returned by <code>docket task list</code>:
+<code>docket task start &#x3C;ID> --json</code>. Bare selection is reserved for an explicit
+request to choose the next backlog item. A new project has no pre-existing
+<code>DEMO-3</code> task.</p>
+<p>The <a href="/demo/README.md">scripted Harbor demonstration</a> includes a repeatable
+CLI run and actual evidence. It illustrates the workflow; it is not a recording
+of autonomous agent execution.</p>
+<p>The historical Harbor replay is scripted CLI evidence, not an agent execution recording.</p></main>
+    </div>
+    <footer class="shell footer"><a class="brand" href="/">GitDocket</a><p>Project knowledge and work, together in Git.</p><a href="https://github.com/GitDocket/gitdocket">Source on GitHub ↗</a></footer>
+  </body>
+</html>

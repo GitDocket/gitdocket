@@ -294,6 +294,17 @@ export function createDocketServer(
   );
 
   server.registerTool(
+    "project_guidance",
+    {
+      title: "Read project guidance",
+      description:
+        "Read the optional authored project-guidance entry point before direct or tracked work. Returns exact bounded source, continuation cursor and explicit absent/invalid/unavailable states with link diagnostics. Follow remaining source pages and relevant scoped links using source_page before acting. Does not select work, read active-task state or execute procedures; scope and precedence remain agent judgment.",
+      annotations: READ,
+    },
+    async () => json(await owner.guidance()),
+  );
+
+  server.registerTool(
     "task_create",
     {
       title: "Create a work item",

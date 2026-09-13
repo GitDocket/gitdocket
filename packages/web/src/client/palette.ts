@@ -1,3 +1,5 @@
+import { conceptHref } from "../urls";
+
 // Pure item logic for the command palette: the view catalog and how
 // a typed query merges navigation targets with core's ranked concept hits
 // into one result list. The overlay component stays thin.
@@ -39,6 +41,7 @@ export function viewCatalog(sections: string[]): ViewItem[] {
     view("Home", "#/"),
     view("Board", "#/board"),
     view("Wiki", "#/wiki"),
+    view("Project guidance", "#/guidance"),
     view("Tasks", "#/tasks"),
     view("Epics", "#/epics"),
     view("Activity", "#/activity"),
@@ -75,4 +78,4 @@ export function paletteItems(
 }
 
 export const itemHash = (item: PaletteItem): string =>
-  item.kind === "view" ? item.hash : `#/c/${item.path}`;
+  item.kind === "view" ? item.hash : conceptHref(item);

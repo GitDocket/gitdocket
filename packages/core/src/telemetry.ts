@@ -32,6 +32,7 @@ export const OPERATIONS = [
   "append_log",
   "search",
   "source_page",
+  "project_guidance",
   "lint",
   "index",
   "verify",

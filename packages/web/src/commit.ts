@@ -18,6 +18,8 @@ export interface CommitOp {
   paths: string[];
   /** Full commit message, trailer included. */
   message: string;
+  /** Explicit source attribution; null suppresses active-task hook injection. */
+  taskTrailer?: { key: string; id: string | null };
 }
 
 export type Committer = (op: CommitOp) => Promise<void>;
@@ -227,7 +229,7 @@ export function createCommitter(
     }
   };
 
-  return async ({ paths, message }) => {
+  return async ({ paths, message, taskTrailer }) => {
     const repoPaths = [...new Set(paths)]
       .map((path) => relative(repoRoot, resolve(repoRoot, bundleDir, path)))
       .sort();
@@ -264,7 +266,44 @@ export function createCommitter(
         message.endsWith("\n") ? message : `${message}\n`,
       );
       runHook("prepare-commit-msg", [messagePath, "message"], temporaryEnv);
+      // A generic source edit must not inherit the unrelated checkout task.
+      // Normalize after prepare-commit-msg, then let commit-msg validate it.
+      if (taskTrailer) {
+        run(
+          [
+            "interpret-trailers",
+            "--in-place",
+            "--if-exists",
+            "replace",
+            "--trim-empty",
+            "--trailer",
+            `${taskTrailer.key}: ${taskTrailer.id ?? ""}`,
+            messagePath,
+          ],
+          { env: temporaryEnv },
+        );
+      }
       runHook("commit-msg", [messagePath], temporaryEnv);
+      if (taskTrailer) {
+        const trailers = run(["interpret-trailers", "--parse", messagePath], {
+          env: temporaryEnv,
+        }).split("\n");
+        const values = trailers
+          .filter(
+            (line) =>
+              line.slice(0, line.indexOf(":")).toLowerCase() ===
+              taskTrailer.key.toLowerCase(),
+          )
+          .map((line) => line.slice(line.indexOf(":") + 1).trim());
+        if (
+          taskTrailer.id === null
+            ? values.length > 0
+            : values.length !== 1 || values[0] !== taskTrailer.id
+        )
+          throw new Error(
+            "Commit hook changed source task attribution; source remains saved locally",
+          );
+      }
       if (!readFileSync(messagePath, "utf8").trim()) {
         throw new Error("Commit message became empty after hooks");
       }

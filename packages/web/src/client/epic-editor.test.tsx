@@ -40,7 +40,7 @@ describe("EpicEditor", () => {
     expect(html).toContain(
       '<option value="/work/epics/DKT-2.md" selected="">DKT-2 — DKT-2 title</option>',
     );
-    expect(html).toContain('href="#/c/work/epics/DKT-2.md"');
+    expect(html).toContain('href="#/work/2"');
     expect(html).toContain('aria-label="View epic DKT-2"');
   });
 
@@ -55,8 +55,8 @@ describe("EpicEditor", () => {
       />,
     );
 
-    expect(html).toContain('href="#/c/work/epics/DKT-4.md"');
-    expect(html).not.toContain('href="#/c/work/epics/DKT-2.md"');
+    expect(html).toContain('href="#/work/4"');
+    expect(html).not.toContain('href="#/work/2"');
   });
 
   test("shows the empty editor without a broken link", () => {

@@ -15,6 +15,29 @@ import {
 } from "./prompt-routing";
 
 describe("prompt-routing fixture contract", () => {
+  test("guidance inspection, reuse and explicit tracking retain distinct authority", () => {
+    const guidance = PROMPT_ROUTING_FIXTURES.filter(
+      (fixture) => fixture.expectedIntent === "project-guidance",
+    );
+    expect(guidance).toHaveLength(7);
+    const show = guidance.find((fixture) => fixture.id === "guidance-show");
+    expect(show?.writesPermitted).toBe(false);
+    expect(show?.allowedCommands).not.toContain("docket index");
+    for (const fixture of guidance) {
+      expect(fixture.forbiddenActions).toContain("docket task start");
+      expect(fixture.forbiddenActions).toContain(
+        "read unrelated .docket/active-task",
+      );
+      expect(fixture.forbiddenActions).toContain("execute a stored procedure");
+      if (!fixture.composedIntents)
+        expect(fixture.forbiddenActions).toContain("docket task create");
+    }
+    expect(
+      guidance.find(
+        (fixture) => fixture.id === "guidance-and-explicit-tracking",
+      )?.composedIntents,
+    ).toEqual(["task-management"]);
+  });
   test("covers every agent intent, ambiguity, negative constraints, and bounded authority", () => {
     expect(validatePromptRoutingFixtures(PROMPT_ROUTING_FIXTURES)).toEqual([]);
 
@@ -37,7 +60,10 @@ describe("prompt-routing fixture contract", () => {
     ).toBe(true);
 
     for (const fixture of PROMPT_ROUTING_FIXTURES) {
-      if (fixture.expectedIntent === "direct-work") {
+      if (
+        fixture.expectedIntent === "direct-work" &&
+        fixture.id !== "direct-work-with-guidance"
+      ) {
         expect(fixture.allowedCommands).toEqual([]);
         expect(fixture.permittedWritePaths?.length).toBe(1);
       } else {

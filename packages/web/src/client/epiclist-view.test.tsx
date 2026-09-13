@@ -29,7 +29,7 @@ describe("EpicList", () => {
     expect(html).toContain("needs cleanup");
     expect(html).toContain(">in-progress</span>");
     expect(html).toContain('aria-label="reconcile DKT-1 status"');
-    expect(html).toContain('href="#/c/work/epics/DKT-1.md">review epic</a>');
+    expect(html).toContain('href="#/work/1">review epic</a>');
     expect(html).not.toContain('aria-label="reconcile DKT-2 status"');
     expect(html.match(/needs cleanup/g)).toHaveLength(1);
   });

@@ -1,0 +1,344 @@
+{
+  "method": "Scripted CLI replay; authored content and checks, no simulated model response",
+  "source": "170b549",
+  "runtime": "1.3.14",
+  "task": {
+    "id": "HBR-1",
+    "path": "work/tasks/HBR-1-add-a-contributor-guide.md"
+  },
+  "implementation": "89d376bd7df94ba493cbc4b97452bde5b1d8a9a1",
+  "closure": "7deaaf2f751ffd60e5f67d750671f85f13812d0f",
+  "checks": [
+    "two guide headings",
+    "all relative Markdown targets exist",
+    "one done standalone task",
+    "no ready work",
+    "no pre-existing spec, epic, briefing or project guidance"
+  ],
+  "transcript": [
+    {
+      "command": "docket init --project HBR --agent codex --json",
+      "output": {
+        "root": "/private/tmp/dkt169/public-demo",
+        "steps": [
+          {
+            "step": "config",
+            "path": "docket.yaml",
+            "action": "create"
+          },
+          {
+            "step": "bundle",
+            "path": "docket/index.md",
+            "action": "create"
+          },
+          {
+            "step": "bundle",
+            "path": "docket/log.md",
+            "action": "create"
+          },
+          {
+            "step": "freshness",
+            "path": "docket/log.md",
+            "action": "skip",
+            "reason": "no commits yet"
+          },
+          {
+            "step": "workflow",
+            "path": "docket/workflows/docket-guidance.md",
+            "action": "create"
+          },
+          {
+            "step": "workflow",
+            "path": "docket/workflows/docket-pickup.md",
+            "action": "create"
+          },
+          {
+            "step": "workflow",
+            "path": "docket/workflows/docket-epic.md",
+            "action": "create"
+          },
+          {
+            "step": "workflow",
+            "path": "docket/workflows/docket-task.md",
+            "action": "create"
+          },
+          {
+            "step": "workflow",
+            "path": "docket/workflows/docket-groom.md",
+            "action": "create"
+          },
+          {
+            "step": "workflow",
+            "path": "docket/workflows/docket-close.md",
+            "action": "create"
+          },
+          {
+            "step": "workflow",
+            "path": "docket/workflows/docket-standup.md",
+            "action": "create"
+          },
+          {
+            "step": "workflow",
+            "path": "docket/workflows/docket-state-of-play.md",
+            "action": "create"
+          },
+          {
+            "step": "workflow",
+            "path": "docket/workflows/docket-freshness.md",
+            "action": "create"
+          },
+          {
+            "step": "hook",
+            "path": "/private/tmp/dkt169/public-demo/.git/hooks/prepare-commit-msg",
+            "action": "create"
+          },
+          {
+            "step": "agents",
+            "path": "AGENTS.md",
+            "action": "create"
+          },
+          {
+            "step": "skills",
+            "path": ".agents/skills/docket-guidance/SKILL.md",
+            "action": "create"
+          },
+          {
+            "step": "skills",
+            "path": ".agents/skills/docket-pickup/SKILL.md",
+            "action": "create"
+          },
+          {
+            "step": "skills",
+            "path": ".agents/skills/docket-epic/SKILL.md",
+            "action": "create"
+          },
+          {
+            "step": "skills",
+            "path": ".agents/skills/docket-task/SKILL.md",
+            "action": "create"
+          },
+          {
+            "step": "skills",
+            "path": ".agents/skills/docket-groom/SKILL.md",
+            "action": "create"
+          },
+          {
+            "step": "skills",
+            "path": ".agents/skills/docket-close/SKILL.md",
+            "action": "create"
+          },
+          {
+            "step": "skills",
+            "path": ".agents/skills/docket-standup/SKILL.md",
+            "action": "create"
+          },
+          {
+            "step": "skills",
+            "path": ".agents/skills/docket-state-of-play/SKILL.md",
+            "action": "create"
+          },
+          {
+            "step": "skills",
+            "path": ".agents/skills/docket-freshness/SKILL.md",
+            "action": "create"
+          },
+          {
+            "step": "codex",
+            "path": ".codex/config.toml",
+            "action": "create"
+          },
+          {
+            "step": "gitignore",
+            "path": ".gitignore",
+            "action": "create"
+          },
+          {
+            "step": "index",
+            "path": "docket/index.md",
+            "action": "update"
+          }
+        ],
+        "adopt": []
+      }
+    },
+    {
+      "command": "docket task create --title Add a contributor guide --json",
+      "output": {
+        "id": "HBR-1",
+        "path": "work/tasks/HBR-1-add-a-contributor-guide.md"
+      }
+    },
+    {
+      "command": "docket task start HBR-1 --json",
+      "output": {
+        "picked": false,
+        "started": {
+          "from": "todo",
+          "to": "in-progress"
+        },
+        "suggestedSessionTitle": "HBR-1 — Add a contributor guide",
+        "task": {
+          "path": "work/tasks/HBR-1-add-a-contributor-guide.md",
+          "fm": {
+            "type": "Task",
+            "title": "Add a contributor guide",
+            "tags": [],
+            "aliases": [],
+            "id": "HBR-1",
+            "status": "in-progress",
+            "depends_on": [],
+            "priority": "p2",
+            "timestamp": "2026-09-13T01:24:41Z"
+          },
+          "body": "# Context\n\nAdd a discoverable guide and record the offline documentation decision.\n\n# Acceptance Criteria\n\n- [ ] First step and Review sections exist.\n- [ ] README link resolves.\n- [ ] The documentation decision is recorded."
+        },
+        "deps": [],
+        "linked": [],
+        "commits": [],
+        "guidance": {
+          "path": "reference/project-guidance.md",
+          "status": "absent",
+          "links": [],
+          "diagnostics": []
+        }
+      }
+    },
+    {
+      "command": "docket task close HBR-1 --note Guide headings and all relative links verified; documentation decision retained. --json",
+      "output": {
+        "id": "HBR-1",
+        "path": "work/tasks/HBR-1-add-a-contributor-guide.md",
+        "from": "in-progress",
+        "to": "done"
+      }
+    },
+    {
+      "command": "docket index",
+      "output": "index.md regenerated; cache rebuilt at .docket/cache.sqlite"
+    },
+    {
+      "command": "docket task stop",
+      "output": "stopped HBR-1 — active task cleared, status untouched (finishing is `docket task close`)"
+    },
+    {
+      "command": "docket ready --json",
+      "output": []
+    },
+    {
+      "command": "docket task list --all --json",
+      "output": [
+        {
+          "id": "HBR-1",
+          "type": "Task",
+          "title": "Add a contributor guide",
+          "status": "done",
+          "priority": "p2",
+          "depends_on": [],
+          "path": "work/tasks/HBR-1-add-a-contributor-guide.md"
+        }
+      ]
+    },
+    {
+      "command": "docket overview --json",
+      "output": {
+        "upNext": null,
+        "workstreams": {
+          "current": [],
+          "recentOnly": []
+        },
+        "loose": {
+          "now": [],
+          "next": [],
+          "nextTotal": 0,
+          "blockedOnly": false,
+          "lastActivity": "2026-09-13T01:24:41Z"
+        },
+        "execution": {
+          "checkpoint": {
+            "revision": "7deaaf2f751ffd60e5f67d750671f85f13812d0f",
+            "time": "2026-09-13T01:24:41Z"
+          },
+          "scope": {
+            "mode": "shared-recent",
+            "after": "2026-08-30T01:24:42.015Z",
+            "requested": null,
+            "fallback": "first-visit"
+          },
+          "shipped": [
+            {
+              "path": "work/tasks/HBR-1-add-a-contributor-guide.md",
+              "id": "HBR-1",
+              "title": "Add a contributor guide",
+              "status": "done",
+              "summary": "Commit 89d376bd7df94ba493cbc4b97452bde5b1d8a9a1 adds the guide and a README entry point. Checked both headings and every relative Markdown target in all three changed documents. Reconciled documentation decisions so a later guide preserves offline use. This was a scripted CLI replay, not autonomous agent execution. No pending task was invented.",
+              "occurredAt": "2026-09-13T01:24:41Z",
+              "supportingConcepts": []
+            }
+          ],
+          "inFlight": [],
+          "upNext": [],
+          "needsAttention": [],
+          "changes": [
+            {
+              "path": "work/tasks/HBR-1-add-a-contributor-guide.md",
+              "id": "HBR-1",
+              "title": "Add a contributor guide",
+              "status": "done",
+              "summary": "Commit 89d376bd7df94ba493cbc4b97452bde5b1d8a9a1 adds the guide and a README entry point. Checked both headings and every relative Markdown target in all three changed documents. Reconciled documentation decisions so a later guide preserves offline use. This was a scripted CLI replay, not autonomous agent execution. No pending task was invented.",
+              "occurredAt": "2026-09-13T01:24:41Z",
+              "supportingConcepts": [],
+              "change": "completed"
+            }
+          ],
+          "decisions": []
+        },
+        "git": {
+          "status": "available",
+          "checkpoint": {
+            "revision": "7deaaf2f751ffd60e5f67d750671f85f13812d0f",
+            "time": "2026-09-12T18:24:41-07:00"
+          },
+          "activity": [
+            {
+              "taskId": "HBR-1",
+              "sha": "7deaaf2f751ffd60e5f67d750671f85f13812d0f",
+              "date": "2026-09-12T18:24:41-07:00",
+              "subject": "Close verified contributor-guide task"
+            },
+            {
+              "taskId": "HBR-1",
+              "sha": "89d376bd7df94ba493cbc4b97452bde5b1d8a9a1",
+              "date": "2026-09-12T18:24:41-07:00",
+              "subject": "Add contributor guide and reconcile documentation"
+            }
+          ],
+          "unmergedActivity": [],
+          "worktrees": [
+            {
+              "path": "/private/tmp/dkt169/public-demo",
+              "head": "7deaaf2f751ffd60e5f67d750671f85f13812d0f",
+              "ref": "refs/heads/main",
+              "activeTaskId": null,
+              "dirty": false,
+              "mergedIntoCurrentHead": true,
+              "current": true,
+              "available": true
+            }
+          ],
+          "truncated": false,
+          "historyComplete": true
+        }
+      }
+    },
+    {
+      "command": "docket lint --json",
+      "output": [
+        {
+          "path": "log.md",
+          "message": "no **Freshness** watermark — run the docket-freshness workflow",
+          "severity": "warning"
+        }
+      ]
+    }
+  ]
+}

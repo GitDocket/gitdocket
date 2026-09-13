@@ -4,16 +4,27 @@
 // change, not a rewrite.
 
 import type { Database } from "bun:sqlite";
+import { createHash } from "node:crypto";
 import {
   type Bundle,
+  DOCUMENT_EDIT_MAX_BYTES,
   type DocketConfig,
+  DocumentEditError,
+  documentEditingAvailability,
+  editDocument,
+  editGuidance,
+  InMemoryFileStore,
   isStatus,
   isTerminalStatus,
   loadBundle,
+  PROJECT_GUIDANCE_PATH,
   parseStateOfPlay,
   presentStateOfPlay,
   REENTRY_CONTEXT_FORMAT,
   REENTRY_CONTEXT_V1_FORMAT,
+  readEditableDocument,
+  readEditableGuidance,
+  readProjectGuidance,
   renderIndex,
   resolveLink,
   type SourceCursor,
@@ -23,6 +34,7 @@ import {
   setRank,
   setStatus,
   sourcePage,
+  validateDocumentPath,
   type WorkItem,
 } from "@gitdocket/core";
 import { deriveOverview, epicNeedsCleanup } from "@gitdocket/core/overview";
@@ -31,7 +43,8 @@ import {
   observeOperation,
   Telemetry,
 } from "@gitdocket/core/telemetry";
-import { Hono } from "hono";
+import { type Handler, Hono } from "hono";
+import { bodyLimit } from "hono/body-limit";
 import { HTTPException } from "hono/http-exception";
 import { filterCards, parseBoardState } from "./client/board";
 import { applyEpicList, parseEpicListState } from "./client/epiclist";
@@ -39,8 +52,20 @@ import { dropRank } from "./client/rank";
 import { type SortMode, sortCards } from "./client/sort";
 import { applyList, parseListState } from "./client/tasklist";
 import type { Committer } from "./commit";
-import { renderMarkdown } from "./render";
+import { markdownHeadingOffsets, renderMarkdown } from "./render";
 import type { RepoContext, RepoState } from "./state";
+import { conceptHref, isTicketNumber } from "./urls";
+
+function renderBundleMarkdown(
+  repo: RepoState,
+  path: string,
+  source: string,
+): string {
+  return renderMarkdown(path, source, (target) => {
+    const concept = conceptMap(repo.bundle).get(target);
+    return conceptHref({ path: target, ...concept?.fm });
+  });
+}
 
 const LOCAL_REQUEST_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
 const SAFE_HTTP_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
@@ -425,7 +450,8 @@ export function createApp(
           ? (reads[route] ??
             (route.startsWith("/api/source/")
               ? "source_page"
-              : route.startsWith("/api/concept/")
+              : route.startsWith("/api/concept/") ||
+                  route.startsWith("/api/work/")
                 ? "task_get"
                 : undefined))
           : undefined;
@@ -501,7 +527,7 @@ export function createApp(
         ? {}
         : {
             html: memo(c.get("repo"), "navHtml", () =>
-              renderMarkdown("index.md", source),
+              renderBundleMarkdown(c.get("repo"), "index.md", source),
             ),
           }),
       sections: summary ? sections.slice(0, 50) : sections,
@@ -537,15 +563,28 @@ export function createApp(
             ...presented,
             // Whole-body HTML keeps superseded formats readable. Current
             // consumers use sectionHtml for the small linked note.
-            html: renderMarkdown(STATE_OF_PLAY_PATH, note.body),
+            html: renderBundleMarkdown(
+              c.get("repo"),
+              STATE_OF_PLAY_PATH,
+              note.body,
+            ),
             ...(note.format === REENTRY_CONTEXT_FORMAT
               ? {
                   sectionHtml: {
-                    recent: renderMarkdown(STATE_OF_PLAY_PATH, note.recent),
-                    next: renderMarkdown(STATE_OF_PLAY_PATH, note.next),
+                    recent: renderBundleMarkdown(
+                      c.get("repo"),
+                      STATE_OF_PLAY_PATH,
+                      note.recent,
+                    ),
+                    next: renderBundleMarkdown(
+                      c.get("repo"),
+                      STATE_OF_PLAY_PATH,
+                      note.next,
+                    ),
                     ...(note.worthKnowing
                       ? {
-                          worthKnowing: renderMarkdown(
+                          worthKnowing: renderBundleMarkdown(
+                            c.get("repo"),
                             STATE_OF_PLAY_PATH,
                             note.worthKnowing,
                           ),
@@ -562,11 +601,17 @@ export function createApp(
       project: c.get("repo").config.project,
       preamble:
         !largePreamble && preamble.trim()
-          ? renderMarkdown("index.md", preamble)
+          ? renderBundleMarkdown(c.get("repo"), "index.md", preamble)
           : "",
       ...(largePreamble ? { preambleSourcePath: "index.md" } : {}),
       ...(largeNarrative ? { narrativeSourcePath: STATE_OF_PLAY_PATH } : {}),
       narrative,
+      ...(!narrative && !largeNarrative
+        ? {
+            narrativeProblem:
+              narrativeSource === undefined ? "missing" : "malformed",
+          }
+        : {}),
       ...(c.req.query("briefing") === "1"
         ? {}
         : {
@@ -692,7 +737,9 @@ export function createApp(
     return c.json({
       activity,
       git,
-      log: source.trim() ? renderMarkdown("log.md", source) : "",
+      log: source.trim()
+        ? renderBundleMarkdown(c.get("repo"), "log.md", source)
+        : "",
     });
   });
 
@@ -705,8 +752,21 @@ export function createApp(
       const cursor = rawCursor
         ? (JSON.parse(rawCursor) as SourceCursor)
         : undefined;
-      const page = sourcePage(c.get("repo").sources, path, { cursor });
+      const repo = c.get("repo");
+      let page = sourcePage(repo.sources, path, { cursor });
       if (!page) return c.json({ error: "not found" }, 404);
+      const anchor = c.req.query("anchor");
+      if (anchor && !cursor) {
+        const offsets = memo(repo, `headings:${path}`, () =>
+          markdownHeadingOffsets(repo.sources.get(path) ?? ""),
+        );
+        const offset = offsets.get(anchor);
+        if (offset !== undefined)
+          page =
+            sourcePage(repo.sources, path, {
+              cursor: { path, sourceHash: page.sourceHash, offset },
+            }) ?? page;
+      }
       if (c.req.query("readable") === "1") {
         // Render only the bounded excerpt. Fenced blocks may cross a cursor
         // boundary; preserve exact text instead of guessing their context.
@@ -714,7 +774,9 @@ export function createApp(
         const fallback = partial && /^\s*(```|~~~)/m.test(page.text);
         return c.json({
           ...page,
-          html: fallback ? null : renderMarkdown(path, page.text),
+          html: fallback
+            ? null
+            : renderBundleMarkdown(c.get("repo"), path, page.text),
           partial,
         });
       }
@@ -727,8 +789,25 @@ export function createApp(
     }
   });
 
-  app.get("/api/concept/:path{.+}", async (c) => {
-    const path = c.req.param("path");
+  const conceptDetail: Handler<{ Variables: { repo: RepoState } }> = async (
+    c,
+  ) => {
+    const repo = c.get("repo");
+    const number = c.req.param("number");
+    let path = c.req.param("path") ?? "";
+    if (number !== undefined) {
+      const item = isTicketNumber(number)
+        ? repo.bundle.byId(`${repo.config.project}-${number}`)
+        : undefined;
+      if (item?.kind !== "work")
+        return c.json(
+          {
+            error: `Work item not found: ${number || "(empty ticket number)"}`,
+          },
+          404,
+        );
+      path = item.path;
+    }
     if (path.split("/").includes(".."))
       return c.json({ error: "bad path" }, 400);
     const source = c.get("repo").sources.get(path);
@@ -811,7 +890,16 @@ export function createApp(
         : null;
 
     const relations = {
-      backlinks: backlinks.map((b) => ({ path: b.from_path, title: b.title })),
+      backlinks: backlinks.map((b) => {
+        const linked = conceptMap(bundle).get(b.from_path);
+        return {
+          path: b.from_path,
+          title: b.title,
+          ...(linked?.kind === "work"
+            ? { id: linked.fm.id, type: linked.fm.type }
+            : {}),
+        };
+      }),
       activity,
       unmergedActivity: id
         ? git.unmergedActivity.filter((entry) => entry.taskId === id)
@@ -862,6 +950,10 @@ export function createApp(
     const largeSource = bounded && source.length > 32768;
     return c.json({
       path,
+      editScope: sourceScope(repo.store.root),
+      editing: memo(repo, `editing:${path}`, () =>
+        documentEditingAvailability(path, source, repo.config),
+      ),
       fm: concept
         ? bounded
           ? {
@@ -877,7 +969,9 @@ export function createApp(
       // Inline edits need the configured state list for the select.
       states: c.get("repo").config.workflow.states,
       ready: id ? bundle.readyIds().includes(id) : false,
-      html: largeSource ? "" : renderMarkdown(path, source),
+      html: largeSource
+        ? ""
+        : renderBundleMarkdown(c.get("repo"), path, source),
       ...(largeSource ? { sourcePath: path } : {}),
       ...(relationPage ? { relationPage } : {}),
       backlinks: paged("backlinks", relations.backlinks),
@@ -892,7 +986,9 @@ export function createApp(
         : null,
       verification,
     });
-  });
+  };
+  app.get("/api/concept/:path{.+}", conceptDetail);
+  app.get("/api/work/:number{.*}", conceptDetail);
 
   // Search delegates wholesale to core's ranked engine —
   // no web-side ranking, same definition as CLI and MCP.
@@ -1092,6 +1188,172 @@ export function createApp(
 
   const asError = (error: unknown): string =>
     error instanceof Error ? error.message : String(error);
+
+  const sourceScope = (root: string) =>
+    createHash("sha256").update(root).digest("hex");
+  const editFailure = (error: unknown) => ({
+    error: asError(error),
+    code: error instanceof DocumentEditError ? error.code : "unavailable",
+  });
+  const editStatus = (error: unknown) =>
+    error instanceof DocumentEditError
+      ? error.code === "conflict"
+        ? 409
+        : error.code === "not_found"
+          ? 404
+          : error.code === "too_large"
+            ? 413
+            : error.code === "unsupported"
+              ? 422
+              : 400
+      : 503;
+
+  app.use(
+    "/api/edit-source/*",
+    bodyLimit({
+      maxSize: DOCUMENT_EDIT_MAX_BYTES * 6 + 65536,
+      onError: (c) =>
+        c.json(
+          {
+            code: "too_large",
+            error: "Request is too large. Your draft has not been saved.",
+          },
+          413,
+        ),
+    }),
+  );
+  app.get("/api/guidance", async (c) => {
+    const repo = c.get("repo");
+    const guidance = await readProjectGuidance(
+      new InMemoryFileStore(new Map(repo.sources)),
+      repo.config,
+    );
+    const source = repo.sources.get(PROJECT_GUIDANCE_PATH);
+    return c.json({
+      guidance,
+      editScope: sourceScope(repo.store.root),
+      editing:
+        source === undefined
+          ? { editable: true }
+          : documentEditingAvailability(
+              PROJECT_GUIDANCE_PATH,
+              source,
+              repo.config,
+            ),
+      html:
+        source !== undefined && source.length <= 32768
+          ? renderBundleMarkdown(repo, PROJECT_GUIDANCE_PATH, source)
+          : null,
+    });
+  });
+  app.get("/api/edit-source/:path{.+}", async (c) => {
+    const repo = c.get("repo");
+    try {
+      const path = c.req.param("path");
+      const document =
+        path === PROJECT_GUIDANCE_PATH
+          ? await readEditableGuidance(repo.store, repo.config)
+          : await readEditableDocument(repo.store, repo.config, path);
+      c.header("Cache-Control", "no-store");
+      return c.json({ ...document, sourceScope: sourceScope(repo.store.root) });
+    } catch (error) {
+      return c.json(editFailure(error), editStatus(error));
+    }
+  });
+  app.post("/api/edit-source/:path{.+}", async (c) => {
+    try {
+      const input = await c.req.json();
+      if (!input || typeof input !== "object" || Array.isArray(input))
+        throw new DocumentEditError(
+          "invalid",
+          "Provide a versioned source edit.",
+        );
+      const { sourceScope: expectedScope, ...request } = input;
+      const result = await ctx.mutate(async (store, config) => {
+        if (expectedScope !== sourceScope(store.root))
+          throw new DocumentEditError(
+            "conflict",
+            "The project source changed. Reopen this document in the current project before saving.",
+          );
+        const path = c.req.param("path");
+        const result =
+          path === PROJECT_GUIDANCE_PATH
+            ? await editGuidance(store, config, request)
+            : await editDocument(store, config, path, request);
+        let saveState:
+          | "saved_locally"
+          | "committed"
+          | "commit_failed"
+          | "unchanged" = result.changed ? "saved_locally" : "unchanged";
+        let commitError: string | undefined;
+        const commit = appOpts.commit ?? appOpts.committerFor?.(config.bundle);
+        if (commit && result.changed) {
+          try {
+            const subject = result.taskId ?? result.document.path;
+            await commit({
+              paths: result.paths,
+              message: `chore(docket): edit ${subject} content (serve)\n`,
+              taskTrailer: { key: config.git.trailer, id: result.taskId },
+            });
+            saveState = "committed";
+          } catch (error) {
+            saveState = "commit_failed";
+            commitError = asError(error);
+          } finally {
+            ctx.invalidateGit();
+          }
+        }
+        return {
+          ...result,
+          document: {
+            ...result.document,
+            sourceScope: sourceScope(store.root),
+          },
+          saveState,
+          ...(commitError ? { commitError } : {}),
+        };
+      });
+      return c.json(result);
+    } catch (error) {
+      return c.json(
+        editFailure(error),
+        error instanceof SyntaxError ? 400 : editStatus(error),
+      );
+    }
+  });
+  app.use(
+    "/api/edit-preview/*",
+    bodyLimit({
+      maxSize: DOCUMENT_EDIT_MAX_BYTES * 6 + 65536,
+      onError: (c) => c.json({ error: "Preview is too large." }, 413),
+    }),
+  );
+  app.post("/api/edit-preview/:path{.+}", async (c) => {
+    try {
+      const path = c.req.param("path");
+      validateDocumentPath(path);
+      const input = await c.req.json();
+      if (
+        !input ||
+        typeof input.body !== "string" ||
+        Buffer.byteLength(input.body) > DOCUMENT_EDIT_MAX_BYTES
+      )
+        return c.json(
+          { error: "Preview supports Markdown bodies up to 256 KiB." },
+          400,
+        );
+      const lease = await ctx.acquire();
+      try {
+        return c.json({
+          html: renderBundleMarkdown(lease.state, path, input.body),
+        });
+      } finally {
+        lease.release();
+      }
+    } catch (error) {
+      return c.json(editFailure(error), 400);
+    }
+  });
 
   // Local structured writes widen status drag-and-drop: each
   // field edit lands in the working tree through core ops — one write path

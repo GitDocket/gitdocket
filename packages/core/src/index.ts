@@ -18,10 +18,29 @@ export {
   parseConfig,
 } from "./config";
 export {
+  DOCUMENT_EDIT_MAX_BYTES,
+  DOCUMENT_PROPERTY_MAX_LENGTH,
+  type DocumentEditCode,
+  DocumentEditError,
+  type DocumentPatch,
+  documentEditingAvailability,
+  type EditableDocument,
+  editDocument,
+  readEditableDocument,
+  validateDocumentPath,
+} from "./document-edit";
+export {
   ENGINE_SEMANTICS,
   READY_QUEUE_DESCRIPTION,
 } from "./engine-semantics";
 export { type FileStore, InMemoryFileStore, LocalFileStore } from "./filestore";
+export {
+  type GuidanceLink,
+  PROJECT_GUIDANCE_PATH,
+  type ProjectGuidance,
+  readProjectGuidance,
+} from "./guidance";
+export { editGuidance, readEditableGuidance } from "./guidance-edit";
 export {
   GitWorktreeIdCoordinator,
   type GitWorktreeIdCoordinatorOptions,

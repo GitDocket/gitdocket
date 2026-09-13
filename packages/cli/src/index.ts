@@ -28,6 +28,7 @@ import {
   parseConfig,
   parseStateOfPlay,
   READY_QUEUE_DESCRIPTION,
+  readProjectGuidance,
   readyWorkItems,
   renderIndex,
   STATE_OF_PLAY_PATH,
@@ -169,6 +170,16 @@ async function printPacket(packet: ContextPacket): Promise<void> {
       await print(`  ${c.sha.slice(0, 7)} ${c.date.slice(0, 10)} ${c.subject}`);
     if (commits.length > 10) await print(`  … ${commits.length - 10} more`);
   }
+  await print(
+    `\nproject guidance: ${packet.guidance.status} — ${packet.guidance.path}`,
+  );
+  if (packet.guidance.source) await print(packet.guidance.source.text);
+  for (const diagnostic of packet.guidance.diagnostics)
+    await print(`${diagnostic.severity}: ${diagnostic.message}`);
+  if (packet.guidance.source?.nextCursor)
+    await print(
+      `Continue with docket source ${packet.guidance.path} --cursor '${JSON.stringify(packet.guidance.source.nextCursor)}' --json`,
+    );
 }
 
 const program = new Command();
@@ -542,6 +553,31 @@ program
   });
 
 const task = program.command("task").description("work item operations");
+
+program
+  .command("guidance")
+  .description(
+    "read optional project guidance and source links without tracker coordination",
+  )
+  .option(
+    "--json",
+    "exact source page, availability, diagnostics and continuation cursor",
+  )
+  .action(async (opts: { json?: boolean }) => {
+    const { store, config } = await ctx();
+    const guidance = await readProjectGuidance(store, config);
+    if (opts.json) await print(JSON.stringify(guidance, null, 2));
+    else {
+      await print(`Project guidance: ${guidance.status} — ${guidance.path}`);
+      if (guidance.source) await print(guidance.source.text);
+      for (const diagnostic of guidance.diagnostics)
+        await print(`${diagnostic.severity}: ${diagnostic.message}`);
+      if (guidance.source?.nextCursor)
+        await print(
+          `Continue with docket source ${guidance.path} --cursor '${JSON.stringify(guidance.source.nextCursor)}' --json`,
+        );
+    }
+  });
 
 program
   .command("source <path>")
@@ -936,6 +972,7 @@ const cliOperations: Record<string, Operation> = {
   overview: "overview",
   search: "search",
   source: "source_page",
+  guidance: "project_guidance",
   lint: "lint",
   index: "index",
   verify: "verify",

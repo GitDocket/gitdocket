@@ -55,6 +55,12 @@ function expectFixturePath(surface: string, fixtureId: string): void {
       expect(surface).toContain("`ready`, `overview`, `search`");
       return;
     }
+    if (entrypoint.kind === "named-operation") {
+      expect(surface).toContain(
+        "task list|create|start|stop|move|edit|close|log",
+      );
+      return;
+    }
 
     const operation = entrypoint.value.match(/^docket task (\w+)/)?.[1];
     expect(operation).toBeDefined();

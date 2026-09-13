@@ -6,6 +6,7 @@
 
 import type { Bundle } from "./bundle";
 import type { FileStore } from "./filestore";
+import { type ProjectGuidance, readProjectGuidance } from "./guidance";
 import { resolveLink } from "./lint";
 import { parseConcept } from "./parse";
 import { buildSchemas, type WorkItemFrontmatter } from "./schema";
@@ -41,6 +42,7 @@ export interface ContextPacket {
   deps: PacketDep[];
   linked: PacketLink[];
   commits: CommitRef[];
+  guidance: ProjectGuidance;
 }
 
 /**
@@ -124,5 +126,6 @@ export async function buildContextPacket(
     deps,
     linked,
     commits,
+    guidance: await readProjectGuidance(store, bundle.config),
   };
 }

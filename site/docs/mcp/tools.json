@@ -1,5 +1,5 @@
 {
-  "description": "Captured from the 0.2.1 tool surface via tools/list on 2026-09-12. Illustrative IDs in descriptions are normalized to HBR/ADR; schemas are otherwise unchanged. Connect to your installed server for its exact contract.",
+  "description": "Captured from the 0.3.0 tool surface via tools/list on 2026-09-13. Illustrative IDs in descriptions are normalized to HBR/ADR; schemas are otherwise unchanged. Connect to your installed server for its exact contract.",
   "tools": [
     {
       "name": "overview",
@@ -191,6 +191,22 @@
         },
         "required": ["path"],
         "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "project_guidance",
+      "title": "Read project guidance",
+      "description": "Read the optional authored project-guidance entry point before direct or tracked work. Returns exact bounded source, continuation cursor and explicit absent/invalid/unavailable states with link diagnostics. Follow remaining source pages and relevant scoped links using source_page before acting. Does not select work, read active-task state or execute procedures; scope and precedence remain agent judgment.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
       },
       "annotations": {
         "readOnlyHint": true,

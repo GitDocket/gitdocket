@@ -293,7 +293,7 @@ test("readable log excerpts keep exact source, cursor identity and malformed-blo
   ctx.invalidate();
   const first = await get("source/log.md?readable=1");
   expect(first.html).toContain("<strong>outcome</strong>");
-  expect(first.html).toContain('href="#/c/tasks/1.md"');
+  expect(first.html).toContain('href="#/work/1"');
   expect(first.text).toBe(await Bun.file(path).text());
   expect(first.partial).toBe(false);
   await writeFile(
