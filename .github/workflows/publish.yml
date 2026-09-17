@@ -68,7 +68,7 @@ jobs:
         run: >-
           bun run release:publish -- preflight
           --output release/receipts/preflight.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: release-preflight-${{ github.ref_name }}-${{ github.run_attempt }}
           path: release/receipts/preflight.json
@@ -111,7 +111,7 @@ jobs:
           bun run release:publish -- registry
           --input release/receipts/preflight.json
           --output release/receipts/registry.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: release-registry-receipt-${{ github.ref_name }}-${{ github.run_attempt }}
           path: release/receipts/registry.json
@@ -148,7 +148,7 @@ jobs:
           --output release/receipts/github.json
         env:
           GH_TOKEN: ${{ github.token }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: release-github-receipt-${{ github.ref_name }}-${{ github.run_attempt }}
           path: release/receipts/github.json
