@@ -4,11 +4,12 @@ GitDocket helps your coding agent resume with less re-explanation. Try one small
 
 ## 1. Install and initialize
 
-Requires Git and Bun 1.3.14 or newer on macOS or Linux. The published preview is 0.3.1. Install it with:
+GitDocket 0.4.0 installs both commands with Homebrew. You need Homebrew and Git on macOS 15+ or supported glibc Linux, on ARM64 or x64. Windows is not supported. No separate Bun, Node or npm setup is needed:
 
 ```sh
-bun add --global @gitdocket/cli @gitdocket/mcp
+brew install gitdocket/tap/gitdocket
 docket --version
+docket-mcp --version
 mkdir docket-playground
 cd docket-playground
 git init
@@ -17,6 +18,8 @@ docket init --agent codex
 git add .
 git commit -m "Initialize Harbor with Docket"
 ```
+
+The fully qualified install command grants trust to the project’s formula. If you already have Node 22+, use `npm install -g --include=optional @gitdocket/cli @gitdocket/mcp` instead. See [installation, updates and migration](homebrew.md) or the [npm guide](npm.md).
 
 Use `--agent claude` for Claude Code, or omit the agent flag for portable `AGENTS.md` guidance. Open the initialized repository in a new coding-agent session so it discovers those instructions. If Git cannot commit, configure your usual Git author identity and retry. Init adds a local Markdown bundle, configuration, workflow instructions, index and commit hook. It leaves existing files in place. In an existing project, review its adoption worklist before adding metadata to existing docs; a complete document migration is not a prerequisite for one task.
 
@@ -40,7 +43,7 @@ docket serve
 
 Open the printed local URL. Inspect the completed task on the Board, or read its file under `docket/work/tasks/`. Expect exactly one done task with checked criteria and an Outcome explaining what shipped and what was checked. Open the README link, verify both guide sections, read the documentation decision, and review the task-linked Git diff. The task and checks explain the result; the reference doc leaves useful knowledge for later work. A clean fixture has no next ready task. Docket does not invent one.
 
-An empty Home briefing is valid. Task files, docs and Git history still provide context; the agent does not need to fabricate a summary. Default browser edits save local, uncommitted files. Review Git status before committing. GitDocket 0.3.1 includes the shared document editor and optional project guidance; neither is required for this tutorial.
+An empty Home briefing is valid. Task files, docs and Git history still provide context; the agent does not need to fabricate a summary. Default browser edits save local, uncommitted files. Review Git status before committing. GitDocket includes the shared document editor and optional project guidance; neither is required for this tutorial.
 
 ## 4. Use the knowledge in a fresh session
 

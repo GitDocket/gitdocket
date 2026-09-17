@@ -1,0 +1,33 @@
+{
+  "manifest": {
+    "formatVersion": 1,
+    "id": "tiny",
+    "version": "1.0.0",
+    "title": "Tiny",
+    "description": "Digest fixture",
+    "engine": {
+      "min": "0.4.0",
+      "maxExclusive": "1.0.0"
+    },
+    "files": ["workflows/review.md"],
+    "workflows": [
+      {
+        "id": "review",
+        "title": "Review",
+        "description": "Review only",
+        "path": "workflows/review.md"
+      }
+    ],
+    "guidance": [],
+    "defaults": {
+      "reviewer": "owner"
+    },
+    "capabilities": [],
+    "scenarios": []
+  },
+  "files": {
+    "workflows/review.md": "---\ntype: Workflow\ntitle: Review\ndescription: Review only\n---\n\nRead the requested source and report.\n"
+  },
+  "payload": "[{\"capabilities\":[],\"defaults\":{\"reviewer\":\"owner\"},\"description\":\"Digest fixture\",\"engine\":{\"maxExclusive\":\"1.0.0\",\"min\":\"0.4.0\"},\"files\":[\"workflows/review.md\"],\"formatVersion\":1,\"guidance\":[],\"id\":\"tiny\",\"scenarios\":[],\"title\":\"Tiny\",\"version\":\"1.0.0\",\"workflows\":[{\"description\":\"Review only\",\"id\":\"review\",\"path\":\"workflows/review.md\",\"title\":\"Review\"}]},[[\"workflows/review.md\",\"---\\ntype: Workflow\\ntitle: Review\\ndescription: Review only\\n---\\n\\nRead the requested source and report.\\n\"]]]",
+  "sha256": "faa1666079cf3d3dd75299308f923a552ab32d537404f421dffc79cb1facf176"
+}

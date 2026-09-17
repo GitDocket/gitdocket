@@ -1,0 +1,12 @@
+{
+  "name": "beacon-product-delivery-rehearsal",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bun server.ts",
+    "test": "bun tests/export.acceptance.ts",
+    "test:baseline": "bun tests/baseline.check.ts",
+    "test:browser": "bun scripts/check-beacon-browser.ts --root=.",
+    "docket": "bun scripts/docket.ts"
+  }
+}

@@ -33,6 +33,30 @@ export {
   ENGINE_SEMANTICS,
   READY_QUEUE_DESCRIPTION,
 } from "./engine-semantics";
+export {
+  type ExtensionAvailability,
+  type ExtensionDiagnostic,
+  type ExtensionEvidenceStatus,
+  type ExtensionInspection,
+  type ExtensionInventory,
+  type ExtensionManifest,
+  type ExtensionMutationResult,
+  type ExtensionOperation,
+  type ExtensionOptions,
+  type ExtensionRecord,
+  type ExtensionRegistry,
+  type ExtensionRetainedFile,
+  type ExtensionScalar,
+  type ExtensionSource,
+  type ExtensionValidationPackage,
+  type ExtensionValidationResult,
+  type ExtensionView,
+  type ExtensionWorkflowView,
+  inspectExtensionPackage,
+  mutateExtension,
+  readExtensions,
+  validateExtensions,
+} from "./extensions";
 export { type FileStore, InMemoryFileStore, LocalFileStore } from "./filestore";
 export {
   type GuidanceLink,
@@ -91,6 +115,7 @@ export {
   lintBundle,
   resolveLink,
 } from "./lint";
+export { lintMarkdownProse, MARKDOWN_AUTHORING_RULE } from "./markdown-prose";
 export {
   appendLog,
   type CreateInput,

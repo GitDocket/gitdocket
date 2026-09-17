@@ -9,25 +9,49 @@
         "@modelcontextprotocol/sdk": "^1.30.0",
         "@types/bun": "1.3.14",
         "typescript": "^5.9.3",
+        "zod": "^4.5.4",
       },
+    },
+    "packages/bin-darwin-arm64": {
+      "name": "@gitdocket/bin-darwin-arm64",
+      "version": "0.4.0",
+    },
+    "packages/bin-darwin-x64": {
+      "name": "@gitdocket/bin-darwin-x64",
+      "version": "0.4.0",
+    },
+    "packages/bin-linux-arm64": {
+      "name": "@gitdocket/bin-linux-arm64",
+      "version": "0.4.0",
+    },
+    "packages/bin-linux-x64": {
+      "name": "@gitdocket/bin-linux-x64",
+      "version": "0.4.0",
     },
     "packages/cli": {
       "name": "@gitdocket/cli",
-      "version": "0.3.1",
+      "version": "0.4.0",
       "bin": {
-        "docket": "./src/index.ts",
+        "docket": "./bin/run.cjs",
       },
-      "dependencies": {
+      "devDependencies": {
         "@gitdocket/core": "workspace:*",
         "@gitdocket/web": "workspace:*",
         "commander": "^14.0.3",
       },
+      "optionalDependencies": {
+        "@gitdocket/bin-darwin-arm64": "workspace:*",
+        "@gitdocket/bin-darwin-x64": "workspace:*",
+        "@gitdocket/bin-linux-arm64": "workspace:*",
+        "@gitdocket/bin-linux-x64": "workspace:*",
+      },
     },
     "packages/core": {
       "name": "@gitdocket/core",
-      "version": "0.3.1",
+      "version": "0.4.0",
       "dependencies": {
         "remark-frontmatter": "^5.0.0",
+        "remark-gfm": "^4.0.1",
         "remark-parse": "^11.0.0",
         "unified": "^11.0.5",
         "unist-util-visit": "^5.1.0",
@@ -37,19 +61,25 @@
     },
     "packages/mcp": {
       "name": "@gitdocket/mcp",
-      "version": "0.3.1",
+      "version": "0.4.0",
       "bin": {
-        "docket-mcp": "./src/index.ts",
+        "docket-mcp": "./bin/run.cjs",
       },
-      "dependencies": {
+      "devDependencies": {
         "@gitdocket/core": "workspace:*",
         "@modelcontextprotocol/sdk": "^1.30.0",
         "zod": "^4.5.4",
       },
+      "optionalDependencies": {
+        "@gitdocket/bin-darwin-arm64": "workspace:*",
+        "@gitdocket/bin-darwin-x64": "workspace:*",
+        "@gitdocket/bin-linux-arm64": "workspace:*",
+        "@gitdocket/bin-linux-x64": "workspace:*",
+      },
     },
     "packages/web": {
       "name": "@gitdocket/web",
-      "version": "0.3.1",
+      "version": "0.4.0",
       "dependencies": {
         "@gitdocket/core": "workspace:*",
         "hono": "^4.13.5",
@@ -96,6 +126,14 @@
     "@biomejs/cli-win32-arm64": ["@biomejs/cli-win32-arm64@2.5.11", "", { "os": "win32", "cpu": "arm64" }, "sha512-e49E6K9hzH/ohJNx8Y26mY8HaV4I4ZViIeoqhKsmoXLKHhQnMeBAVqCgsGf2Wa3lXlS7RkporDXMHHWkzvZzFw=="],
 
     "@biomejs/cli-win32-x64": ["@biomejs/cli-win32-x64@2.5.11", "", { "os": "win32", "cpu": "x64" }, "sha512-QSQr/KjOgXA7OzXJUWS+oguKyAZ3Q0l/lnlDGbu397eKo83atuWUjBPJrsqbKNF6CARGw8XXJLGzpHC8Ryhd4Q=="],
+
+    "@gitdocket/bin-darwin-arm64": ["@gitdocket/bin-darwin-arm64@workspace:packages/bin-darwin-arm64"],
+
+    "@gitdocket/bin-darwin-x64": ["@gitdocket/bin-darwin-x64@workspace:packages/bin-darwin-x64"],
+
+    "@gitdocket/bin-linux-arm64": ["@gitdocket/bin-linux-arm64@workspace:packages/bin-linux-arm64"],
+
+    "@gitdocket/bin-linux-x64": ["@gitdocket/bin-linux-x64@workspace:packages/bin-linux-x64"],
 
     "@gitdocket/cli": ["@gitdocket/cli@workspace:packages/cli"],
 

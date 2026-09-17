@@ -7,6 +7,7 @@ import type { Bundle } from "./bundle";
 import type { FileStore } from "./filestore";
 import { readProjectGuidance } from "./guidance";
 import { resolveLink } from "./links";
+import { lintMarkdownProse } from "./markdown-prose";
 
 export { resolveLink } from "./links";
 
@@ -199,6 +200,7 @@ export async function lintBundle(
   // (accepted — quote partial markers instead).
   for (const path of files) {
     const source = await store.read(path);
+    out.push(...lintMarkdownProse(path, source));
     if (
       /^<{7} /m.test(source) &&
       /^={7}$/m.test(source) &&

@@ -39,6 +39,10 @@ import {
   type AgentTarget,
   renderTargetSkillStub,
 } from "./agent-adapters";
+import {
+  type ExtensionDiscoveryReport,
+  refreshExtensionDiscovery,
+} from "./extension-discovery";
 import { refreshIndex } from "./indexing";
 
 export {
@@ -61,6 +65,7 @@ export interface InitReport {
   steps: InitStep[];
   /** Existing bundle markdown lacking `type` frontmatter — the agent's worklist. */
   adopt: { path: string; proposedType: string }[];
+  extensionDiscovery?: ExtensionDiscoveryReport;
 }
 
 function git(root: string, args: string[]): string | undefined {
@@ -271,7 +276,7 @@ export async function runInit(
         "claude",
         ".mcp.json",
         "skip",
-        "docket-mcp not on PATH — install @gitdocket/mcp, then rerun `docket init --agent claude`",
+        "docket-mcp not on PATH — install both commands (https://gitdocket.com/docs/install/), then rerun `docket init --agent claude`",
       );
     } else {
       const mcp = mergeMcpJson(await readIfPresent(mcpPath));
@@ -296,7 +301,7 @@ export async function runInit(
         "codex",
         rel,
         "skip",
-        "docket-mcp not on PATH — install @gitdocket/mcp, then rerun `docket init --agent codex`",
+        "docket-mcp not on PATH — install both commands (https://gitdocket.com/docs/install/), then rerun `docket init --agent codex`",
       );
     } else {
       const existing = await readIfPresent(path);
@@ -359,6 +364,26 @@ export async function runInit(
     );
   }
 
+  const extensionDiscovery = await refreshExtensionDiscovery(root, bundleRoot, {
+    nativeTargets: [...targets],
+  });
+  for (const item of extensionDiscovery.steps)
+    record(
+      "extension-discovery",
+      item.path,
+      item.action === "create"
+        ? "create"
+        : item.action === "update" || item.action === "remove"
+          ? "update"
+          : "skip",
+      item.reason ??
+        (item.action === "remove"
+          ? "removed inactive owned pointer"
+          : item.action === "unchanged"
+            ? "up to date"
+            : undefined),
+    );
+
   // Honesty pass: flag every touched path the repo gitignores — the
   // file landed, but it won't travel on clone. The hook lives under .git (or
   // a hooks dir) and is local by design, so it's exempt.
@@ -375,5 +400,5 @@ export async function runInit(
     }
   }
 
-  return { root, steps, adopt };
+  return { root, steps, adopt, extensionDiscovery };
 }

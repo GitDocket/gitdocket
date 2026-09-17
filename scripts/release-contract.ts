@@ -6,7 +6,7 @@ export const PUBLIC_REPOSITORY = "GitDocket/gitdocket";
 export const HOLDING_TAG = "staged";
 export const RELEASE_PLAN_DIR = "release/candidates";
 
-export const RELEASE_PACKAGE_DEFINITIONS = [
+export const LEGACY_PACKAGE_DEFINITIONS = [
   {
     id: "core",
     name: "@gitdocket/core",
@@ -33,6 +33,26 @@ export const RELEASE_PACKAGE_DEFINITIONS = [
   },
 ] as const;
 
+export const BINARY_PACKAGE_IDS = [
+  "bin-darwin-arm64",
+  "bin-darwin-x64",
+  "bin-linux-arm64",
+  "bin-linux-x64",
+] as const;
+export const RELEASE_PACKAGE_DEFINITIONS = [
+  ...LEGACY_PACKAGE_DEFINITIONS.slice(0, 2),
+  ...BINARY_PACKAGE_IDS.map((id) => ({
+    id,
+    name: `@gitdocket/${id}`,
+    manifest: `packages/${id}/package.json`,
+    dependencies: [] as string[],
+  })),
+  ...LEGACY_PACKAGE_DEFINITIONS.slice(2).map((definition) => ({
+    ...definition,
+    dependencies: BINARY_PACKAGE_IDS.map((id) => `@gitdocket/${id}`),
+  })),
+];
+
 export const PRIVATE_RELEASE_CHECKS = [
   "bun install --frozen-lockfile",
   "bunx biome ci .",
@@ -41,10 +61,22 @@ export const PRIVATE_RELEASE_CHECKS = [
   "bun run docket lint",
   "bun run docket index --check",
   "bun run audit:dependencies",
-  "bun run release:pack",
+  "bun run release:pack --source-only",
 ] as const;
 
 const REQUIRED_PUBLIC_PATHS = [
+  "scripts/npm-smoke.ts",
+  "scripts/npm-qualify.ts",
+  "scripts/npm-launcher.test.ts",
+  "packages/cli/bin/run.cjs",
+  "packages/mcp/bin/run.cjs",
+  ".github/workflows/standalone.yml",
+  "release/standalone.json",
+  "release/licenses/bun-1.3.14.md",
+  "scripts/standalone-build.ts",
+  "scripts/standalone-smoke.ts",
+  "scripts/standalone-release.ts",
+  "scripts/standalone-release.test.ts",
   "release/public-export.json",
   "scripts/release-contract.test.ts",
   "scripts/release-contract.ts",
@@ -121,6 +153,7 @@ interface PackageManifest {
   name?: string;
   version?: string;
   dependencies?: Record<string, string>;
+  optionalDependencies?: Record<string, string>;
 }
 
 const SEMVER =
@@ -245,9 +278,10 @@ export async function collectReleaseSnapshot(
       await readFile(join(root, definition.manifest), "utf8"),
     ) as PackageManifest;
     packageVersions[definition.name] = manifest.version ?? "";
-    packageDependencies[definition.name] = Object.keys(
-      manifest.dependencies ?? {},
-    ).filter((name) => name.startsWith("@gitdocket/"));
+    packageDependencies[definition.name] = Object.keys({
+      ...manifest.dependencies,
+      ...manifest.optionalDependencies,
+    }).filter((name) => name.startsWith("@gitdocket/"));
   }
 
   const shipped = JSON.parse(
@@ -445,7 +479,11 @@ export function parseReleasePlan(value: unknown): ReleasePlan {
   ) {
     throw new Error("release plan violates schema 1");
   }
-  const expectedPackages = RELEASE_PACKAGE_DEFINITIONS.map((definition) => ({
+  const definitions =
+    value.packages.length === 4
+      ? LEGACY_PACKAGE_DEFINITIONS
+      : RELEASE_PACKAGE_DEFINITIONS;
+  const expectedPackages = definitions.map((definition) => ({
     ...definition,
     version,
     dependencies: [...definition.dependencies],
@@ -457,7 +495,14 @@ export function parseReleasePlan(value: unknown): ReleasePlan {
   if (
     !/^[0-9a-f]{64}$/.test(String(notes.sha256)) ||
     !/^[0-9a-f]{64}$/.test(String(manifest.sha256)) ||
-    JSON.stringify(value.checks) !== JSON.stringify(PRIVATE_RELEASE_CHECKS)
+    ![
+      JSON.stringify(PRIVATE_RELEASE_CHECKS),
+      JSON.stringify(
+        PRIVATE_RELEASE_CHECKS.map((check) =>
+          check.replace(" --source-only", ""),
+        ),
+      ),
+    ].includes(JSON.stringify(value.checks))
   ) {
     throw new Error("release plan evidence or checks are inconsistent");
   }

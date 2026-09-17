@@ -17,7 +17,17 @@ env:
   RELEASE_PUBLIC_TAG: latest
 
 jobs:
+  standalone:
+    if: github.repository == 'GitDocket/gitdocket'
+    # Permit the called draft-import job; build/check jobs remain read-only.
+    permissions:
+      contents: write
+    uses: ./.github/workflows/standalone.yml
+    with:
+      macos_release_tag: candidate-${{ github.ref_name }}
+
   preflight:
+    needs: standalone
     if: github.repository == 'GitDocket/gitdocket'
     runs-on: ubuntu-latest
     permissions:
@@ -47,6 +57,12 @@ jobs:
         working-directory: examples/basic
       - name: Audit dependencies
         run: bun run audit:dependencies
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: standalone-${{ github.sha }}-*
+          path: release/standalone
+          merge-multiple: true
+      - run: bun scripts/macos-qualification.ts --artifacts release/standalone
       - run: bun run release:pack
       - name: Verify the exact candidate and registry state
         run: >-
@@ -80,6 +96,11 @@ jobs:
           node-version: "24"
       - run: npm install --global npm@11.17.0
       - run: bun install --frozen-lockfile
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: standalone-${{ github.sha }}-*
+          path: release/standalone
+          merge-multiple: true
       - run: bun run release:pack
       - uses: actions/download-artifact@v5
         with:
@@ -109,6 +130,12 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.14
+      - run: bun install --frozen-lockfile
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: standalone-${{ github.sha }}-*
+          path: release/standalone
+          merge-multiple: true
       - uses: actions/download-artifact@v5
         with:
           name: release-registry-receipt-${{ github.ref_name }}-${{ github.run_attempt }}

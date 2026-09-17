@@ -13,6 +13,10 @@ import { createCommitter } from "./commit";
 import { watchGit } from "./git-watch";
 import { createRepoContext, type RepoContext } from "./state";
 
+// Replaced with prebuilt assets by the standalone release build. Source and
+// npm development installs keep compiling their client as before.
+declare const DOCKET_EMBEDDED_ASSETS: Assets | undefined;
+
 export interface ServeOptions {
   port?: number;
   ttlMs?: number;
@@ -24,6 +28,14 @@ export interface ServeOptions {
 export async function buildAssets(
   opts: { dev?: boolean } = {},
 ): Promise<Assets> {
+  if (typeof DOCKET_EMBEDDED_ASSETS !== "undefined") {
+    if (opts.dev) {
+      throw new Error(
+        "--watch requires a source installation; standalone releases contain prebuilt browser assets",
+      );
+    }
+    return { ...DOCKET_EMBEDDED_ASSETS };
+  }
   const result = await Bun.build({
     entrypoints: [join(import.meta.dir, "client", "main.tsx")],
     target: "browser",

@@ -6,6 +6,7 @@ import {
   buildReleasePlan,
   collectReleaseSnapshot,
   parseReleasePlan,
+  RELEASE_PACKAGE_DEFINITIONS,
   serializeReleasePlan,
   updateVersionSurfaces,
   validateReleaseIntent,
@@ -33,18 +34,15 @@ async function fixture(version = "0.2.0"): Promise<string> {
     "packages/core/src/version.ts",
     `export const DOCKET_VERSION = "${version}";\n`,
   );
-  const definitions = [
-    ["core", {}],
-    ["web", { "@gitdocket/core": "workspace:*" }],
-    [
-      "cli",
-      {
-        "@gitdocket/core": "workspace:*",
-        "@gitdocket/web": "workspace:*",
-      },
-    ],
-    ["mcp", { "@gitdocket/core": "workspace:*" }],
-  ] as const;
+  const definitions = RELEASE_PACKAGE_DEFINITIONS.map(
+    (definition) =>
+      [
+        definition.id,
+        Object.fromEntries(
+          definition.dependencies.map((name) => [name, "workspace:*"]),
+        ),
+      ] as const,
+  );
   for (const [id, dependencies] of definitions) {
     await put(
       root,
@@ -83,6 +81,18 @@ async function fixture(version = "0.2.0"): Promise<string> {
     `# GitDocket ${version}\n\nA reviewed description of this release and its operational improvements.\n`,
   );
   const exportPaths = [
+    "scripts/npm-smoke.ts",
+    "scripts/npm-qualify.ts",
+    "scripts/npm-launcher.test.ts",
+    "packages/cli/bin/run.cjs",
+    "packages/mcp/bin/run.cjs",
+    ".github/workflows/standalone.yml",
+    "release/standalone.json",
+    "release/licenses/bun-1.3.14.md",
+    "scripts/standalone-build.ts",
+    "scripts/standalone-smoke.ts",
+    "scripts/standalone-release.ts",
+    "scripts/standalone-release.test.ts",
     `docs/releases/v${version}.md`,
     "release/public-export.json",
     "scripts/release-contract.test.ts",
@@ -157,12 +167,18 @@ describe("release intent and plan", () => {
     expect(plan.packages.map((item) => item.name)).toEqual([
       "@gitdocket/core",
       "@gitdocket/web",
+      "@gitdocket/bin-darwin-arm64",
+      "@gitdocket/bin-darwin-x64",
+      "@gitdocket/bin-linux-arm64",
+      "@gitdocket/bin-linux-x64",
       "@gitdocket/cli",
       "@gitdocket/mcp",
     ]);
-    expect(plan.packages[2]?.dependencies).toEqual([
-      "@gitdocket/core",
-      "@gitdocket/web",
+    expect(plan.packages[6]?.dependencies).toEqual([
+      "@gitdocket/bin-darwin-arm64",
+      "@gitdocket/bin-darwin-x64",
+      "@gitdocket/bin-linux-arm64",
+      "@gitdocket/bin-linux-x64",
     ]);
     expect(parseReleasePlan(JSON.parse(serializeReleasePlan(plan)))).toEqual(
       plan,

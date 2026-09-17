@@ -52,6 +52,7 @@ async function event(reader: ReadableStreamDefaultReader<Uint8Array>) {
         timer = setTimeout(() => reject(new Error("missing Git event")), 3000);
       }),
     ]);
+    if (result.done) throw new Error("Git event stream closed before an event");
     return new TextDecoder().decode(result.value);
   } finally {
     clearTimeout(timer);
@@ -132,7 +133,7 @@ describe("Git-triggered refresh", () => {
     expect(await event(reconnected)).toBe(changed);
   });
 
-  test("linked worktrees watch their HEAD and shared refs, including packed refs", async () => {
+  test("linked worktrees watch shared refs and their own HEAD", async () => {
     const root = await fixture();
     const linked = join(root, "linked");
     git(root, "worktree", "add", "-b", "feature", linked);
@@ -147,10 +148,56 @@ describe("Git-triggered refresh", () => {
     await changed();
     git(linked, "checkout", "--detach", "main");
     await changed();
+  });
+
+  // Keep two real polling transitions per test. Four serialized transitions
+  // plus server setup consume the default test deadline on slower platforms.
+  // Splitting independent Git states preserves coverage without raising it.
+  test("detached worktrees watch commits and shared packed refs", async () => {
+    const root = await fixture();
+    const linked = join(root, "linked");
+    git(root, "worktree", "add", "--detach", linked, "HEAD");
+    const { reader, initial } = await serve(linked);
+    let previous = initial;
+    const changed = async () => {
+      const next = await event(reader);
+      expect(next).not.toBe(previous);
+      previous = next;
+    };
     git(linked, "commit", "--allow-empty", "-m", "Detached update");
     await changed();
     git(root, "pack-refs", "--all", "--prune");
     await changed();
+  });
+
+  test("missing private worktree refs do not suppress shared-ref watcher callbacks", async () => {
+    const root = await fixture();
+    const linked = join(root, "linked");
+    git(root, "worktree", "add", "--detach", linked, "HEAD");
+    let notify: () => void = () => {};
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let callbacks = 0;
+    const close = await watchGit(linked, () => {
+      callbacks++;
+      notify();
+    });
+    cleanup.push(close);
+    // Observe the watcher itself: Serve's independent periodic Git refresh
+    // must not mask a broken watcher on a platform with deferred opendir errors.
+    const changed = new Promise<void>((resolve, reject) => {
+      notify = resolve;
+      timer = setTimeout(
+        () => reject(new Error("missing shared-ref watcher callback")),
+        3000,
+      );
+    });
+    try {
+      git(root, "branch", "shared-update");
+      await changed;
+      expect(callbacks).toBe(1);
+    } finally {
+      clearTimeout(timer);
+    }
   });
 
   test("ignores index, object, and lock writes and releases watchers", async () => {

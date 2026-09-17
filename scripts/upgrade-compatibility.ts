@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -9,6 +10,7 @@ type Report = {
   conflicts: string[];
   reviewRequired: string[];
   items: { path: string; action: string }[];
+  extensionDiscovery?: { ok: boolean; diagnostics: { code: string }[] };
 };
 
 const bodyOf = (source: string) =>
@@ -26,6 +28,12 @@ export async function verifyUpgradeCompatibility(options: {
     (entry) => entry.version === options.version,
   );
   assert(current, "candidate must carry its current shipped bodies");
+  const writingRule = "Do not hard-wrap Markdown prose.";
+  for (const body of Object.values(current.bodies))
+    assert(
+      body.includes(writingRule),
+      "candidate workflows must carry the engine writing rule",
+    );
   const historical = options.history.filter(
     (entry) => entry.version !== options.version,
   );
@@ -48,6 +56,22 @@ export async function verifyUpgradeCompatibility(options: {
       "---\ntype: Reference\ntitle: Project guidance\ndescription: Authored standards\n---\n\nUse GraphQL for application APIs.\n";
     await writeFile(guidancePath, guidance);
 
+    const extension = await extensionPreservationFixture(root);
+    const upgrade = async (dryRun: boolean) => {
+      const report = await options.upgrade(root, dryRun);
+      await extension.assertPreserved();
+      assert(
+        report.extensionDiscovery,
+        "upgrade must report current extension compatibility/discovery",
+      );
+      assert.equal(
+        report.extensionDiscovery.ok,
+        true,
+        "the compatible fixture stays mechanically valid",
+      );
+      return report;
+    };
+
     // Exercise every retained historical base, not just a freshly initialized current bundle.
     for (const previous of historical) {
       await rm(join(root, "docket/workflows"), { recursive: true });
@@ -59,12 +83,22 @@ export async function verifyUpgradeCompatibility(options: {
         originals.set(slug, source);
         await writeFile(path(slug), source);
       }
-      const dry = await options.upgrade(root, true);
+      const pointersBefore = await readFile(join(root, "AGENTS.md"), "utf8");
+      const dry = await upgrade(true);
       assert.equal(dry.dryRun, true);
       assert.deepEqual(dry.conflicts, [], `clean ${previous.version} dry run`);
       for (const [slug, source] of originals)
         assert.equal(await readFile(path(slug), "utf8"), source);
-      const upgraded = await options.upgrade(root, false);
+      assert.equal(
+        await readFile(join(root, "AGENTS.md"), "utf8"),
+        pointersBefore,
+      );
+      const upgraded = await upgrade(false);
+      assert(
+        (await readFile(join(root, "AGENTS.md"), "utf8")).includes(
+          "`upgrade-check:review`",
+        ),
+      );
       assert.deepEqual(
         upgraded.conflicts,
         [],
@@ -79,12 +113,30 @@ export async function verifyUpgradeCompatibility(options: {
           `${previous.version}: ${slug} must receive the current body`,
         );
         assert(source.includes(`origin: ${slug}@${options.version}`));
+        assert(
+          source.includes(writingRule),
+          `${previous.version}: ${slug} must receive the writing rule`,
+        );
       }
-      const repeated = await options.upgrade(root, false);
+      const repeated = await upgrade(false);
       assert(repeated.items.every((item) => item.action === "up-to-date"));
       assert.deepEqual(repeated.reviewRequired, []);
       assert.equal(await readFile(guidancePath, "utf8"), guidance);
     }
+
+    // An unacknowledged source remains review-required through a core upgrade;
+    // no version stamp or adapter refresh can acknowledge it on the user's behalf.
+    await extension.requireLocalReview();
+    const unreviewed = await upgrade(false);
+    assert(
+      unreviewed.extensionDiscovery?.diagnostics.some(
+        (entry) => entry.code === "local-review-required",
+      ),
+    );
+    assert.equal(
+      await readFile(join(root, "AGENTS.md"), "utf8"),
+      extension.handwritten,
+    );
 
     const slug = "docket-close";
     const previous = historical.find((entry) => entry.bodies[slug]);
@@ -95,20 +147,17 @@ export async function verifyUpgradeCompatibility(options: {
       path(slug),
       workflow(slug, previous.version, `${local}\n\n${previous.bodies[slug]}`),
     );
-    const customized = await options.upgrade(root, false);
+    const customized = await upgrade(false);
     assert.deepEqual(customized.conflicts, []);
     assert(customized.reviewRequired.includes(relative(slug)));
     const preserved = await readFile(path(slug), "utf8");
     assert.equal(bodyOf(preserved), `${local}\n\n${current.bodies[slug]}`);
+    assert(preserved.includes(writingRule));
     assert(
       preserved.includes("--without-completion"),
       "customization must not hide current close behavior",
     );
-    assert(
-      (await options.upgrade(root, false)).reviewRequired.includes(
-        relative(slug),
-      ),
-    );
+    assert((await upgrade(false)).reviewRequired.includes(relative(slug)));
     assert.equal(await readFile(path(slug), "utf8"), preserved);
 
     // Actual generic workflow from the adopter incident: old completion-only body,
@@ -118,16 +167,15 @@ export async function verifyUpgradeCompatibility(options: {
       "utf8",
     );
     assert(!stale.includes("--without-completion"));
+    assert(!stale.includes(writingRule));
     await writeFile(path(slug), stale);
-    const conflict = await options.upgrade(root, true);
+    const conflict = await upgrade(true);
     assert(
       conflict.conflicts.includes(relative(slug)),
       "the mis-stamped adopter body needs reconciliation",
     );
     assert.equal(await readFile(path(slug), "utf8"), stale);
-    assert(
-      (await options.upgrade(root, false)).conflicts.includes(relative(slug)),
-    );
+    assert((await upgrade(false)).conflicts.includes(relative(slug)));
     assert((await readFile(path(slug), "utf8")).includes("<<<<<<<"));
 
     // An ours-only manual resolution must remain visible even after its origin advances.
@@ -136,7 +184,7 @@ export async function verifyUpgradeCompatibility(options: {
       `docket-close@${options.version}`,
     );
     await writeFile(path(slug), incompleteResolution);
-    const unresolved = await options.upgrade(root, false);
+    const unresolved = await upgrade(false);
     assert.deepEqual(unresolved.conflicts, []);
     assert(
       unresolved.reviewRequired.includes(relative(slug)),
@@ -148,9 +196,116 @@ export async function verifyUpgradeCompatibility(options: {
       path(slug),
       workflow(slug, options.version, current.bodies[slug] ?? ""),
     );
-    assert.deepEqual((await options.upgrade(root, false)).reviewRequired, []);
+    assert.deepEqual((await upgrade(false)).reviewRequired, []);
     assert.equal(await readFile(guidancePath, "utf8"), guidance);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
+}
+
+/** Self-contained repository bytes: shared installed-candidate smoke must test
+ * the candidate's upgrade path without importing the source checkout's engine. */
+async function extensionPreservationFixture(root: string) {
+  const hash = (text: string) =>
+    createHash("sha256").update(text, "utf8").digest("hex");
+  const canonical = (value: unknown): unknown =>
+    Array.isArray(value)
+      ? value.map(canonical)
+      : value && typeof value === "object"
+        ? Object.fromEntries(
+            Object.entries(value)
+              .sort(([left], [right]) =>
+                left < right ? -1 : left > right ? 1 : 0,
+              )
+              .map(([key, entry]) => [key, canonical(entry)]),
+          )
+        : value;
+  const manifest = {
+    formatVersion: 1,
+    id: "upgrade-check",
+    version: "1.0.0",
+    title: "Upgrade preservation",
+    description: "Shared installed-candidate extension preservation fixture",
+    engine: { min: "0.0.0", maxExclusive: "99.0.0" },
+    files: ["workflows/review.md"],
+    workflows: [
+      {
+        id: "review",
+        title: "Review",
+        description: "Review a project-owned completed proposal",
+        path: "workflows/review.md",
+      },
+    ],
+    guidance: [],
+    defaults: { reviewer: "package default" },
+    capabilities: [],
+    scenarios: [],
+  };
+  const base =
+    "---\ntype: Workflow\ntitle: Review\ndescription: Review project delivery\n---\nRead project guidance before review.\n";
+  const local = `${base}\nProject requirement: retain the custom release checklist.\n`;
+  const retired =
+    "---\ntype: Reference\ntitle: Retired template\ndescription: Historical source retained for completed links\n---\nEarlier proposal template.\n";
+  const digest = hash(
+    JSON.stringify([canonical(manifest), [["workflows/review.md", base]]]),
+  );
+  const record = {
+    manifest,
+    digest,
+    base: { "workflows/review.md": base },
+    status: "installed",
+    requestedEnabled: true,
+    config: { reviewer: "project reviewer" },
+    bindings: {},
+    reviewedLocal: { "workflows/review.md": hash(local) } as Record<
+      string,
+      string
+    >,
+    retainedFiles: {
+      "templates/retired.md": {
+        base: retired,
+        baseHash: hash(retired),
+        sourceVersion: "0.9.0",
+        sourceDigest: "a".repeat(64),
+      },
+    },
+    source: "/nonexistent/original-author-cache",
+  };
+  const files = new Map([
+    [
+      "docket/extensions/registry.json",
+      `${JSON.stringify({ formatVersion: 1, packages: { "upgrade-check": record } }, null, 2)}\n`,
+    ],
+    ["docket/extensions/upgrade-check/workflows/review.md", local],
+    ["docket/extensions/upgrade-check/templates/retired.md", retired],
+    [
+      "docket/reference/completed-delivery.md",
+      "---\ntype: Reference\ntitle: Completed delivery\ndescription: Historical project evidence\n---\n[Template](/extensions/upgrade-check/templates/retired.md)\n",
+    ],
+  ]);
+  for (const [path, text] of files) {
+    await mkdir(join(root, path, ".."), { recursive: true });
+    await writeFile(join(root, path), text);
+  }
+  const handwritten =
+    "Project instruction: preserve our extension adaptations.\n";
+  await writeFile(join(root, "AGENTS.md"), handwritten);
+  return {
+    handwritten,
+    async assertPreserved() {
+      for (const [path, text] of files)
+        assert.equal(
+          await readFile(join(root, path), "utf8"),
+          text,
+          `engine upgrade must preserve exact package/project bytes: ${path}`,
+        );
+    },
+    async requireLocalReview() {
+      record.reviewedLocal = {};
+      const path = "docket/extensions/registry.json";
+      const text = `${JSON.stringify({ formatVersion: 1, packages: { "upgrade-check": record } }, null, 2)}\n`;
+      files.set(path, text);
+      await writeFile(join(root, path), text);
+    },
+  };
 }

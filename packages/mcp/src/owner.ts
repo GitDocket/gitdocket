@@ -5,7 +5,9 @@ import {
   clearMetadata,
   type DocketConfig,
   type FileStore,
+  LocalFileStore,
   loadMetadataBundle,
+  readExtensions,
   readProjectGuidance,
 } from "@gitdocket/core";
 import { GitEvidenceIndex } from "@gitdocket/core/cache";
@@ -124,6 +126,30 @@ export class RepositoryOwner {
     return this.consistent(({ store, config }) =>
       readProjectGuidance(store, config),
     );
+  }
+
+  extensions() {
+    return this.consistent(async ({ store }) => {
+      if (!(store instanceof LocalFileStore))
+        return {
+          status: "unsupported" as const,
+          reason:
+            "Workflow extensions require a local repository-owned bundle.",
+        };
+      const inventory = await readExtensions(store.root);
+      return {
+        status: "supported" as const,
+        ...inventory,
+        packages: inventory.packages.map(({ sources, ...entry }) => ({
+          ...entry,
+          sources: Object.fromEntries(
+            Object.entries(sources).map(
+              ([path, { text: _text, ...source }]) => [path, source],
+            ),
+          ),
+        })),
+      };
+    });
   }
 
   async sourceMap(path: string): Promise<ReadonlyMap<string, string>> {

@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Beacon bookmarks</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="./style.css" />
+    <script type="module" src="./app.js"></script>
+  </head>
+  <body>
+    <main>
+      <header>
+        <p class="eyebrow">A small library, kept locally</p>
+        <h1>Beacon</h1>
+        <p>Save the pages you want to come back to.</p>
+      </header>
+      <form id="add-bookmark">
+        <h2>Add a bookmark</h2>
+        <label>Title <input name="title" required /></label>
+        <label>URL <input name="url" type="url" required /></label>
+        <label>Tags, separated by commas <input name="tags" /></label>
+        <button type="submit">Save bookmark</button>
+      </form>
+      <section aria-labelledby="library-title">
+        <h2 id="library-title">Your library</h2>
+        <p id="status" role="status"></p>
+        <ul id="bookmarks"></ul>
+      </section>
+    </main>
+  </body>
+</html>

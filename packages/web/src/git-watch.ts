@@ -53,14 +53,11 @@ export async function watchGit(
   let overflow = false;
   let deadline = 0;
   const refs = async (directory: string): Promise<string> => {
-    const handle = await opendir(directory).catch(
-      (error: NodeJS.ErrnoException) => {
-        if (error.code === "ENOENT") return undefined;
-        throw error;
-      },
-    );
     const entries: Dirent[] = [];
-    if (handle)
+    try {
+      // Bun on Linux may defer ENOENT until directory iteration. A worktree's
+      // private refs directory normally does not exist; still scan shared refs.
+      const handle = await opendir(directory);
       for await (const entry of handle) {
         if (stopped) break;
         if (entry.name.endsWith(".lock")) continue;
@@ -70,6 +67,10 @@ export async function watchGit(
         }
         entries.push(entry);
       }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return "[]";
+      throw error;
+    }
     const result: string[] = [];
     // Sequential reads bound open files even in repositories with many refs.
     for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {

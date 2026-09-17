@@ -7,12 +7,18 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   CONFIG_FILENAME,
+  DOCKET_VERSION,
   findRepoRoot,
   LocalFileStore,
   parseConfig,
 } from "@gitdocket/core";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { createDocketServer } from "./server";
+
+if (process.argv.length === 3 && process.argv[2] === "--version") {
+  console.log(DOCKET_VERSION);
+  process.exit(0);
+}
 
 const root = await findRepoRoot(process.cwd());
 if (!root) {

@@ -70,6 +70,7 @@ export class NpmRegistryBoundary implements RegistryBoundary {
       "--json",
       "dist",
       "dependencies",
+      "optionalDependencies",
       "repository",
     ]);
     let metadata: RegistryVersion | null = null;
@@ -83,6 +84,7 @@ export class NpmRegistryBoundary implements RegistryBoundary {
           };
         };
         dependencies?: Record<string, string>;
+        optionalDependencies?: Record<string, string>;
         repository?: { url?: string; directory?: string };
       }>(versionResult.stdout, `npm view ${name}@${version}`);
       if (
@@ -96,7 +98,8 @@ export class NpmRegistryBoundary implements RegistryBoundary {
       }
       metadata = {
         integrity: value.dist.integrity,
-        dependencies: value.dependencies ?? {},
+        dependencies: { ...value.dependencies, ...value.optionalDependencies },
+        optionalDependencies: value.optionalDependencies ?? {},
         repository: {
           url: value.repository.url,
           directory: value.repository.directory,
@@ -151,6 +154,7 @@ export class GhReleaseBoundary implements GitHubBoundary {
   async inspectRelease(
     tag: string,
     assetName: string,
+    additionalAssets: string[] = [],
   ): Promise<GitHubReleaseView | null> {
     const result = command([
       "gh",
@@ -180,6 +184,14 @@ export class GhReleaseBoundary implements GitHubBoundary {
     const assetSha256 = release.assets.some((asset) => asset.name === assetName)
       ? await inspectGitHubReleaseAssetSha256(tag, assetName, ROOT)
       : undefined;
+    const extraHashes = new Map<string, string>();
+    for (const name of additionalAssets) {
+      if (release.assets.some((asset) => asset.name === name)) {
+        const hash = await inspectGitHubReleaseAssetSha256(tag, name, ROOT);
+        if (!hash) throw new Error(`Cannot verify release asset ${name}`);
+        extraHashes.set(name, hash);
+      }
+    }
     return {
       tag: release.tagName,
       title: release.name,
@@ -189,7 +201,8 @@ export class GhReleaseBoundary implements GitHubBoundary {
       url: release.url,
       assets: release.assets.map((asset) => ({
         name: asset.name,
-        sha256: asset.name === assetName ? assetSha256 : undefined,
+        sha256:
+          asset.name === assetName ? assetSha256 : extraHashes.get(asset.name),
       })),
     };
   }
@@ -200,6 +213,7 @@ export class GhReleaseBoundary implements GitHubBoundary {
     notesPath: string;
     receiptPath: string;
     prerelease: boolean;
+    assets?: string[];
   }): Promise<void> {
     checked([
       "gh",
@@ -207,6 +221,7 @@ export class GhReleaseBoundary implements GitHubBoundary {
       "create",
       options.tag,
       options.receiptPath,
+      ...(options.assets ?? []),
       "--repo",
       RELEASE_REPOSITORY,
       "--verify-tag",

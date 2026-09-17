@@ -52,6 +52,8 @@ import {
   Telemetry,
 } from "@gitdocket/core/telemetry";
 import { Command, CommanderError } from "commander";
+import type { ExtensionDiscoveryReport } from "./extension-discovery";
+import { registerExtensions } from "./extensions";
 import { trailerlessSince } from "./freshness";
 import { refreshIndex } from "./indexing";
 import { AGENT_TARGETS, type AgentTarget, runInit } from "./init";
@@ -184,6 +186,7 @@ async function printPacket(packet: ContextPacket): Promise<void> {
 
 const program = new Command();
 registerTelemetry(program, print);
+registerExtensions(program, async () => (await ctx()).store.root, print);
 
 program
   .name("docket")
@@ -425,6 +428,7 @@ program
           bundle: opts.bundle,
           agents,
         });
+        await reportExtensionDiscovery(report.extensionDiscovery, opts.json);
         if (opts.json) {
           await print(JSON.stringify(report, null, 2));
           return;
@@ -491,6 +495,7 @@ program
           dryRun: opts.dryRun,
           fileTask: opts.fileTask,
         });
+        await reportExtensionDiscovery(report.extensionDiscovery, opts.json);
         if (opts.json) {
           await print(JSON.stringify(report, null, 2));
         } else {
@@ -527,6 +532,20 @@ program
       }
     },
   );
+
+async function reportExtensionDiscovery(
+  report: ExtensionDiscoveryReport | undefined,
+  json: boolean | undefined,
+) {
+  if (!report) return;
+  if (!report.ok) process.exitCode = 1;
+  if (!json)
+    for (const diagnostic of report.diagnostics) {
+      await print(
+        `extension ${diagnostic.severity} [${diagnostic.code}]: ${diagnostic.message} ${diagnostic.remediation}`,
+      );
+    }
+}
 
 program
   .command("serve")

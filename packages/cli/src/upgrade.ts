@@ -32,6 +32,10 @@ import {
   WORKFLOWS_DIR,
 } from "@gitdocket/core";
 import { AGENT_ADAPTERS, renderTargetSkillStub } from "./agent-adapters";
+import {
+  type ExtensionDiscoveryReport,
+  refreshExtensionDiscovery,
+} from "./extension-discovery";
 import { resolveHooksDir } from "./init";
 
 export interface UpgradeItem {
@@ -55,6 +59,7 @@ export interface UpgradeReport {
   reviewRequired: string[];
   /** Reconcile task filed for the conflicts (--file-task). */
   filedTask?: { id: string; path: string };
+  extensionDiscovery?: ExtensionDiscoveryReport;
 }
 
 /**
@@ -383,12 +388,35 @@ export async function runUpgrade(
     }
   }
 
+  const extensionDiscovery = await refreshExtensionDiscovery(root, store.root, {
+    dryRun,
+    engineVersion: available,
+  });
+  // Adapter destination conflicts are repairable independently and never file
+  // a core-workflow reconciliation task through --file-task.
+  for (const item of extensionDiscovery.steps)
+    items.push({
+      kind: "section",
+      path: item.path,
+      action:
+        item.action === "unchanged"
+          ? "up-to-date"
+          : item.action === "conflict" || item.action === "unsupported"
+            ? "skipped"
+            : "regenerated",
+      reason:
+        item.reason ??
+        (item.action === "remove"
+          ? "removed inactive owned extension pointer"
+          : undefined),
+    });
   const report: UpgradeReport = {
     root,
     available,
     dryRun,
     items,
     conflicts,
+    extensionDiscovery,
     reviewRequired: items
       .filter((item) => item.reviewRequired)
       .map((item) => item.path),

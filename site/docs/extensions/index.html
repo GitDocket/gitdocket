@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Make your process part of the project — GitDocket</title>
+    <meta name="description" content="Reusable workflows for your coding agent, with reviews, checks and decisions kept in Git." />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Make your process part of the project — GitDocket" />
+    <meta property="og:description" content="Reusable workflows for your coding agent, with reviews, checks and decisions kept in Git." />
+    <meta property="og:image" content="https://gitdocket.com/assets/current-home.jpg" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="shell nav">
+      <a class="brand" href="/" aria-label="GitDocket home"><span class="mark" aria-hidden="true">GD</span>GitDocket</a>
+      <nav aria-label="Primary navigation"><a href="/#product">Product</a><a href="/#workflow">Workflow</a><a href="/docs/">Docs</a><a href="https://github.com/GitDocket/gitdocket">GitHub</a></nav>
+    </header>
+    <div class="shell docs-layout">
+      <aside class="docs-sidebar"><p class="eyebrow">Reference</p><nav aria-label="Documentation"><a href="/docs/">Get started</a><a href="/docs/install/">Installation</a><a href="/docs/example/">One-task example</a><a href="/docs/everyday/">Everyday use</a><a href="/docs/epics/">Epics</a><a href="/docs/extensions/" aria-current="page">Extensions</a><a href="/docs/cli/">CLI commands</a><a href="/docs/mcp/">MCP & workflows</a><a href="/docs/api/">Local HTTP reference</a></nav></aside>
+      <main class="docs-content" id="main" tabindex="-1">
+<p class="eyebrow">Workflow extensions · 0.4.0 preview</p>
+<h1>Make your process part of the project.</h1>
+<p class="doc-lede">Give your coding agent a repeatable path from request to reviewed delivery. Adapt the reviews and checks to your team, and keep the decisions available for the next change—all in Git.</p>
+<p class="text-link"><a href="/docs/extensions/beacon/">See a delivery workflow →</a></p>
+<h2>Start with a process you already use</h2>
+<dl class="use-cases">
+<div><dt>Deliver a product change</dt><dd>Prepare a proposal, review the scope, implement it, verify the result and leave a local release handoff.</dd></div>
+<div><dt>Review an incident</dt><dd>Gather the timeline, separate facts from hypotheses and retain a review. Create follow-up work when you ask for it.</dd></div>
+<div><dt>Share your team's approach</dt><dd>Package your own workflow, templates and guidance. Choose the reviewer and project checks instead of repeating them in each session.</dd></div>
+</dl>
+<h2>One change helps the next</h2>
+<p>In the Beacon example, a request to export bookmarks becomes a reviewed proposal and a verified download feature. The workflow leaves an export-contract decision. A fresh session uses that decision to plan import, including which new choices still need review.</p>
+<ol class="journey" aria-label="Beacon delivery sequence"><li>Request</li><li>Reviewed proposal</li><li>Verified feature</li><li>Retained decision</li><li>Next plan</li></ol>
+<p><a href="/docs/extensions/beacon/#observed">Read the actual records and next-session response →</a></p>
+<h2>Your process, in your repository</h2>
+<p>An extension is a versioned package of Markdown workflows, templates, guidance and tool recipes. GitDocket installs it under <code>docket/extensions/</code> by default and records project choices alongside it. Commit those files so another checkout has the same process.</p>
+<p>Invoke a workflow by name, such as <code>product-delivery:deliver</code>. Your agent reads its current instructions and configuration, follows the work you authorized, and reports results or an unresolved requirement. You review the proposal and decide the next step. GitDocket manages package validation, task state and update conflicts; the agent follows the review instructions and runs checks.</p>
+<p>Proposals, decisions and completed work live elsewhere in your project's linked Markdown. They stay readable when the package is updated or retired. Project choices remain distinct from package defaults; simultaneous local and upstream edits are reported for review.</p>
+<h2>Use the tools your agent already has</h2>
+<p>A workflow can read an issue, inspect checks or prepare a handoff using tools exposed by your agent host, including MCP tools. You bind those available tools to the workflow's recipes. Posting a prepared handoff needs your authorization for its content and destination. The extension does not set up connections or credentials.</p>
+<aside class="reference-note availability" aria-label="Preview availability">
+<p><strong>Included in the 0.4.0 preview.</strong> <a href="/docs/install/">Install GitDocket with Homebrew or npm</a>. The example download contains sources and a starting app; its app and verification scripts additionally require Bun.</p>
+<p>You can read the <a href="/docs/extensions/beacon/">Beacon walkthrough</a> now. If you already have the candidate, follow its setup steps. Otherwise, <a href="/docs/">start with one task</a> on the published release. Workflows are optional.</p>
+</aside>
+<nav class="doc-next" aria-label="Next reading"><a href="/docs/extensions/beacon/">Follow Beacon →</a><a href="/docs/extensions/reference/">Install, customize or author a workflow →</a></nav>
+</main>
+    </div>
+    <footer class="shell footer"><a class="brand" href="/">GitDocket</a><p>Project knowledge and work, together in Git.</p><a href="https://github.com/GitDocket/gitdocket">Source on GitHub ↗</a></footer>
+  </body>
+</html>

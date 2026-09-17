@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { DOCKET_VERSION } from "../packages/core/src/version";
+import { RELEASE_PACKAGE_DEFINITIONS } from "./release-contract";
 import {
   assertTrustedPublishingRuntime,
   buildPublicationCandidate,
@@ -84,6 +85,7 @@ function correctVersion(candidate: PackageCandidate): RegistryVersion {
   return {
     integrity: candidate.integrity,
     dependencies: { ...candidate.dependencies },
+    optionalDependencies: { ...candidate.optionalDependencies },
     repository: { ...candidate.repository },
     provenanceUrl: `https://registry.npmjs.test/attestations/${candidate.name}`,
     provenancePredicate: "https://slsa.dev/provenance/v1",
@@ -162,7 +164,7 @@ describe("publication candidate and preflight", () => {
       join(import.meta.dir, "..", ".github", "workflows", "publish.yml"),
     ).text();
     expect(workflow).toContain(
-      "preflight:\n    if: github.repository == 'GitDocket/gitdocket'\n    runs-on: ubuntu-latest\n    permissions:\n      contents: read",
+      "preflight:\n    needs: standalone\n    if: github.repository == 'GitDocket/gitdocket'\n    runs-on: ubuntu-latest\n    permissions:\n      contents: read",
     );
     expect(workflow).toContain(
       "registry:\n    needs: preflight\n    runs-on: ubuntu-latest\n    environment: release\n    permissions:\n      contents: read\n      id-token: write",
@@ -220,18 +222,15 @@ describe("publication candidate and preflight", () => {
       "-m",
       `GitDocket v${DOCKET_VERSION}\n\nStage-Receipt-SHA256: ${"c".repeat(64)}`,
     );
-    for (const id of ["core", "web", "cli", "mcp"]) {
-      const coordinatedDependencies: Record<string, Record<string, string>> = {
-        core: {},
-        web: { "@gitdocket/core": DOCKET_VERSION },
-        cli: {
-          "@gitdocket/core": DOCKET_VERSION,
-          "@gitdocket/web": DOCKET_VERSION,
-        },
-        mcp: { "@gitdocket/core": DOCKET_VERSION },
-      };
-      const staging = join(await temporaryRoot(), "package");
+    for (const definition of RELEASE_PACKAGE_DEFINITIONS) {
+      const id = definition.id;
+      const staging = join(root, "staging", id, "package");
       await mkdir(staging, { recursive: true });
+      const coordinatedDependencies = {
+        [id]: Object.fromEntries(
+          definition.dependencies.map((name) => [name, DOCKET_VERSION]),
+        ),
+      };
       await writeFile(
         join(staging, "package.json"),
         `${JSON.stringify({
@@ -269,7 +268,9 @@ describe("publication candidate and preflight", () => {
       GITHUB_EVENT_NAME: "push",
       RUNNER_ENVIRONMENT: "github-hosted",
     };
-    const candidate = await buildPublicationCandidate(root, env);
+    const candidate = await buildPublicationCandidate(root, env, {
+      verifyStandalone: async () => [],
+    });
     expect(candidate.stageReceiptSha256).toBe("c".repeat(64));
     await expect(
       buildPublicationCandidate(root, { ...env, NODE_AUTH_TOKEN: "forbidden" }),
@@ -297,6 +298,62 @@ describe("publication candidate and preflight", () => {
 });
 
 describe("resumable registry publication", () => {
+  test("a missing platform cannot promote launchers, and retry never republishes existing binaries", async () => {
+    const candidate = candidateFixture();
+    candidate.packages = RELEASE_PACKAGE_DEFINITIONS.map((definition) => ({
+      id: definition.id as PackageCandidate["id"],
+      name: definition.name,
+      version: candidate.version,
+      tarball: `release/tarballs/gitdocket-${definition.id}-${candidate.version}.tgz`,
+      integrity: `sha512-${definition.id}`,
+      dependencies: Object.fromEntries(
+        definition.dependencies.map((name) => [name, candidate.version]),
+      ),
+      optionalDependencies: ["cli", "mcp"].includes(definition.id)
+        ? Object.fromEntries(
+            definition.dependencies.map((name) => [name, candidate.version]),
+          )
+        : {},
+      repository: {
+        url: "git+https://github.com/GitDocket/gitdocket.git",
+        directory: `packages/${definition.id}`,
+      },
+    }));
+    const registry = new FakeRegistry();
+    registry.failPublish.add("@gitdocket/bin-linux-arm64");
+    const proof = await preflight(candidate, registry);
+    await expect(
+      runRegistryPublication(proof, registry, { smoke, sleep: async () => {} }),
+    ).rejects.toThrow("publish failed");
+    expect(registry.actions).not.toContain("publish:@gitdocket/cli");
+    expect(
+      registry.actions.some((action) => action.endsWith(":latest")),
+    ).toBeFalse();
+    registry.failPublish.clear();
+    await runRegistryPublication(proof, registry, {
+      smoke,
+      sleep: async () => {},
+    });
+    expect(
+      registry.actions.filter(
+        (action) => action === "publish:@gitdocket/bin-darwin-arm64",
+      ),
+    ).toHaveLength(1);
+    expect(
+      registry.actions.indexOf("publish:@gitdocket/bin-linux-x64"),
+    ).toBeLessThan(registry.actions.indexOf("publish:@gitdocket/cli"));
+    const cli = candidate.packages.find(
+      (item) => item.id === "cli",
+    ) as PackageCandidate;
+    const current = registry.versions.get(cli.name) as RegistryVersion;
+    current.optionalDependencies = {};
+    expect(
+      classifyRegistry({ ...candidate, packages: [cli] }, [
+        { version: current, distTags: {} },
+      ]).classification,
+    ).toBe("conflicting");
+  });
+
   test("resumes a partial set, publishes missing packages in order, and preserves unrelated tags", async () => {
     const candidate = candidateFixture();
     const registry = new FakeRegistry();
@@ -480,6 +537,7 @@ class FakeGitHub implements GitHubBoundary {
     notesPath: string;
     receiptPath: string;
     prerelease: boolean;
+    assets?: string[];
   }): Promise<void> {
     if (this.fail) throw new Error("GitHub Release failed");
     const receiptBody = await Bun.file(options.receiptPath).text();
@@ -497,12 +555,65 @@ class FakeGitHub implements GitHubBoundary {
             .update(receiptBody)
             .digest("hex"),
         },
+        ...(await Promise.all(
+          (options.assets ?? []).map(async (path) => ({
+            name: path.split("/").pop() ?? "",
+            sha256: new Bun.CryptoHasher("sha256")
+              .update(await Bun.file(path).arrayBuffer())
+              .digest("hex"),
+          })),
+        )),
       ],
     };
   }
 }
 
 describe("GitHub Release completion", () => {
+  test("binds standalone assets and rejects changed or missing published archives", async () => {
+    const fixture = await receiptFixture();
+    const root = join(fixture.receiptPath, "..");
+    const notes = join(root, "docs/releases/v0.2.0.md");
+    await mkdir(join(root, "docs/releases"), { recursive: true });
+    await mkdir(join(root, "release/standalone"), { recursive: true });
+    await writeFile(notes, "# Release\n");
+    const archive = join(root, "release/standalone/example.tar.gz");
+    await writeFile(archive, "reviewed archive");
+    fixture.receipt.candidate.standalone = [
+      {
+        path: "release/standalone/example.tar.gz",
+        sha256: new Bun.CryptoHasher("sha256")
+          .update("reviewed archive")
+          .digest("hex"),
+      },
+    ];
+    await writeFile(fixture.receiptPath, JSON.stringify(fixture.receipt));
+    const github = new FakeGitHub();
+    await completeGitHubRelease(
+      fixture.receipt,
+      fixture.receiptPath,
+      notes,
+      github,
+    );
+    expect(github.release?.assets).toHaveLength(2);
+    github.release?.assets.pop();
+    await expect(
+      completeGitHubRelease(
+        fixture.receipt,
+        fixture.receiptPath,
+        notes,
+        github,
+      ),
+    ).rejects.toThrow("standalone asset differs or is missing");
+    await writeFile(archive, "changed");
+    await expect(
+      completeGitHubRelease(
+        fixture.receipt,
+        fixture.receiptPath,
+        notes,
+        github,
+      ),
+    ).rejects.toThrow("standalone asset drift");
+  });
   test("creates one verified first-class release and treats an exact rerun as complete", async () => {
     const fixture = await receiptFixture();
     const github = new FakeGitHub();

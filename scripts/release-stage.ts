@@ -1,4 +1,5 @@
 import {
+  cp,
   mkdir,
   mkdtemp,
   readFile,
@@ -16,7 +17,9 @@ import {
   resolve,
 } from "node:path";
 import { type ExportReport, exportPublicSnapshot } from "./export-public";
+import { runNpmInstalledSmoke } from "./npm-smoke";
 import {
+  BINARY_PACKAGE_IDS,
   buildReleasePlan,
   collectReleaseSnapshot,
   parseReleasePlan,
@@ -40,7 +43,12 @@ export const LEGACY_MCP_TOOLS = [
   "task_get",
   "task_list",
 ] as const;
-export const REQUIRED_MCP_TOOLS = [...LEGACY_MCP_TOOLS, "source_page"] as const;
+export const REQUIRED_MCP_TOOLS = [
+  ...LEGACY_MCP_TOOLS,
+  "source_page",
+  "project_guidance",
+  "workflow_extensions",
+] as const;
 
 function hasMcpTools(
   value: unknown,
@@ -61,10 +69,11 @@ export const PUBLIC_RELEASE_CHECKS = [
   "bun ../../packages/cli/src/index.ts lint (examples/basic)",
   "bun ../../packages/cli/src/index.ts index --check (examples/basic)",
   "bun run audit:dependencies",
+  "bun run release:standalone verify",
   "bun run release:pack",
 ] as const;
 export const ARTIFACT_SMOKE_CHECKS = [
-  "install all four local tarballs",
+  "install npm launchers and native platform dependency",
   "verify installed package manifests",
   "docket --version",
   "docket init",
@@ -133,6 +142,7 @@ interface StageOptions {
   planPath: string;
   destination: string;
   output?: string;
+  standaloneDirectory?: string;
 }
 
 interface StageDependencies {
@@ -188,6 +198,7 @@ export async function runPublicReleaseGate(
     cwd: example,
   });
   await run(["bun", "run", "audit:dependencies"], { cwd: root });
+  await run(["bun", "run", "release:standalone", "verify"], { cwd: root });
   await run(["bun", "run", "release:pack"], { cwd: root });
 }
 
@@ -340,6 +351,12 @@ async function smokeMcp(mcp: string, project: string): Promise<string[]> {
 export async function runInstalledSmoke(
   options: InstalledSmokeOptions,
 ): Promise<SmokeResult> {
+  if (
+    Object.keys(options.dependencies).some((name) =>
+      name.startsWith("@gitdocket/bin-"),
+    )
+  )
+    return runNpmInstalledSmoke(options);
   const root = await mkdtemp(join(tmpdir(), "gitdocket-artifact-smoke-"));
   try {
     const manifest = {
@@ -523,12 +540,29 @@ export function parseStageReceipt(value: unknown): StageReceipt {
     !Array.isArray(receipt.public.additions) ||
     !Array.isArray(receipt.public.changes) ||
     !Array.isArray(receipt.public.deletions) ||
-    JSON.stringify(receipt.checks) !== JSON.stringify(PUBLIC_RELEASE_CHECKS) ||
+    ![
+      JSON.stringify(PUBLIC_RELEASE_CHECKS),
+      // Retain readability of schema-1 receipts recorded before standalone builds.
+      JSON.stringify([
+        ...PUBLIC_RELEASE_CHECKS.slice(0, -2),
+        "bun run release:pack",
+      ]),
+      JSON.stringify([
+        ...PUBLIC_RELEASE_CHECKS.slice(0, -2),
+        "bun run release:pack",
+        "bun run release:standalone build",
+      ]),
+    ].includes(JSON.stringify(receipt.checks)) ||
     !Array.isArray(receipt.tarballs) ||
-    receipt.tarballs.length !== 4 ||
+    ![4, 8].includes(receipt.tarballs.length) ||
     !receipt.smoke ||
-    JSON.stringify(receipt.smoke.checks) !==
-      JSON.stringify(ARTIFACT_SMOKE_CHECKS) ||
+    ![
+      JSON.stringify(ARTIFACT_SMOKE_CHECKS),
+      JSON.stringify([
+        "install all four local tarballs",
+        ...ARTIFACT_SMOKE_CHECKS.slice(1),
+      ]),
+    ].includes(JSON.stringify(receipt.smoke.checks)) ||
     receipt.smoke.serveStatus !== 200 ||
     !hasMcpTools(receipt.smoke.mcpTools, LEGACY_MCP_TOOLS) ||
     receipt.approvalReady !== true
@@ -538,6 +572,9 @@ export function parseStageReceipt(value: unknown): StageReceipt {
   const expectedNames = [
     "@gitdocket/core",
     "@gitdocket/web",
+    ...(receipt.tarballs.length === 8
+      ? BINARY_PACKAGE_IDS.map((id) => `@gitdocket/${id}`)
+      : []),
     "@gitdocket/cli",
     "@gitdocket/mcp",
   ];
@@ -547,7 +584,10 @@ export function parseStageReceipt(value: unknown): StageReceipt {
         item.name !== expectedNames[index] ||
         item.version !== receipt.version ||
         !/^[0-9a-f]{64}$/.test(item.sha256) ||
-        receipt.smoke?.packageVersions[item.name] !== receipt.version,
+        (receipt.tarballs?.length === 4 ||
+        ["@gitdocket/cli", "@gitdocket/mcp"].includes(item.name)
+          ? receipt.smoke?.packageVersions[item.name] !== receipt.version
+          : false),
     )
   ) {
     throw new Error("stage receipt package evidence is inconsistent");
@@ -613,6 +653,18 @@ export async function stageRelease(
     sourceCommit: plan.sourceCommit,
     destination,
   });
+  const artifacts = resolve(
+    sourceRoot,
+    options.standaloneDirectory ?? "release/standalone",
+  );
+  if (
+    options.standaloneDirectory ||
+    (await Bun.file(join(artifacts, "darwin-arm64.json")).exists())
+  ) {
+    await cp(artifacts, join(destination, "release/standalone"), {
+      recursive: true,
+    });
+  }
   const run = dependencies.runCommand ?? defaultCommandRunner;
   await runPublicReleaseGate(destination, run);
   const smoke = await (dependencies.runSmoke ?? runArtifactSmoke)(

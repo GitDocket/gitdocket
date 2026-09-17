@@ -1,0 +1,26 @@
+{
+  "formatVersion": 1,
+  "id": "tiny",
+  "version": "1.0.0",
+  "title": "Tiny",
+  "description": "Digest fixture",
+  "engine": {
+    "min": "0.4.0",
+    "maxExclusive": "1.0.0"
+  },
+  "files": ["workflows/review.md"],
+  "workflows": [
+    {
+      "id": "review",
+      "title": "Review",
+      "description": "Review only",
+      "path": "workflows/review.md"
+    }
+  ],
+  "guidance": [],
+  "defaults": {
+    "reviewer": "owner"
+  },
+  "capabilities": [],
+  "scenarios": []
+}

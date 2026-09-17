@@ -1,0 +1,31 @@
+{
+  "formatVersion": 1,
+  "id": "incident-review",
+  "version": "1.0.0",
+  "title": "Incident review",
+  "description": "Evidence-based incident findings and recommendations without automatic follow-up work.",
+  "engine": {
+    "min": "0.4.0",
+    "maxExclusive": "1.0.0"
+  },
+  "files": [
+    "workflows/review.md",
+    "guidance/review.md",
+    "templates/review.md",
+    "scenarios/review.md"
+  ],
+  "workflows": [
+    {
+      "id": "review",
+      "title": "Incident review",
+      "description": "Prepare a sourced incident review with explicit uncertainties and recommendations for a separately scoped reviewer.",
+      "path": "workflows/review.md"
+    }
+  ],
+  "guidance": ["guidance/review.md"],
+  "defaults": {
+    "reviewer": "incident facilitator"
+  },
+  "capabilities": [],
+  "scenarios": ["scenarios/review.md"]
+}

@@ -3,9 +3,24 @@ import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { DOCKET_VERSION } from "../packages/core/src/version";
 import { runInstalledSmoke, type SmokeResult } from "./release-stage";
+import {
+  type StandaloneAsset,
+  verifyStandaloneSet,
+} from "./standalone-release";
 
 export const PUBLICATION_SCHEMA = 1 as const;
-export const PACKAGE_IDS = ["core", "web", "cli", "mcp"] as const;
+
+import {
+  BINARY_PACKAGE_IDS,
+  RELEASE_PACKAGE_DEFINITIONS,
+} from "./release-contract";
+export const PACKAGE_IDS = [
+  "core",
+  "web",
+  ...BINARY_PACKAGE_IDS,
+  "cli",
+  "mcp",
+] as const;
 export const PACKAGE_NAMES = PACKAGE_IDS.map((id) => `@gitdocket/${id}`);
 export const RELEASE_REPOSITORY = "GitDocket/gitdocket";
 export const RELEASE_WORKFLOW = ".github/workflows/publish.yml";
@@ -20,6 +35,7 @@ export interface PackageCandidate {
   tarball: string;
   integrity: string;
   dependencies: Record<string, string>;
+  optionalDependencies?: Record<string, string>;
   repository: { url: string; directory: string };
 }
 
@@ -35,11 +51,13 @@ export interface PublicationCandidate {
   holdingTag: string;
   publicTag: string;
   packages: PackageCandidate[];
+  standalone?: StandaloneAsset[];
 }
 
 export interface RegistryVersion {
   integrity: string;
   dependencies: Record<string, string>;
+  optionalDependencies?: Record<string, string>;
   repository: { url: string; directory: string };
   provenanceUrl?: string;
   provenancePredicate?: string;
@@ -125,6 +143,7 @@ export interface GitHubBoundary {
   inspectRelease(
     tag: string,
     assetName: string,
+    additionalAssets?: string[],
   ): Promise<GitHubReleaseView | null>;
   createRelease(options: {
     tag: string;
@@ -132,6 +151,7 @@ export interface GitHubBoundary {
     notesPath: string;
     receiptPath: string;
     prerelease: boolean;
+    assets?: string[];
   }): Promise<void>;
 }
 
@@ -294,6 +314,7 @@ async function packageCandidate(
     name?: string;
     version?: string;
     dependencies?: Record<string, string>;
+    optionalDependencies?: Record<string, string>;
     repository?: { url?: string; directory?: string };
   };
   const name = `@gitdocket/${id}`;
@@ -316,18 +337,22 @@ async function packageCandidate(
     version: DOCKET_VERSION,
     tarball: relativeTarball,
     integrity: sha512Integrity(bytes),
-    dependencies: manifest.dependencies ?? {},
+    dependencies: {
+      ...manifest.dependencies,
+      ...manifest.optionalDependencies,
+    },
+    optionalDependencies: manifest.optionalDependencies ?? {},
     repository,
   };
 }
 
 function assertPackageGraph(packages: PackageCandidate[]): void {
-  const expected: Record<string, string[]> = {
-    "@gitdocket/core": [],
-    "@gitdocket/web": ["@gitdocket/core"],
-    "@gitdocket/cli": ["@gitdocket/core", "@gitdocket/web"],
-    "@gitdocket/mcp": ["@gitdocket/core"],
-  };
+  const expected = Object.fromEntries(
+    RELEASE_PACKAGE_DEFINITIONS.map((item) => [
+      item.name,
+      [...item.dependencies].sort(),
+    ]),
+  );
   for (const item of packages) {
     const internal = Object.keys(item.dependencies)
       .filter((name) => name.startsWith("@gitdocket/"))
@@ -357,6 +382,7 @@ function assertPackageGraph(packages: PackageCandidate[]): void {
 export async function buildPublicationCandidate(
   root: string,
   env: PublicationEnvironment = process.env,
+  dependencies: { verifyStandalone?: typeof verifyStandaloneSet } = {},
 ): Promise<PublicationCandidate> {
   assertTokenless(env);
   const context = assertGitHubContext(root, env);
@@ -379,6 +405,9 @@ export async function buildPublicationCandidate(
     PACKAGE_IDS.map((id) => packageCandidate(root, id)),
   );
   assertPackageGraph(packages);
+  const standalone = await (
+    dependencies.verifyStandalone ?? verifyStandaloneSet
+  )(root, join(root, "release/standalone"));
   return {
     version: DOCKET_VERSION,
     sourceTag: context.tag,
@@ -391,6 +420,7 @@ export async function buildPublicationCandidate(
     holdingTag,
     publicTag,
     packages,
+    ...(standalone ? { standalone } : {}),
   };
 }
 
@@ -403,6 +433,12 @@ function compareVersion(
     reasons.push("tarball integrity differs");
   if (stableJson(version.dependencies) !== stableJson(candidate.dependencies)) {
     reasons.push("dependencies differ");
+  }
+  if (
+    stableJson(version.optionalDependencies ?? {}) !==
+    stableJson(candidate.optionalDependencies ?? {})
+  ) {
+    reasons.push("optional platform dependencies differ");
   }
   if (stableJson(version.repository) !== stableJson(candidate.repository)) {
     reasons.push("repository identity differs");
@@ -709,6 +745,18 @@ export async function completeGitHubRelease(
   const notes = await readFile(notesPath, "utf8");
   const assetName = basename(receiptPath);
   const receiptSha256 = sha256(receiptBody);
+  const additional = receipt.candidate.standalone ?? [];
+  const releaseRoot = join(notesPath, "../../..");
+  for (const asset of additional) {
+    if (!/^release\/standalone\/[a-zA-Z0-9.-]+$/.test(asset.path)) {
+      throw new Error("unexpected standalone release asset path");
+    }
+    const bytes = new Uint8Array(
+      await Bun.file(join(releaseRoot, asset.path)).arrayBuffer(),
+    );
+    if (sha256(bytes) !== asset.sha256)
+      throw new Error(`standalone asset drift: ${asset.path}`);
+  }
   const provenance = receipt.final.packages
     .map((item) => {
       const url = item.evidence?.provenanceUrl;
@@ -737,6 +785,12 @@ export async function completeGitHubRelease(
         : "prerelease state differs",
       asset ? "" : `receipt asset ${assetName} is absent`,
       asset?.sha256 === receiptSha256 ? "" : "receipt asset hash differs",
+      ...additional.map((expected) =>
+        release.assets.find((item) => item.name === basename(expected.path))
+          ?.sha256 === expected.sha256
+          ? ""
+          : `standalone asset differs or is missing: ${basename(expected.path)}`,
+      ),
     ].filter(Boolean);
     if (errors.length) {
       throw new Error(
@@ -745,7 +799,11 @@ export async function completeGitHubRelease(
     }
   };
 
-  const existing = await github.inspectRelease(desired.tag, assetName);
+  const existing = await github.inspectRelease(
+    desired.tag,
+    assetName,
+    additional.map((asset) => basename(asset.path)),
+  );
   if (existing) {
     assertRelease(existing);
     return {
@@ -770,8 +828,13 @@ export async function completeGitHubRelease(
     notesPath: composedNotesPath,
     receiptPath,
     prerelease: desired.prerelease,
+    assets: additional.map((asset) => join(releaseRoot, asset.path)),
   });
-  const created = await github.inspectRelease(desired.tag, assetName);
+  const created = await github.inspectRelease(
+    desired.tag,
+    assetName,
+    additional.map((asset) => basename(asset.path)),
+  );
   if (!created) throw new Error("GitHub Release creation returned no release");
   assertRelease(created);
   return {
