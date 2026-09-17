@@ -110,7 +110,7 @@ jobs:
           node-version: ${{ matrix.node }}
       - run: npm install --global npm@11.17.0
       - run: bun install --frozen-lockfile
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v8
         with:
           pattern: standalone-${{ github.sha }}-*
           path: release/standalone
@@ -162,7 +162,7 @@ jobs:
           node-version: "22"
       - run: npm install --global npm@11.17.0
       - run: bun install --frozen-lockfile
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v8
         with:
           pattern: standalone-${{ github.sha }}-*
           path: release/standalone
