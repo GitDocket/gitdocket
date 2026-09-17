@@ -1,10 +1,10 @@
 {
   "schema": 1,
-  "sourceCommit": "5efd0179ea9aa2d2ea3584c3aab6357f1ba203bc",
+  "sourceCommit": "5a4569427d03ad167a69fc8c759b888291ecad48",
   "manifestPath": "release/public-export.json",
   "files": {
     ".github/dependabot.yml": "d62ce2587ea2aa1a03c7e75b2b039107dd0c5f76ed3a3c53e21245627847c2fb",
-    ".github/workflows/ci.yml": "0398417c90e01d894f88df2bcd9647c0661799563cd693e81fe8cb325b8e02ae",
+    ".github/workflows/ci.yml": "f064f90cd899b0f562163eabefe605890e1b05cc4db8fe9afad9b58996ffca63",
     ".github/workflows/dependency-audit.yml": "43fd51fe12e5571c697c7d6c97483d1b386d3ec7306c69142a558b42fb056e2d",
     ".github/workflows/publish.yml": "a3264883f97facb0a4bfc99cbc67e6e4bd458e501805c084e463afc50f0cfbc9",
     ".gitignore": "2cf6ff42cae7c2ceb3dd83aa182909c9715314e5b5decc39eb4f615349906a62",
