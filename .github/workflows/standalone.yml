@@ -21,6 +21,8 @@ permissions:
 
 jobs:
   native:
+    # Public branch/PR checks use ci.yml; release builds require a qualified draft.
+    if: github.repository != 'GitDocket/gitdocket' || github.event_name == 'workflow_dispatch' || inputs.macos_release_tag != ''
     timeout-minutes: 20
     strategy:
       fail-fast: false
