@@ -9,6 +9,7 @@ import { ENGINE_SEMANTICS } from "./engine-semantics";
 import { PROJECT_GUIDANCE_PATH } from "./guidance";
 import type { InitResult } from "./init";
 import { DOCKET_INTENTS, type DocketIntentId } from "./intents";
+import { MARKDOWN_AUTHORING_RULE } from "./markdown-prose";
 import { DOCKET_VERSION } from "./version";
 
 export const WORKFLOWS_DIR = "workflows";
@@ -30,7 +31,7 @@ export const workflowPath = (w: WorkflowDef): string =>
 // Bodies address "you", the agent executing the workflow, whatever harness it
 // runs in. Engine commands are spelled `docket …` — repos that run the engine
 // through a package runner note that in their agent instructions.
-export const DOCKET_WORKFLOWS: readonly WorkflowDef[] = [
+const WORKFLOW_DEFINITIONS: readonly WorkflowDef[] = [
   {
     slug: "docket-guidance",
     title: "Manage project guidance",
@@ -267,6 +268,12 @@ Never end a sweep without stamping the watermark, even when nothing changed.`,
   },
 ];
 
+export const DOCKET_WORKFLOWS: readonly WorkflowDef[] =
+  WORKFLOW_DEFINITIONS.map((workflow) => ({
+    ...workflow,
+    body: `${workflow.body}\n\n**Writing** — ${MARKDOWN_AUTHORING_RULE}`,
+  }));
+
 export type WorkflowSemantic =
   | "readiness"
   | "ready-ordering"
@@ -460,11 +467,15 @@ export function renderDocketSection(project: string, bundle: string): string {
 
 This repo tracks docs and work with Docket: every doc and work item is a markdown concept in \`${dir}\` (one link graph). Files are the source of truth; commits link to tasks via \`Task: ${project}-<n>\` trailers.
 
-**Engine** — the \`docket\` CLI is the write path: \`ready\`, \`overview\`, \`search\`, \`task list|create|start|stop|move|edit|close|log\`, \`lint\`, \`index\`, \`upgrade\` (all support \`--json\`). Use it for mechanics; never hand-edit status fields or the generated \`index.md\` body.
+**Engine** — the \`docket\` CLI is the write path: \`ready\`, \`overview\`, \`search\`, \`task list|create|start|stop|move|edit|close|log\`, \`lint\`, \`index\`, \`upgrade\`. Use \`--json\` on commands that advertise it; \`index\` and \`task stop\` currently return human output. Use the CLI for mechanics; never hand-edit status fields or the generated \`index.md\` body.
+
+**Writing** — ${MARKDOWN_AUTHORING_RULE}
 
 **Orientation** — for “what's next,” status, orientation, or an ordinary review, run \`${orientation.defaultEntrypoint.value}\`. This path is read-only and bounded: start with its structured result, follow bundle links only when the requested explanation needs more evidence, and do not start a task, regenerate the index, invoke a mutating workflow, or search unrelated implementation and fixture content when the overview is sufficient. Native skills are optional: without one, run the CLI command directly; an MCP-only client calls the read-only \`overview\` tool, which returns the same model and selection.
 
 **Project guidance** — before planning or acting on direct or tracked implementation work, read optional \`${dir}${PROJECT_GUIDANCE_PATH}\` (or \`docket guidance --json\`; MCP: \`project_guidance\`). Follow source continuation pages, then read only the linked procedures relevant to the request using file reads or \`docket source <path> --json\` / MCP \`source_page\`. Scope is authored prose: apply API/testing standards to relevant implementation; deployment procedures only to deployment-related work, and execute them only when the user requested that activity. Absence is valid and creates no setup requirement. Invalid, unreadable or contradictory required guidance must be exposed; follow explicit user direction and applicable host/repository instruction precedence without silently weakening a standard. This read path never authorizes task creation, selection, pickup, stopping, or reading/adopting/clearing unrelated active-task state. Re-read after explicit guidance changes or at the next work boundary; Docket supplies source and instructions, not deterministic enforcement or instant updates to an already-running agent.
+
+**Workflow extensions** — when a requested workflow matches installed project content, read \`docket extension list --json\` (MCP: \`workflow_extensions\`) and resolve the exact \`<package-id>:<workflow-id>\`; ambiguous titles require resolution. Before every relevant invocation or continuation, require current availability, read \`docket extension show <package-id> --json\` or the same MCP reader for effective choices with default/project ownership and tool bindings, then read the current canonical source, package guidance and relevant linked templates/procedures through file reads or \`docket source <path> --json\` / MCP \`source_page\`, following continuations. Package guidance applies within that workflow; defaults cannot weaken project requirements. Surface material contradictions under user/host/repository precedence. Installation, discovery and proposal preparation do not authorize task creation/pickup, unrelated procedure execution or external actions. Missing, disabled, removed, incompatible, invalid, review-required or pending-recovery content is unavailable. Generated pointers are snapshots; an already-running session must reread current state and may need a new session to discover newly installed native skills. An absent registry is an empty optional feature.
 
 **Workflows** — the judgment procedures live in the bundle; read the file and follow it:
 

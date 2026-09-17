@@ -29,16 +29,21 @@
     "release:pack": "bun scripts/release-pack.ts",
     "release:publish": "bun scripts/release-publish.ts",
     "release:rehearse": "bun scripts/release-rehearse.ts",
+    "standalone:build": "bun scripts/standalone-build.ts",
+    "standalone:smoke": "bun scripts/standalone-smoke.ts",
+    "release:standalone": "bun scripts/standalone-release.ts",
     "sync-shipped": "bun scripts/sync-shipped.ts",
     "dev": "bun packages/cli/src/index.ts serve --watch",
     "test": "bun test",
     "lint": "biome check .",
-    "format": "biome format --write ."
+    "format": "biome format --write .",
+    "release:homebrew": "bun scripts/homebrew-tap.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.11",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@types/bun": "1.3.14",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "zod": "^4.5.4"
   }
 }

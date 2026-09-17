@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { DOCKET_VERSION } from "../packages/core/src/version";
+import { RELEASE_PACKAGE_DEFINITIONS } from "./release-contract";
 import {
   assertTrustedPublishingRuntime,
   buildPublicationCandidate,
@@ -84,6 +85,7 @@ function correctVersion(candidate: PackageCandidate): RegistryVersion {
   return {
     integrity: candidate.integrity,
     dependencies: { ...candidate.dependencies },
+    optionalDependencies: { ...candidate.optionalDependencies },
     repository: { ...candidate.repository },
     provenanceUrl: `https://registry.npmjs.test/attestations/${candidate.name}`,
     provenancePredicate: "https://slsa.dev/provenance/v1",
@@ -141,6 +143,16 @@ class FakeRegistry implements RegistryBoundary {
   }
 }
 
+function fastPolling() {
+  let elapsed = 0;
+  return {
+    sleep: async (milliseconds: number) => {
+      elapsed += milliseconds;
+    },
+    monotonicNow: () => elapsed,
+  };
+}
+
 const smoke = async () => ({
   packageVersions: Object.fromEntries(
     candidateFixture().packages.map((item) => [item.name, item.version]),
@@ -162,7 +174,7 @@ describe("publication candidate and preflight", () => {
       join(import.meta.dir, "..", ".github", "workflows", "publish.yml"),
     ).text();
     expect(workflow).toContain(
-      "preflight:\n    if: github.repository == 'GitDocket/gitdocket'\n    runs-on: ubuntu-latest\n    permissions:\n      contents: read",
+      "preflight:\n    needs: standalone\n    if: github.repository == 'GitDocket/gitdocket'\n    runs-on: ubuntu-latest\n    permissions:\n      contents: read",
     );
     expect(workflow).toContain(
       "registry:\n    needs: preflight\n    runs-on: ubuntu-latest\n    environment: release\n    permissions:\n      contents: read\n      id-token: write",
@@ -220,18 +232,15 @@ describe("publication candidate and preflight", () => {
       "-m",
       `GitDocket v${DOCKET_VERSION}\n\nStage-Receipt-SHA256: ${"c".repeat(64)}`,
     );
-    for (const id of ["core", "web", "cli", "mcp"]) {
-      const coordinatedDependencies: Record<string, Record<string, string>> = {
-        core: {},
-        web: { "@gitdocket/core": DOCKET_VERSION },
-        cli: {
-          "@gitdocket/core": DOCKET_VERSION,
-          "@gitdocket/web": DOCKET_VERSION,
-        },
-        mcp: { "@gitdocket/core": DOCKET_VERSION },
-      };
-      const staging = join(await temporaryRoot(), "package");
+    for (const definition of RELEASE_PACKAGE_DEFINITIONS) {
+      const id = definition.id;
+      const staging = join(root, "staging", id, "package");
       await mkdir(staging, { recursive: true });
+      const coordinatedDependencies = {
+        [id]: Object.fromEntries(
+          definition.dependencies.map((name) => [name, DOCKET_VERSION]),
+        ),
+      };
       await writeFile(
         join(staging, "package.json"),
         `${JSON.stringify({
@@ -269,7 +278,9 @@ describe("publication candidate and preflight", () => {
       GITHUB_EVENT_NAME: "push",
       RUNNER_ENVIRONMENT: "github-hosted",
     };
-    const candidate = await buildPublicationCandidate(root, env);
+    const candidate = await buildPublicationCandidate(root, env, {
+      verifyStandalone: async () => [],
+    });
     expect(candidate.stageReceiptSha256).toBe("c".repeat(64));
     await expect(
       buildPublicationCandidate(root, { ...env, NODE_AUTH_TOKEN: "forbidden" }),
@@ -297,6 +308,62 @@ describe("publication candidate and preflight", () => {
 });
 
 describe("resumable registry publication", () => {
+  test("a missing platform cannot promote launchers, and retry never republishes existing binaries", async () => {
+    const candidate = candidateFixture();
+    candidate.packages = RELEASE_PACKAGE_DEFINITIONS.map((definition) => ({
+      id: definition.id as PackageCandidate["id"],
+      name: definition.name,
+      version: candidate.version,
+      tarball: `release/tarballs/gitdocket-${definition.id}-${candidate.version}.tgz`,
+      integrity: `sha512-${definition.id}`,
+      dependencies: Object.fromEntries(
+        definition.dependencies.map((name) => [name, candidate.version]),
+      ),
+      optionalDependencies: ["cli", "mcp"].includes(definition.id)
+        ? Object.fromEntries(
+            definition.dependencies.map((name) => [name, candidate.version]),
+          )
+        : {},
+      repository: {
+        url: "git+https://github.com/GitDocket/gitdocket.git",
+        directory: `packages/${definition.id}`,
+      },
+    }));
+    const registry = new FakeRegistry();
+    registry.failPublish.add("@gitdocket/bin-linux-arm64");
+    const proof = await preflight(candidate, registry);
+    await expect(
+      runRegistryPublication(proof, registry, { smoke, sleep: async () => {} }),
+    ).rejects.toThrow("publish failed");
+    expect(registry.actions).not.toContain("publish:@gitdocket/cli");
+    expect(
+      registry.actions.some((action) => action.endsWith(":latest")),
+    ).toBeFalse();
+    registry.failPublish.clear();
+    await runRegistryPublication(proof, registry, {
+      smoke,
+      ...fastPolling(),
+    });
+    expect(
+      registry.actions.filter(
+        (action) => action === "publish:@gitdocket/bin-darwin-arm64",
+      ),
+    ).toHaveLength(1);
+    expect(
+      registry.actions.indexOf("publish:@gitdocket/bin-linux-x64"),
+    ).toBeLessThan(registry.actions.indexOf("publish:@gitdocket/cli"));
+    const cli = candidate.packages.find(
+      (item) => item.id === "cli",
+    ) as PackageCandidate;
+    const current = registry.versions.get(cli.name) as RegistryVersion;
+    current.optionalDependencies = {};
+    expect(
+      classifyRegistry({ ...candidate, packages: [cli] }, [
+        { version: current, distTags: {} },
+      ]).classification,
+    ).toBe("conflicting");
+  });
+
   test("resumes a partial set, publishes missing packages in order, and preserves unrelated tags", async () => {
     const candidate = candidateFixture();
     const registry = new FakeRegistry();
@@ -307,7 +374,7 @@ describe("resumable registry publication", () => {
     const result = await runRegistryPublication(
       await preflight(candidate, registry),
       registry,
-      { smoke, sleep: async () => {}, now: () => "2026-09-04T00:00:00Z" },
+      { smoke, ...fastPolling(), now: () => "2026-09-04T00:00:00Z" },
     );
     expect(
       registry.actions.filter((item) => item.startsWith("publish")),
@@ -340,7 +407,7 @@ describe("resumable registry publication", () => {
     await expect(
       runRegistryPublication(await preflight(candidate, registry), registry, {
         smoke,
-        sleep: async () => {},
+        ...fastPolling(),
       }),
     ).rejects.toThrow("tag failed");
     expect(registry.tags.get("@gitdocket/core")?.latest).toBeUndefined();
@@ -353,10 +420,136 @@ describe("resumable registry publication", () => {
     await expect(
       runRegistryPublication(await preflight(candidate, registry), registry, {
         smoke,
-        sleep: async () => {},
+        ...fastPolling(),
       }),
     ).rejects.toThrow("registry did not converge");
     expect(registry.tags.get("@gitdocket/core")?.latest).toBeUndefined();
+  });
+
+  test("waits through delayed version, provenance and tag visibility without repeating writes", async () => {
+    const candidate = candidateFixture();
+    const polling = fastPolling();
+    class DelayedRegistry extends FakeRegistry {
+      acceptedAt = new Map<string, number>();
+      promotedAt = new Map<string, number>();
+      override async publish(item: PackageCandidate, tag: string) {
+        await super.publish(item, tag);
+        this.acceptedAt.set(item.name, polling.monotonicNow());
+      }
+      override async setTag(name: string, version: string, tag: string) {
+        await super.setTag(name, version, tag);
+        if (tag === "latest") this.promotedAt.set(name, polling.monotonicNow());
+      }
+      override async inspect(name: string): Promise<RegistryView> {
+        const result = await super.inspect(name);
+        const accepted = this.acceptedAt.get(name);
+        if (accepted !== undefined) {
+          const elapsed = polling.monotonicNow() - accepted;
+          if (elapsed < 180_000) return { version: null, distTags: {} };
+          if (elapsed < 240_000 && result.version) {
+            result.version = {
+              ...result.version,
+              provenanceUrl: undefined,
+              provenancePredicate: undefined,
+            };
+          }
+        }
+        const promoted = this.promotedAt.get(name);
+        if (
+          promoted !== undefined &&
+          polling.monotonicNow() - promoted < 120_000
+        )
+          delete result.distTags.latest;
+        return result;
+      }
+    }
+    const registry = new DelayedRegistry();
+    const messages: string[] = [];
+    const result = await runRegistryPublication(
+      await preflight(candidate, registry),
+      registry,
+      {
+        ...polling,
+        smoke,
+        onProgress: (message) => messages.push(message),
+      },
+    );
+    expect(result.final.public).toBe("complete");
+    expect(
+      registry.actions.filter((item) => item.startsWith("publish:")),
+    ).toHaveLength(4);
+    expect(
+      registry.actions.filter((item) => item.includes(":latest")),
+    ).toHaveLength(4);
+    expect(messages[0]).toBe("published @gitdocket/core@0.2.0 under staged");
+    expect(
+      messages.some((item) => item.startsWith("waiting for @gitdocket/core")),
+    ).toBeTrue();
+    expect(messages).toContain(
+      "registry installation smoke passed; promoting public tags",
+    );
+  });
+
+  test("reports accepted publication on timeout and resumes without republishing it", async () => {
+    const candidate = candidateFixture();
+    const polling = fastPolling();
+    class InvisibleRegistry extends FakeRegistry {
+      hideAccepted = true;
+      override async inspect(name: string): Promise<RegistryView> {
+        if (this.hideAccepted) return { version: null, distTags: {} };
+        return super.inspect(name);
+      }
+    }
+    const registry = new InvisibleRegistry();
+    const messages: string[] = [];
+    let smoked = false;
+    await expect(
+      runRegistryPublication(await preflight(candidate, registry), registry, {
+        ...polling,
+        smoke: async () => {
+          smoked = true;
+          return smoke();
+        },
+        onProgress: (message) => messages.push(message),
+      }),
+    ).rejects.toThrow("publication may already have succeeded");
+    expect(polling.monotonicNow()).toBe(600_000);
+    expect(smoked).toBeFalse();
+    expect(registry.actions).toEqual(["publish:@gitdocket/core"]);
+    expect(messages[0]).toBe("published @gitdocket/core@0.2.0 under staged");
+    registry.hideAccepted = false;
+    const resumed = await runRegistryPublication(
+      await preflight(candidate, registry),
+      registry,
+      { ...polling, smoke },
+    );
+    expect(resumed.final.public).toBe("complete");
+    expect(
+      registry.actions.filter((action) => action === "publish:@gitdocket/core"),
+    ).toHaveLength(1);
+  });
+
+  test("stops immediately when delayed publication reveals different immutable bytes", async () => {
+    const candidate = candidateFixture();
+    const polling = fastPolling();
+    class ConflictingRegistry extends FakeRegistry {
+      override async publish(item: PackageCandidate, tag: string) {
+        await super.publish(item, tag);
+        this.versions.set(item.name, {
+          ...correctVersion(item),
+          integrity: "sha512-conflicting-bytes",
+        });
+      }
+    }
+    const registry = new ConflictingRegistry();
+    await expect(
+      runRegistryPublication(await preflight(candidate, registry), registry, {
+        ...polling,
+        smoke,
+      }),
+    ).rejects.toThrow("immutable versions require operator reconciliation");
+    expect(polling.monotonicNow()).toBe(0);
+    expect(registry.actions).toEqual(["publish:@gitdocket/core"]);
   });
 
   test("a rerun resumes after a package publication failure", async () => {
@@ -367,7 +560,7 @@ describe("resumable registry publication", () => {
     await expect(
       runRegistryPublication(approved, registry, {
         smoke,
-        sleep: async () => {},
+        ...fastPolling(),
       }),
     ).rejects.toThrow("publish failed");
     expect(registry.versions.has("@gitdocket/core")).toBeTrue();
@@ -379,7 +572,7 @@ describe("resumable registry publication", () => {
       registry,
       {
         smoke,
-        sleep: async () => {},
+        ...fastPolling(),
       },
     );
     expect(
@@ -407,7 +600,7 @@ describe("resumable registry publication", () => {
     await expect(
       runRegistryPublication(approved, registry, {
         smoke,
-        sleep: async () => {},
+        ...fastPolling(),
       }),
     ).rejects.toThrow("tag failed");
     expect(registry.tags.get("@gitdocket/core")?.latest).toBe(
@@ -480,6 +673,7 @@ class FakeGitHub implements GitHubBoundary {
     notesPath: string;
     receiptPath: string;
     prerelease: boolean;
+    assets?: string[];
   }): Promise<void> {
     if (this.fail) throw new Error("GitHub Release failed");
     const receiptBody = await Bun.file(options.receiptPath).text();
@@ -497,12 +691,65 @@ class FakeGitHub implements GitHubBoundary {
             .update(receiptBody)
             .digest("hex"),
         },
+        ...(await Promise.all(
+          (options.assets ?? []).map(async (path) => ({
+            name: path.split("/").pop() ?? "",
+            sha256: new Bun.CryptoHasher("sha256")
+              .update(await Bun.file(path).arrayBuffer())
+              .digest("hex"),
+          })),
+        )),
       ],
     };
   }
 }
 
 describe("GitHub Release completion", () => {
+  test("binds standalone assets and rejects changed or missing published archives", async () => {
+    const fixture = await receiptFixture();
+    const root = join(fixture.receiptPath, "..");
+    const notes = join(root, "docs/releases/v0.2.0.md");
+    await mkdir(join(root, "docs/releases"), { recursive: true });
+    await mkdir(join(root, "release/standalone"), { recursive: true });
+    await writeFile(notes, "# Release\n");
+    const archive = join(root, "release/standalone/example.tar.gz");
+    await writeFile(archive, "reviewed archive");
+    fixture.receipt.candidate.standalone = [
+      {
+        path: "release/standalone/example.tar.gz",
+        sha256: new Bun.CryptoHasher("sha256")
+          .update("reviewed archive")
+          .digest("hex"),
+      },
+    ];
+    await writeFile(fixture.receiptPath, JSON.stringify(fixture.receipt));
+    const github = new FakeGitHub();
+    await completeGitHubRelease(
+      fixture.receipt,
+      fixture.receiptPath,
+      notes,
+      github,
+    );
+    expect(github.release?.assets).toHaveLength(2);
+    github.release?.assets.pop();
+    await expect(
+      completeGitHubRelease(
+        fixture.receipt,
+        fixture.receiptPath,
+        notes,
+        github,
+      ),
+    ).rejects.toThrow("standalone asset differs or is missing");
+    await writeFile(archive, "changed");
+    await expect(
+      completeGitHubRelease(
+        fixture.receipt,
+        fixture.receiptPath,
+        notes,
+        github,
+      ),
+    ).rejects.toThrow("standalone asset drift");
+  });
   test("creates one verified first-class release and treats an exact rerun as complete", async () => {
     const fixture = await receiptFixture();
     const github = new FakeGitHub();

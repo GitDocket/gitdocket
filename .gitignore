@@ -10,3 +10,6 @@ dist/
 release/tarballs/
 release/candidates/
 release/receipts/
+release/standalone/
+
+release/npm-*.json

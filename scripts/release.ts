@@ -19,6 +19,7 @@ interface ParsedArgs {
   output?: string;
   planPath?: string;
   destination?: string;
+  standaloneDirectory?: string;
   json: boolean;
 }
 
@@ -35,6 +36,7 @@ function parseArgs(args: string[]): ParsedArgs {
   let output: string | undefined;
   let planPath: string | undefined;
   let destination: string | undefined;
+  let standaloneDirectory: string | undefined;
   let json = false;
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
@@ -44,6 +46,7 @@ function parseArgs(args: string[]): ParsedArgs {
     else if (arg === "--output") output = args[++index];
     else if (arg === "--plan") planPath = args[++index];
     else if (arg === "--destination") destination = args[++index];
+    else if (arg === "--standalone") standaloneDirectory = args[++index];
     else if (arg === "--json") json = true;
     else throw new Error(`unknown argument: ${arg}`);
   }
@@ -61,6 +64,7 @@ function parseArgs(args: string[]): ParsedArgs {
     output,
     planPath,
     destination,
+    standaloneDirectory,
     json,
   };
 }
@@ -99,7 +103,7 @@ function runPrivateGate(): void {
   run(["bun", "run", "docket", "lint"]);
   run(["bun", "run", "docket", "index", "--check"]);
   run(["bun", "run", "audit:dependencies"]);
-  run(["bun", "run", "release:pack"]);
+  run(["bun", "run", "release:pack", "--source-only"]);
 }
 
 async function versionCommand(args: ParsedArgs): Promise<void> {
@@ -164,6 +168,7 @@ async function stageCommand(args: ParsedArgs): Promise<void> {
     planPath: args.planPath as string,
     destination: args.destination as string,
     output: args.output,
+    standaloneDirectory: args.standaloneDirectory,
   });
   if (args.json) {
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);

@@ -46,7 +46,7 @@ function initEnv(
   env: Record<string, string> | undefined,
   ...flags: string[]
 ): InitReport {
-  const result = sh(["bun", CLI, "init", "--json", ...flags], env);
+  const result = sh([process.execPath, CLI, "init", "--json", ...flags], env);
   expect(result.code).toBe(0);
   return JSON.parse(result.stdout);
 }

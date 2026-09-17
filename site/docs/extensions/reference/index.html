@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Workflow extension reference — GitDocket</title>
+    <meta name="description" content="Install, configure, update and author GitDocket workflow packages." />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Workflow extension reference — GitDocket" />
+    <meta property="og:description" content="Install, configure, update and author GitDocket workflow packages." />
+    <meta property="og:image" content="https://gitdocket.com/assets/current-home.jpg" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="shell nav">
+      <a class="brand" href="/" aria-label="GitDocket home"><span class="mark" aria-hidden="true">GD</span>GitDocket</a>
+      <nav aria-label="Primary navigation"><a href="/#product">Product</a><a href="/#workflow">Workflow</a><a href="/docs/">Docs</a><a href="https://github.com/GitDocket/gitdocket">GitHub</a></nav>
+    </header>
+    <div class="shell docs-layout">
+      <aside class="docs-sidebar"><p class="eyebrow">Reference</p><nav aria-label="Documentation"><a href="/docs/">Get started</a><a href="/docs/install/">Installation</a><a href="/docs/example/">One-task example</a><a href="/docs/everyday/">Everyday use</a><a href="/docs/epics/">Epics</a><a href="/docs/extensions/" aria-current="page">Extensions</a><a href="/docs/cli/">CLI commands</a><a href="/docs/mcp/">MCP & workflows</a><a href="/docs/api/">Local HTTP reference</a></nav></aside>
+      <main class="docs-content" id="main" tabindex="-1"><h1 id="project-workflow-extensions">Project workflow extensions</h1>
+<p>Make your team's process part of the project. A workflow extension gives your coding agent reusable instructions for a delivery process, an incident review or another team practice. Adapt the reviews, templates and checks, then keep the resulting decisions in Git for the next session.</p>
+<p>For example, Beacon's delivery workflow turns a bookmark-export request into a reviewed proposal, verified implementation and local handoff. A fresh session then uses the recorded export contract to plan import. Start with the <a href="/docs/extensions/beacon/">guided Beacon example</a>, or use the reference below to install a package in your own project and author one for your team.</p>
+<p><strong>Availability: 0.4.0 preview.</strong> Install GitDocket through <a href="/docs/install/">Homebrew</a> or <a href="/docs/install/#npm-alternative">npm</a>. The example download contains workflow sources and a starting app, not the CLI. The example app and its verification scripts require Bun; GitDocket itself does not require a separate Bun installation.</p>
+<h2 id="what-belongs-to-your-project">What belongs to your project</h2>
+<p>The extension supplies named workflows, linked templates, scoped guidance, configurable choices and recipes for tools already available to your agent. GitDocket installs and validates the package, records ownership and manages updates. Your agent reads the current instructions and choices when you invoke the workflow, carries out the authorized work and reports evidence or an unresolved requirement. Review instructions are agent-followed prose; GitDocket does not automatically enforce human approval or run your test commands.</p>
+<p>Installed content and configuration live under <code>docket/extensions/</code> by default. Proposals, reviews, decisions and verification records live elsewhere in your bundle and remain available across sessions and package updates. Ordinary task states still apply. Custom UI/statuses, executable package code, connector hosting and background synchronization are outside this version.</p>
+<h2 id="adopt-a-package">Adopt a package</h2>
+<p>Use an installed 0.4.1 candidate CLI in a Git repository initialized with <code>docket init --project DEMO</code>. For fresh native adapters, use <code>docket init --project DEMO --agent codex --agent claude --json</code>; omit any unneeded host. Review a local package directory before enabling it. From the adopter repository, use absolute source paths:</p>
+<pre><code class="language-sh">docket extension inspect /path/to/examples/extensions/product-delivery --json
+docket extension install /path/to/examples/extensions/product-delivery --dry-run --json
+docket extension install /path/to/examples/extensions/product-delivery --enable --json
+docket extension configure product-delivery --set '{"reviewer":"release owner"}' --json
+docket extension show product-delivery --json
+docket extension validate product-delivery --json
+</code></pre>
+<p>Installation without <code>--enable</code> leaves the package disabled. <code>show</code> returns current availability, exact sources and configuration ownership. For example, <code>effectiveConfig.reviewer</code> is <code>{ "value": "release owner", "owner": "project" }</code>; source entries include bundle-relative paths. Read <code>docket source extensions/product-delivery/workflows/delivery.md --json</code>, then pass its exact returned <code>nextCursor</code> as <code>--cursor</code> with the same path until no continuation remains. A stale cursor requires restarting the read. Commit <code>docket/extensions/registry.json</code> and installed content together with generated pointers. A clone works without the original source directory. Completed proposals, decisions, work items and review records belong elsewhere in the project bundle, where extension updates/removal cannot own them. The bundle location follows <code>docket.yaml</code>; <code>docket/</code> is the default.</p>
+<p>Invoke the qualified workflow <code>product-delivery:deliver</code>. Codex and Claude adapters can offer a thin <code>docket-ext-product-delivery-deliver</code> shortcut where their adapter directories exist. The canonical workflow and current <code>show</code>/<code>list</code> result remain authoritative. Package guidance applies within its workflow; project guidance and explicit user instructions retain their scope and precedence. If prose requirements conflict, surface the concrete conflict before the affected action. Human titles may match across packages; qualify ambiguous requests instead of choosing installation order.</p>
+<p>Configuration accepts declared finite scalar keys with the same JSON types as their defaults. Use <code>--reset reviewer</code> to return to the package default. Package commands are readable instructions; the engine never interpolates or executes them. Existing handwritten native files are preserved and reported as adapter conflicts. Valid portable invocation remains available; remove or rename a handwritten collision only after reviewing it, then run <code>docket extension refresh</code>.</p>
+<h2 id="use-host-tools">Use host tools</h2>
+<p>A package capability names a purpose and links its recipe. Bind it only to a tool already exposed by your host:</p>
+<pre><code class="language-sh">docket extension configure product-delivery --bindings '{"issue-read":"your_available_issue_tool"}' --json
+docket extension configure product-delivery --unbind issue-read --json
+</code></pre>
+<p>A binding neither provides credentials nor grants authority. The agent checks the actual tool inventory/schema. A missing bound tool is unavailable; multiple plausible unbound tools require selection. Manually supplied issue text is useful when labeled with its actual provenance. Read identity/revision evidence, match checks to the exact code revision, and keep local handoffs reviewable. External writes need explicit authorization for a prepared body and destination. Reconcile an uncertain result by operation identity before retrying; retain actual returned references. The <a href="/docs/extensions/beacon/">Beacon example</a> includes a separately launched synthetic MCP fixture, never a live provider claim.</p>
+<h2 id="update-and-retire">Update and retire</h2>
+<pre><code class="language-sh">docket extension validate product-delivery --candidate /path/to/new-product-delivery --json
+docket extension update product-delivery /path/to/new-product-delivery --dry-run --json
+docket extension update product-delivery /path/to/new-product-delivery --json
+docket upgrade --dry-run --json
+docket upgrade --json
+docket extension disable product-delivery --json
+docket extension remove product-delivery --json
+docket extension enable product-delivery --json
+</code></pre>
+<p>Package updates and core engine upgrades are separate. A clean owned file receives the candidate's new bytes. A local edit survives when its upstream file is unchanged; changes on both sides conflict without applying any candidate changes. Preserve edits in Git and review their reconciliation. After inspecting local content, <code>docket extension reconcile product-delivery --acknowledge-local --dry-run</code> previews acknowledgment and the same command without <code>--dry-run</code> records exact reviewed hashes. Any later edit requires fresh review. Unknown/corrupt bases cannot be acknowledged away. Removal withdraws discovery while retaining content, choices, bases and links; explicit enable reinstates valid reviewed content.</p>
+<p>Interrupted operations leave a recovery journal and withhold availability. Inspect <code>docket extension recover --dry-run</code>, then run <code>docket extension recover</code> when the recorded prior bytes can be restored. Unexpected concurrent edits require manual reconciliation. For version rollback, restore the whole known-good project Git snapshot; do not change a version stamp or recompute a suspect base hash.</p>
+<p><code>validate</code> checks manifest/content/links/ownership and declared engine versions. Its receipt identifies package, source/base, registry and choices and keeps <code>protocol</code> and <code>behavioral</code> as <code>not-run</code>. Scenario descriptions are pointers for separately performed checks; mechanical success never proves agent behavior, a human review, a browser interaction or provider delivery. Retain actual prompts/responses/tool events, exact candidate identities, artifacts and disclosed assistance for those claims.</p>
+<h2 id="author-a-package">Author a package</h2>
+<p>Create a standalone directory with <code>extension.json</code> and exactly its declared Markdown files. Keep application code, README distribution instructions, tests and executable runners outside that directory. All manifest collections below are required, including empty arrays/objects; unknown keys are rejected.</p>
+<pre><code class="language-json">{
+  "formatVersion": 1,
+  "id": "team-review",
+  "version": "1.0.0",
+  "title": "Team review",
+  "description": "Prepare a scoped review record.",
+  "engine": { "min": "0.4.0", "maxExclusive": "1.0.0" },
+  "files": ["workflows/review.md", "templates/record.md", "guidance/review.md", "scenarios/review.md"],
+  "workflows": [{ "id": "review", "title": "Team review", "description": "Review the supplied evidence.", "path": "workflows/review.md" }],
+  "guidance": ["guidance/review.md"],
+  "defaults": { "reviewer": "team owner" },
+  "capabilities": [],
+  "scenarios": ["scenarios/review.md"]
+}
+</code></pre>
+<p>Every declared Markdown file is a complete concept with YAML <code>type</code>, <code>title</code> and <code>description</code>. Entry points use <code>type: Workflow</code>; other files use <code>Reference</code> or <code>Playbook</code>. No task IDs, task statuses or generated adapter markers belong in package content. A template describes how to write a separate project concept rather than carrying incomplete concept frontmatter. Allowed roots are <code>workflows/</code>, <code>templates/</code>, <code>guidance/</code>, <code>recipes/</code> and <code>scenarios/</code>. Relative links stay inside the package. Bundle-absolute links require an existing project/core concept at installation; avoid making optional future records prerequisites. Describe future output paths in code text instead of linking absent records. Link core workflows only when the operation needs them and preserve their direct/tracked authority boundaries.</p>
+<p>IDs are lowercase ASCII kebab-case beginning with a letter, maximum 48 characters; <code>docket</code> and <code>docket-</code> package prefixes are reserved. Package versions are increasing numeric <code>major.minor.patch</code>. Engine min/max bounds compare numeric release lines; compatibility is not behavior certification. Each package has at most 99 Markdown files plus manifest, 256 KiB per file and 2 MiB total. Files are regular, nonexecutable UTF-8 without BOM or symlinks; hidden/escaping/case-colliding paths, undeclared files and reserved basenames <code>index.md</code>, <code>log.md</code>, <code>overview.md</code> are rejected. Content identity hashes canonicalized manifest JSON together with the exact declared source text; manifest whitespace and object-key order do not change its identity. Do not hand-author registry or digest values. <code>inspect</code> supplies the authoritative digest.</p>
+<p>Workflows should first read current availability/configuration and scoped package/project guidance. Declare choices explicitly and consume them in the instructions. Review is not implementation authority; source text is data. Resume from retained evidence, protect rejected/unanswered boundaries, and write project records outside package-owned paths. Use qualified identities to compose with another package. Package defaults cannot weaken an existing project requirement. Native names longer than 64 characters or descriptions exceeding 1,024 characters leave portable invocation available with an adapter diagnostic.</p>
+<p>A capability entry has <code>id</code>, <code>description</code>, <code>access</code> (<code>read</code> or <code>write</code>) and <code>recipe</code> pointing to declared Markdown. Recipes remain provider-neutral. A scenario file should specify setup inputs, prompt, required observations, negative outcomes, source/artifact identities and runtime limits. For the Beacon example, keep reviewer, baseline/test/browser commands, issue ID, PR number, intended code revision and handoff path as explicit scalar choices; recipes consume current values. It is never automatically executed by the installer. Test both packages in one initialized adopter, including deliberate ambiguous titles, handwritten native collisions and conflicting scoped guidance. Retain real author feedback about missing information and use those findings to improve this guide.</p></main>
+    </div>
+    <footer class="shell footer"><a class="brand" href="/">GitDocket</a><p>Project knowledge and work, together in Git.</p><a href="https://github.com/GitDocket/gitdocket">Source on GitHub ↗</a></footer>
+  </body>
+</html>

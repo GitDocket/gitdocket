@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Install GitDocket — GitDocket</title>
+    <meta name="description" content="Install both GitDocket commands with Homebrew, or use npm with Node 22+. Supported platforms, updates and migration." />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Install GitDocket — GitDocket" />
+    <meta property="og:description" content="Install both GitDocket commands with Homebrew, or use npm with Node 22+. Supported platforms, updates and migration." />
+    <meta property="og:image" content="https://gitdocket.com/assets/current-home.jpg" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="shell nav">
+      <a class="brand" href="/" aria-label="GitDocket home"><span class="mark" aria-hidden="true">GD</span>GitDocket</a>
+      <nav aria-label="Primary navigation"><a href="/#product">Product</a><a href="/#workflow">Workflow</a><a href="/docs/" aria-current="page">Docs</a><a href="https://github.com/GitDocket/gitdocket">GitHub</a></nav>
+    </header>
+    <div class="shell docs-layout">
+      <aside class="docs-sidebar"><p class="eyebrow">Reference</p><nav aria-label="Documentation"><a href="/docs/">Get started</a><a href="/docs/install/">Installation</a><a href="/docs/example/">One-task example</a><a href="/docs/everyday/">Everyday use</a><a href="/docs/epics/">Epics</a><a href="/docs/extensions/">Extensions</a><a href="/docs/cli/">CLI commands</a><a href="/docs/mcp/">MCP & workflows</a><a href="/docs/api/">Local HTTP reference</a></nav></aside>
+      <main class="docs-content" id="main" tabindex="-1"><h1 id="install-gitdocket">Install GitDocket</h1>
+<p>Install GitDocket 0.4.1 with Homebrew and Git:</p>
+<pre><code class="language-sh">brew install gitdocket/tap/gitdocket
+docket --version
+docket-mcp --version
+</code></pre>
+<p>One formula supplies both commands without separately installing Bun, Node or npm. Continue with <a href="/docs/">Getting started</a>, or use the <a href="/docs/install/#npm-alternative">npm alternative</a> if you already have Node 22+.</p>
+<h2 id="support-and-trust">Support and trust</h2>
+<p>The project-maintained tap is <code>GitDocket/homebrew-tap</code>; its formula is <code>gitdocket</code>. It is separate from Homebrew core and uses the same checked, versioned standalone archives as the other distribution channels. It does not use a cask. Linux qualification uses Ubuntu 24.04 on ARM64 and x64. Mac release checks run locally on Apple Silicon, including Intel compatibility through Rosetta; receipts record the actual macOS version and execution assistance. Rosetta does not establish testing on physical Intel hardware or an older macOS release. The formula requires macOS 15 or later and 64-bit ARM or Intel hardware; Linux must satisfy Homebrew's own supported-system requirements. Other Linux distributions and older OS releases have not been qualified. Windows is outside this release's scope.</p>
+<p>Homebrew 6 and later require trust for third-party formulae. A fully qualified <code>brew install gitdocket/tap/gitdocket</code> grants trust to that formula, keeping installation to one command. It does not trust all future tap content. See <a href="https://docs.brew.sh/Tap-Trust">Homebrew tap trust</a>.</p>
+<h2 id="updating-and-removing">Updating and removing</h2>
+<p>Use <code>brew update</code> followed by <code>brew upgrade gitdocket/tap/gitdocket</code>. <code>brew reinstall gitdocket/tap/gitdocket</code> repairs the installed package; <code>brew uninstall gitdocket/tap/gitdocket</code> removes it. Homebrew manages its own executable files. These commands do not migrate or delete project bundles, authored Markdown, agent configurations or hooks.</p>
+<p>Inside each project, review <code>docket upgrade --dry-run --json</code>, then run <code>docket upgrade</code> and resolve any reported instruction conflicts. Updating the executable does not imply that project instructions have been reconciled.</p>
+<h2 id="moving-from-npm-or-bun">Moving from npm or Bun</h2>
+<p>Before switching channels, run <code>type -a docket docket-mcp</code> to see which executables your shell resolves. Inspect the existing installation with <code>npm ls -g --depth=0</code> or <code>bun pm ls -g</code>, depending on the installer you used. Install the Homebrew package, then inspect its commands directly with <code>$(brew --prefix gitdocket/tap/gitdocket)/bin/docket --version</code> and the corresponding <code>docket-mcp --version</code>.</p>
+<p>If Homebrew reports an existing link collision, review the named paths and uninstall only the prior GitDocket packages with their original package manager: <code>npm uninstall -g @gitdocket/cli @gitdocket/mcp</code> or <code>bun remove -g @gitdocket/cli @gitdocket/mcp</code>. Do not force-overwrite unknown executable paths. Then run <code>brew link gitdocket/tap/gitdocket</code>, refresh your shell's command cache or open a new terminal, and rerun <code>type -a docket docket-mcp</code> and both version commands. An earlier directory on PATH can still select another installation even when Homebrew linking succeeds.</p>
+<p>Agent MCP configurations can contain an absolute path to the old executable. Review <code>.mcp.json</code>, <code>.codex/config.toml</code> and any host-level MCP configuration. Point intentional custom entries at the selected <code>docket-mcp</code>. Re-running <code>docket init --agent claude --agent codex</code> applies normal preservation rules and may leave an existing custom MCP entry untouched; inspect the result and restart the agent host. Removing a package does not remove project files or rewrite those entries for you.</p><h2 id="npm-alternative">npm alternative</h2>
+<p>GitDocket 0.4.1 supports npm as an alternative to <a href="/docs/install/">Homebrew</a>. Node 22 or later and npm are required. CLI/MCP commands use standalone binaries and need no separate Bun installation. Earlier 0.3.1 commands and the core/web library packages remain Bun-dependent.</p>
+<p>With Node 22 or later and npm, the standalone release installs both commands through the existing package names:</p>
+<pre><code class="language-sh">npm install -g --include=optional @gitdocket/cli @gitdocket/mcp
+docket --version
+docket-mcp --version
+</code></pre>
+<p>The small launchers select exact-version <code>@gitdocket/bin-&#x3C;os>-&#x3C;arch></code> dependencies. Those packages contain the same qualified binaries, build identity and licenses as the Homebrew archives. There is no install script, runtime download or source fallback. Keep optional dependencies enabled. This route supports macOS and glibc Linux on arm64 and x64; the native qualification matrix is shared with <a href="/docs/install/">Homebrew</a>. Musl/Alpine, Windows and 32-bit systems are unsupported.</p>
+<p>For a temporary CLI invocation without a global installation, use:</p>
+<pre><code class="language-sh">npx --yes --package=@gitdocket/cli --package=@gitdocket/mcp docket --version
+npx --yes --package=@gitdocket/cli --package=@gitdocket/mcp docket init --agent claude --agent codex
+</code></pre>
+<p>npm may ask before downloading packages when <code>--yes</code> is omitted. For a reproducible invocation, pin both package versions explicitly. npx makes the commands available only for that invocation. Generated MCP configuration names <code>docket-mcp</code>, which a later agent may not find; use a stable global installation for persistent MCP configuration, or configure the host explicitly to run <code>npx --yes --package=@gitdocket/mcp@&#x3C;version> docket-mcp</code>. Restart the host after changing its MCP command.</p>
+<p>Use <code>npm update -g @gitdocket/cli @gitdocket/mcp</code> to update both commands and <code>npm uninstall -g @gitdocket/cli @gitdocket/mcp</code> to remove them. Updates and removal preserve project bundles. Existing Bun-dependent npm packages upgrade under the same names. A separate Bun global installation uses a different package manager and must be reviewed separately. See the <a href="/docs/install/#moving-from-npm-or-bun">PATH and MCP migration procedure</a> when switching channels or resolving command collisions. Project instruction reconciliation remains an explicit <code>docket upgrade --dry-run --json</code>, followed by a reviewed <code>docket upgrade</code>.</p></main>
+    </div>
+    <footer class="shell footer"><a class="brand" href="/">GitDocket</a><p>Project knowledge and work, together in Git.</p><a href="https://github.com/GitDocket/gitdocket">Source on GitHub ↗</a></footer>
+  </body>
+</html>

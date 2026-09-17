@@ -62,7 +62,7 @@ export function nextId(
 }
 
 const yamlLine = (key: string, value: unknown): string =>
-  stringifyYaml({ [key]: value }).trimEnd();
+  stringifyYaml({ [key]: value }, { lineWidth: 0 }).trimEnd();
 
 export const createWorkItem = (
   ...args: Parameters<typeof createWorkItemUnlocked>

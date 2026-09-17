@@ -1,0 +1,69 @@
+{
+  "formatVersion": 1,
+  "id": "product-delivery",
+  "version": "1.0.0",
+  "title": "Product delivery",
+  "description": "Reviewed product proposals, authorized implementation and verified local handoffs.",
+  "engine": {
+    "min": "0.4.0",
+    "maxExclusive": "1.0.0"
+  },
+  "files": [
+    "workflows/delivery.md",
+    "guidance/delivery.md",
+    "templates/proposal.md",
+    "templates/record.md",
+    "templates/verification.md",
+    "templates/release-handoff.md",
+    "recipes/issue.md",
+    "recipes/checks.md",
+    "recipes/handoff.md",
+    "scenarios/beacon.md"
+  ],
+  "workflows": [
+    {
+      "id": "deliver",
+      "title": "Product delivery",
+      "description": "Prepare a proposal, respect review boundaries, verify authorized implementation and retain a local handoff.",
+      "path": "workflows/delivery.md"
+    }
+  ],
+  "guidance": ["guidance/delivery.md"],
+  "defaults": {
+    "reviewer": "product owner",
+    "testCommand": "bun run test",
+    "browserCommand": "bun run test:browser -- --output=/tmp/beacon-browser.json",
+    "baselineCommand": "bun run test:baseline",
+    "issueId": "BEC-42",
+    "prNumber": 17,
+    "codeRevision": "",
+    "handoffPath": "docket/delivery/BEC-42-release-handoff.md"
+  },
+  "capabilities": [
+    {
+      "id": "issue-read",
+      "description": "Read selected issue identity, source and revision evidence",
+      "access": "read",
+      "recipe": "recipes/issue.md"
+    },
+    {
+      "id": "checks-read",
+      "description": "Inspect PR head and checks for the exact implementation candidate",
+      "access": "read",
+      "recipe": "recipes/checks.md"
+    },
+    {
+      "id": "handoff-write",
+      "description": "Post an explicitly authorized exact prepared handoff",
+      "access": "write",
+      "recipe": "recipes/handoff.md"
+    },
+    {
+      "id": "handoff-read",
+      "description": "Reconcile uncertain handoff delivery by operation identity",
+      "access": "read",
+      "recipe": "recipes/handoff.md"
+    }
+  ],
+  "scenarios": ["scenarios/beacon.md"]
+}

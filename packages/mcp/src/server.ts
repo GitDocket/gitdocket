@@ -15,6 +15,7 @@ import {
   type FileStore,
   GitWorktreeIdCoordinator,
   lintBundle,
+  MARKDOWN_AUTHORING_RULE,
   PRIORITIES,
   parseConcept,
   READY_QUEUE_DESCRIPTION,
@@ -37,6 +38,7 @@ import {
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { CallToolRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
+import { extensionPage } from "./extensions";
 import {
   RepositoryOwner,
   type RepositoryResolver,
@@ -72,7 +74,10 @@ export function createDocketServer(
   root?: string,
   resolve?: RepositoryResolver,
 ): McpServer {
-  const server = new McpServer({ name: "docket", version: DOCKET_VERSION });
+  const server = new McpServer(
+    { name: "docket", version: DOCKET_VERSION },
+    { instructions: MARKDOWN_AUTHORING_RULE },
+  );
   const idCoordinator = root ? new GitWorktreeIdCoordinator(root) : undefined;
   const owner = new RepositoryOwner(
     resolve ?? (async () => ({ store, config })),
@@ -133,6 +138,26 @@ export function createDocketServer(
     owner.close();
     onclose?.();
   };
+
+  server.registerTool(
+    "workflow_extensions",
+    {
+      title: "Discover installed workflow extensions",
+      description:
+        "Read current installed package availability, qualified workflow names, project choices and source paths. Read the selected canonical Markdown with source_page and relevant project_guidance before invocation. Only available workflows may be invoked; installation, discovery and tool bindings grant no task or external-write authority. Reread at each work boundary: running sessions may retain stale instructions. No lifecycle mutation or task selection occurs. Results are bounded to 24 KB and paginated; outputLimited explicitly directs oversized package inspection to CLI show before invocation.",
+      inputSchema: {
+        id: z.string().min(1).optional().describe("Optional exact package ID"),
+        offset: z.number().int().min(0).optional().default(0),
+        limit: z.number().int().min(1).max(100).optional().default(20),
+      },
+      annotations: READ,
+    },
+    async ({ id, offset, limit }) => {
+      const result = await owner.extensions();
+      if (result.status === "unsupported") return json(result);
+      return json(extensionPage(result, id, offset, limit));
+    },
+  );
 
   server.registerTool(
     "overview",

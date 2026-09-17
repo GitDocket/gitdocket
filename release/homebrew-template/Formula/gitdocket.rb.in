@@ -1,0 +1,53 @@
+class Gitdocket < Formula
+  desc "Local-first project knowledge and work tracking for coding agents"
+  homepage "https://gitdocket.com"
+  license "Apache-2.0"
+
+  uses_from_macos "git"
+
+  on_macos do
+    depends_on macos: :sequoia
+
+    on_arm do
+      url "@BASE@/gitdocket-@VERSION@-darwin-arm64.tar.gz"
+      sha256 "@DARWIN_ARM64@"
+      depends_on arch: :arm64
+    end
+    on_intel do
+      url "@BASE@/gitdocket-@VERSION@-darwin-x64.tar.gz"
+      sha256 "@DARWIN_X64@"
+      depends_on arch: :x86_64
+    end
+  end
+
+  on_linux do
+    on_arm do
+      url "@BASE@/gitdocket-@VERSION@-linux-arm64.tar.gz"
+      sha256 "@LINUX_ARM64@"
+      depends_on arch: :arm64
+    end
+    on_intel do
+      url "@BASE@/gitdocket-@VERSION@-linux-x64.tar.gz"
+      sha256 "@LINUX_X64@"
+      depends_on arch: :x86_64
+    end
+  end
+
+  def install
+    bin.install "docket", "docket-mcp"
+    prefix.install "LICENSE", "THIRD_PARTY_NOTICES.txt"
+    pkgshare.install "BUILD.json"
+  end
+
+  test do
+    assert_equal version.to_s, shell_output("#{bin}/docket --version").strip
+    assert_equal version.to_s, shell_output("#{bin}/docket-mcp --version").strip
+    system "git", "init", "-q"
+    system bin/"docket", "init", "--project", "BREW", "--json"
+    system bin/"docket", "task", "create", "--title", "Installed formula works", "--json"
+    ready = JSON.parse(shell_output("#{bin}/docket ready --json"))
+    assert_equal "Installed formula works", ready.fetch(0).fetch("title")
+    system bin/"docket", "index"
+    system bin/"docket", "index", "--check"
+  end
+end

@@ -7,7 +7,7 @@ Source pull requests are not accepted yet: there is no supported inbound synchro
 Before opening an issue:
 
 1. Search existing issues.
-2. Reproduce with the newest preview on a supported Bun version and platform.
+2. Reproduce with the newest preview on a supported installation route and platform. Source development requires Bun 1.3.14 or newer.
 3. Include the smallest project or synthetic bundle that demonstrates the behavior.
 4. State the expected and actual result without including private repository content.
 

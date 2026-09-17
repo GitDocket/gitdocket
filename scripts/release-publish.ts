@@ -29,12 +29,13 @@ interface CommandResult {
   stderr: string;
 }
 
-function command(args: string[], cwd = ROOT): CommandResult {
+function command(args: string[], cwd = ROOT, timeout?: number): CommandResult {
   const result = Bun.spawnSync(args, {
     cwd,
     env: process.env,
     stdout: "pipe",
     stderr: "pipe",
+    timeout,
   });
   return {
     exitCode: result.exitCode,
@@ -63,15 +64,20 @@ function parseJson<T>(body: string, context: string): T {
 
 export class NpmRegistryBoundary implements RegistryBoundary {
   async inspect(name: string, version: string): Promise<RegistryView> {
-    const versionResult = command([
-      "npm",
-      "view",
-      `${name}@${version}`,
-      "--json",
-      "dist",
-      "dependencies",
-      "repository",
-    ]);
+    const versionResult = command(
+      [
+        "npm",
+        "view",
+        `${name}@${version}`,
+        "--json",
+        "dist",
+        "dependencies",
+        "optionalDependencies",
+        "repository",
+      ],
+      ROOT,
+      60_000,
+    );
     let metadata: RegistryVersion | null = null;
     if (versionResult.exitCode === 0) {
       const value = parseJson<{
@@ -83,6 +89,7 @@ export class NpmRegistryBoundary implements RegistryBoundary {
           };
         };
         dependencies?: Record<string, string>;
+        optionalDependencies?: Record<string, string>;
         repository?: { url?: string; directory?: string };
       }>(versionResult.stdout, `npm view ${name}@${version}`);
       if (
@@ -96,7 +103,8 @@ export class NpmRegistryBoundary implements RegistryBoundary {
       }
       metadata = {
         integrity: value.dist.integrity,
-        dependencies: value.dependencies ?? {},
+        dependencies: { ...value.dependencies, ...value.optionalDependencies },
+        optionalDependencies: value.optionalDependencies ?? {},
         repository: {
           url: value.repository.url,
           directory: value.repository.directory,
@@ -110,7 +118,11 @@ export class NpmRegistryBoundary implements RegistryBoundary {
       );
     }
 
-    const tagsResult = command(["npm", "view", name, "dist-tags", "--json"]);
+    const tagsResult = command(
+      ["npm", "view", name, "dist-tags", "--json"],
+      ROOT,
+      60_000,
+    );
     const distTags =
       tagsResult.exitCode === 0
         ? parseJson<Record<string, string>>(
@@ -151,6 +163,7 @@ export class GhReleaseBoundary implements GitHubBoundary {
   async inspectRelease(
     tag: string,
     assetName: string,
+    additionalAssets: string[] = [],
   ): Promise<GitHubReleaseView | null> {
     const result = command([
       "gh",
@@ -180,6 +193,14 @@ export class GhReleaseBoundary implements GitHubBoundary {
     const assetSha256 = release.assets.some((asset) => asset.name === assetName)
       ? await inspectGitHubReleaseAssetSha256(tag, assetName, ROOT)
       : undefined;
+    const extraHashes = new Map<string, string>();
+    for (const name of additionalAssets) {
+      if (release.assets.some((asset) => asset.name === name)) {
+        const hash = await inspectGitHubReleaseAssetSha256(tag, name, ROOT);
+        if (!hash) throw new Error(`Cannot verify release asset ${name}`);
+        extraHashes.set(name, hash);
+      }
+    }
     return {
       tag: release.tagName,
       title: release.name,
@@ -189,7 +210,8 @@ export class GhReleaseBoundary implements GitHubBoundary {
       url: release.url,
       assets: release.assets.map((asset) => ({
         name: asset.name,
-        sha256: asset.name === assetName ? assetSha256 : undefined,
+        sha256:
+          asset.name === assetName ? assetSha256 : extraHashes.get(asset.name),
       })),
     };
   }
@@ -200,6 +222,7 @@ export class GhReleaseBoundary implements GitHubBoundary {
     notesPath: string;
     receiptPath: string;
     prerelease: boolean;
+    assets?: string[];
   }): Promise<void> {
     checked([
       "gh",
@@ -207,6 +230,7 @@ export class GhReleaseBoundary implements GitHubBoundary {
       "create",
       options.tag,
       options.receiptPath,
+      ...(options.assets ?? []),
       "--repo",
       RELEASE_REPOSITORY,
       "--verify-tag",
@@ -285,6 +309,7 @@ async function main(): Promise<void> {
     }
     const receipt = await runRegistryPublication(preflight, registry, {
       smoke: runRegistryOnlySmoke,
+      onProgress: (message) => console.error(`[release] ${message}`),
     });
     await writeJson(args.output, receipt);
     process.stdout.write(`${JSON.stringify(receipt, null, 2)}\n`);

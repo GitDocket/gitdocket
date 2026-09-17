@@ -3,9 +3,24 @@ import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { DOCKET_VERSION } from "../packages/core/src/version";
 import { runInstalledSmoke, type SmokeResult } from "./release-stage";
+import {
+  type StandaloneAsset,
+  verifyStandaloneSet,
+} from "./standalone-release";
 
 export const PUBLICATION_SCHEMA = 1 as const;
-export const PACKAGE_IDS = ["core", "web", "cli", "mcp"] as const;
+
+import {
+  BINARY_PACKAGE_IDS,
+  RELEASE_PACKAGE_DEFINITIONS,
+} from "./release-contract";
+export const PACKAGE_IDS = [
+  "core",
+  "web",
+  ...BINARY_PACKAGE_IDS,
+  "cli",
+  "mcp",
+] as const;
 export const PACKAGE_NAMES = PACKAGE_IDS.map((id) => `@gitdocket/${id}`);
 export const RELEASE_REPOSITORY = "GitDocket/gitdocket";
 export const RELEASE_WORKFLOW = ".github/workflows/publish.yml";
@@ -20,6 +35,7 @@ export interface PackageCandidate {
   tarball: string;
   integrity: string;
   dependencies: Record<string, string>;
+  optionalDependencies?: Record<string, string>;
   repository: { url: string; directory: string };
 }
 
@@ -35,11 +51,13 @@ export interface PublicationCandidate {
   holdingTag: string;
   publicTag: string;
   packages: PackageCandidate[];
+  standalone?: StandaloneAsset[];
 }
 
 export interface RegistryVersion {
   integrity: string;
   dependencies: Record<string, string>;
+  optionalDependencies?: Record<string, string>;
   repository: { url: string; directory: string };
   provenanceUrl?: string;
   provenancePredicate?: string;
@@ -125,6 +143,7 @@ export interface GitHubBoundary {
   inspectRelease(
     tag: string,
     assetName: string,
+    additionalAssets?: string[],
   ): Promise<GitHubReleaseView | null>;
   createRelease(options: {
     tag: string;
@@ -132,6 +151,7 @@ export interface GitHubBoundary {
     notesPath: string;
     receiptPath: string;
     prerelease: boolean;
+    assets?: string[];
   }): Promise<void>;
 }
 
@@ -294,6 +314,7 @@ async function packageCandidate(
     name?: string;
     version?: string;
     dependencies?: Record<string, string>;
+    optionalDependencies?: Record<string, string>;
     repository?: { url?: string; directory?: string };
   };
   const name = `@gitdocket/${id}`;
@@ -316,18 +337,22 @@ async function packageCandidate(
     version: DOCKET_VERSION,
     tarball: relativeTarball,
     integrity: sha512Integrity(bytes),
-    dependencies: manifest.dependencies ?? {},
+    dependencies: {
+      ...manifest.dependencies,
+      ...manifest.optionalDependencies,
+    },
+    optionalDependencies: manifest.optionalDependencies ?? {},
     repository,
   };
 }
 
 function assertPackageGraph(packages: PackageCandidate[]): void {
-  const expected: Record<string, string[]> = {
-    "@gitdocket/core": [],
-    "@gitdocket/web": ["@gitdocket/core"],
-    "@gitdocket/cli": ["@gitdocket/core", "@gitdocket/web"],
-    "@gitdocket/mcp": ["@gitdocket/core"],
-  };
+  const expected = Object.fromEntries(
+    RELEASE_PACKAGE_DEFINITIONS.map((item) => [
+      item.name,
+      [...item.dependencies].sort(),
+    ]),
+  );
   for (const item of packages) {
     const internal = Object.keys(item.dependencies)
       .filter((name) => name.startsWith("@gitdocket/"))
@@ -357,6 +382,7 @@ function assertPackageGraph(packages: PackageCandidate[]): void {
 export async function buildPublicationCandidate(
   root: string,
   env: PublicationEnvironment = process.env,
+  dependencies: { verifyStandalone?: typeof verifyStandaloneSet } = {},
 ): Promise<PublicationCandidate> {
   assertTokenless(env);
   const context = assertGitHubContext(root, env);
@@ -379,6 +405,9 @@ export async function buildPublicationCandidate(
     PACKAGE_IDS.map((id) => packageCandidate(root, id)),
   );
   assertPackageGraph(packages);
+  const standalone = await (
+    dependencies.verifyStandalone ?? verifyStandaloneSet
+  )(root, join(root, "release/standalone"));
   return {
     version: DOCKET_VERSION,
     sourceTag: context.tag,
@@ -391,6 +420,7 @@ export async function buildPublicationCandidate(
     holdingTag,
     publicTag,
     packages,
+    ...(standalone ? { standalone } : {}),
   };
 }
 
@@ -403,6 +433,12 @@ function compareVersion(
     reasons.push("tarball integrity differs");
   if (stableJson(version.dependencies) !== stableJson(candidate.dependencies)) {
     reasons.push("dependencies differ");
+  }
+  if (
+    stableJson(version.optionalDependencies ?? {}) !==
+    stableJson(candidate.optionalDependencies ?? {})
+  ) {
+    reasons.push("optional platform dependencies differ");
   }
   if (stableJson(version.repository) !== stableJson(candidate.repository)) {
     reasons.push("repository identity differs");
@@ -542,8 +578,11 @@ async function waitFor(
   registry: RegistryBoundary,
   predicate: (view: RegistryView) => boolean,
   sleep: (milliseconds: number) => Promise<void>,
+  monotonicNow: () => number,
+  onProgress: (message: string) => void,
 ): Promise<RegistryView> {
-  for (let attempt = 0; attempt < 12; attempt += 1) {
+  const deadline = monotonicNow() + 10 * 60_000;
+  for (;;) {
     const view = await registry.inspect(candidate.name, candidate.version);
     const state = classifyRegistry(
       {
@@ -572,10 +611,15 @@ async function waitFor(
       assertNoConflicts(state);
     }
     if (predicate(view)) return view;
-    if (attempt < 11) await sleep(5_000);
+    const remaining = deadline - monotonicNow();
+    if (remaining <= 0) break;
+    onProgress(
+      `waiting for ${candidate.name}@${candidate.version} registry visibility (${Math.ceil(remaining / 1_000)}s remaining)`,
+    );
+    await sleep(Math.min(10_000, remaining));
   }
   throw new Error(
-    `registry did not converge for ${candidate.name}@${candidate.version}`,
+    `registry did not converge for ${candidate.name}@${candidate.version} within 10 minutes; publication may already have succeeded. Reconcile its immutable metadata before retrying the same candidate.`,
   );
 }
 
@@ -585,14 +629,22 @@ export async function runRegistryPublication(
   options: {
     smoke: (candidate: PublicationCandidate) => Promise<SmokeResult>;
     sleep?: (milliseconds: number) => Promise<void>;
+    monotonicNow?: () => number;
+    onProgress?: (message: string) => void;
     now?: () => string;
   },
 ): Promise<RegistryReceipt> {
   const candidate = preflight.candidate;
   const sleep = options.sleep ?? ((milliseconds) => Bun.sleep(milliseconds));
+  const monotonicNow = options.monotonicNow ?? (() => performance.now());
+  const onProgress = options.onProgress ?? (() => {});
   const initial = await snapshot(candidate, registry);
   assertNoConflicts(initial);
   const actions: string[] = [];
+  function recordAction(message: string): void {
+    actions.push(message);
+    onProgress(message);
+  }
 
   for (const item of candidate.packages) {
     let view = await registry.inspect(item.name, item.version);
@@ -600,7 +652,7 @@ export async function runRegistryPublication(
     assertNoConflicts(state);
     if (state.packages[0]?.state === "absent") {
       await registry.publish(item, candidate.holdingTag);
-      actions.push(
+      recordAction(
         `published ${item.name}@${item.version} under ${candidate.holdingTag}`,
       );
       view = await waitFor(
@@ -610,19 +662,23 @@ export async function runRegistryPublication(
           Boolean(current.version) &&
           compareVersion(item, current.version as RegistryVersion).length === 0,
         sleep,
+        monotonicNow,
+        onProgress,
       );
     } else {
-      actions.push(`kept existing correct ${item.name}@${item.version}`);
+      recordAction(`kept existing correct ${item.name}@${item.version}`);
     }
     if (view.distTags[candidate.holdingTag] !== candidate.version) {
       await registry.setTag(item.name, item.version, candidate.holdingTag);
-      actions.push(`set ${item.name}@${item.version} ${candidate.holdingTag}`);
+      recordAction(`set ${item.name}@${item.version} ${candidate.holdingTag}`);
       await waitFor(
         item,
         registry,
         (current) =>
           current.distTags[candidate.holdingTag] === candidate.version,
         sleep,
+        monotonicNow,
+        onProgress,
       );
     }
   }
@@ -635,25 +691,31 @@ export async function runRegistryPublication(
     );
   }
 
+  onProgress(
+    "all packages verified under the holding tag; running registry installation smoke",
+  );
   const smoke = await options.smoke(candidate);
+  onProgress("registry installation smoke passed; promoting public tags");
 
   for (const item of candidate.packages) {
     const view = await registry.inspect(item.name, item.version);
     const state = classifyRegistry({ ...candidate, packages: [item] }, [view]);
     assertNoConflicts(state);
     if (view.distTags[candidate.publicTag] === candidate.version) {
-      actions.push(
+      recordAction(
         `kept ${item.name} ${candidate.publicTag} at ${item.version}`,
       );
       continue;
     }
     await registry.setTag(item.name, item.version, candidate.publicTag);
-    actions.push(`set ${item.name}@${item.version} ${candidate.publicTag}`);
+    recordAction(`set ${item.name}@${item.version} ${candidate.publicTag}`);
     await waitFor(
       item,
       registry,
       (current) => current.distTags[candidate.publicTag] === candidate.version,
       sleep,
+      monotonicNow,
+      onProgress,
     );
   }
 
@@ -709,6 +771,18 @@ export async function completeGitHubRelease(
   const notes = await readFile(notesPath, "utf8");
   const assetName = basename(receiptPath);
   const receiptSha256 = sha256(receiptBody);
+  const additional = receipt.candidate.standalone ?? [];
+  const releaseRoot = join(notesPath, "../../..");
+  for (const asset of additional) {
+    if (!/^release\/standalone\/[a-zA-Z0-9.-]+$/.test(asset.path)) {
+      throw new Error("unexpected standalone release asset path");
+    }
+    const bytes = new Uint8Array(
+      await Bun.file(join(releaseRoot, asset.path)).arrayBuffer(),
+    );
+    if (sha256(bytes) !== asset.sha256)
+      throw new Error(`standalone asset drift: ${asset.path}`);
+  }
   const provenance = receipt.final.packages
     .map((item) => {
       const url = item.evidence?.provenanceUrl;
@@ -737,6 +811,12 @@ export async function completeGitHubRelease(
         : "prerelease state differs",
       asset ? "" : `receipt asset ${assetName} is absent`,
       asset?.sha256 === receiptSha256 ? "" : "receipt asset hash differs",
+      ...additional.map((expected) =>
+        release.assets.find((item) => item.name === basename(expected.path))
+          ?.sha256 === expected.sha256
+          ? ""
+          : `standalone asset differs or is missing: ${basename(expected.path)}`,
+      ),
     ].filter(Boolean);
     if (errors.length) {
       throw new Error(
@@ -745,7 +825,11 @@ export async function completeGitHubRelease(
     }
   };
 
-  const existing = await github.inspectRelease(desired.tag, assetName);
+  const existing = await github.inspectRelease(
+    desired.tag,
+    assetName,
+    additional.map((asset) => basename(asset.path)),
+  );
   if (existing) {
     assertRelease(existing);
     return {
@@ -770,8 +854,13 @@ export async function completeGitHubRelease(
     notesPath: composedNotesPath,
     receiptPath,
     prerelease: desired.prerelease,
+    assets: additional.map((asset) => join(releaseRoot, asset.path)),
   });
-  const created = await github.inspectRelease(desired.tag, assetName);
+  const created = await github.inspectRelease(
+    desired.tag,
+    assetName,
+    additional.map((asset) => basename(asset.path)),
+  );
   if (!created) throw new Error("GitHub Release creation returned no release");
   assertRelease(created);
   return {

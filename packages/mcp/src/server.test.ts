@@ -4,6 +4,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import {
   InMemoryFileStore,
+  MARKDOWN_AUTHORING_RULE,
   parseConfig,
   READY_QUEUE_DESCRIPTION,
 } from "@gitdocket/core";
@@ -67,6 +68,34 @@ const call = async (
 };
 
 describe("tool surface", () => {
+  test("MCP-only agents receive the writing rule and source-level lint warnings", async () => {
+    const { client, store } = await connect();
+    expect(client.getInstructions()).toBe(MARKDOWN_AUTHORING_RULE);
+    const description =
+      "A long description that must never be folded at a column limit. "
+        .repeat(6)
+        .trim();
+    const created = await call(client, "task_create", {
+      title: "Long prose",
+      description,
+    });
+    expect(created.isError).toBe(false);
+    expect(await store.read(created.data.path)).toContain(
+      `description: ${description}\n`,
+    );
+    await store.write(
+      "reference/wrapped.md",
+      "---\ntype: Reference\n---\n\nA wrapped\nparagraph.\n",
+    );
+    expect((await call(client, "lint")).data).toContainEqual(
+      expect.objectContaining({
+        path: "reference/wrapped.md",
+        line: 6,
+        severity: "warning",
+      }),
+    );
+  });
+
   test("reads and writes are cleanly separated by readOnlyHint", async () => {
     const { client } = await connect();
     const { tools } = await client.listTools();
@@ -74,6 +103,7 @@ describe("tool surface", () => {
       tools.map((t) => [t.name, t.annotations?.readOnlyHint]),
     );
     expect(hint).toEqual({
+      workflow_extensions: true,
       overview: true,
       ready: true,
       task_list: true,

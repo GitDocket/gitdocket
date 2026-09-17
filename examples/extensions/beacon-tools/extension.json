@@ -1,0 +1,56 @@
+{
+  "formatVersion": 1,
+  "id": "beacon-tools",
+  "version": "1.0.0",
+  "title": "Beacon tool handoff rehearsal",
+  "description": "Exercise portable issue and handoff recipes against host-exposed capabilities.",
+  "engine": { "min": "0.4.0", "maxExclusive": "1.0.0" },
+  "files": [
+    "workflows/tools.md",
+    "recipes/issue.md",
+    "recipes/checks.md",
+    "recipes/handoff.md"
+  ],
+  "workflows": [
+    {
+      "id": "tools",
+      "title": "Delivery tool evidence",
+      "description": "Read issue evidence or deliver an explicitly authorized prepared handoff with recoverable outcomes.",
+      "path": "workflows/tools.md"
+    }
+  ],
+  "guidance": [],
+  "defaults": {
+    "issueId": "BEC-42",
+    "prNumber": 17,
+    "codeRevision": "",
+    "handoffPath": "docket/delivery/BEC-42-release-handoff.md"
+  },
+  "capabilities": [
+    {
+      "id": "issue-read",
+      "description": "Read an issue with identity and revision evidence",
+      "access": "read",
+      "recipe": "recipes/issue.md"
+    },
+    {
+      "id": "checks-read",
+      "description": "Read PR head and checks for an exact revision",
+      "access": "read",
+      "recipe": "recipes/checks.md"
+    },
+    {
+      "id": "handoff-write",
+      "description": "Post an explicitly authorized prepared handoff",
+      "access": "write",
+      "recipe": "recipes/handoff.md"
+    },
+    {
+      "id": "handoff-read",
+      "description": "Reconcile an uncertain handoff by operation identity",
+      "access": "read",
+      "recipe": "recipes/handoff.md"
+    }
+  ],
+  "scenarios": []
+}

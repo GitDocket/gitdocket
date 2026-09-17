@@ -425,6 +425,92 @@ td code {
   padding-top: 22px;
   font-size: 15px;
 }
+.hero .workflow-note {
+  color: var(--muted);
+  margin: 18px auto 0;
+}
+.extensions {
+  padding-block: 58px;
+  border-bottom: 1px solid var(--line);
+}
+.preview-note,
+.source-caption {
+  color: var(--muted);
+  font-size: 14px;
+  margin-top: 16px;
+}
+.journey {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 24px;
+  list-style: none;
+  padding: 0;
+  margin: 26px 0;
+}
+.journey li {
+  font-size: 14px;
+  font-weight: 600;
+  padding: 10px 0;
+  border-top: 2px solid var(--accent);
+}
+.journey li:not(:last-child)::after {
+  content: " →";
+  color: var(--muted);
+  padding-left: 16px;
+}
+.use-cases {
+  margin: 0;
+}
+.use-cases > div {
+  border-top: 1px solid var(--line);
+  padding: 18px 0;
+}
+.use-cases dt {
+  font-weight: 650;
+}
+.use-cases dd {
+  color: var(--muted);
+  margin: 5px 0 0;
+  font-size: 16px;
+}
+.availability {
+  margin-top: 32px;
+}
+.page-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  font-size: 15px;
+  margin-top: 24px;
+}
+.delivery-story {
+  list-style: none;
+  counter-reset: delivery;
+  padding: 0;
+}
+.delivery-story > li {
+  counter-increment: delivery;
+  border-top: 1px solid var(--line);
+  padding-top: 24px;
+  margin-top: 30px;
+}
+.delivery-story h3::before {
+  content: "0" counter(delivery) " / ";
+  color: var(--accent);
+  font-size: 15px;
+  letter-spacing: 0;
+}
+.delivery-story h3 {
+  margin-top: 0;
+}
+.artifact-excerpt p {
+  font-size: 15px;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.docs-content .source-caption {
+  font-size: 13px;
+}
 @media (max-width: 750px) {
   .shell {
     width: calc(100% - 36px);
@@ -501,6 +587,19 @@ td code {
   }
   .foundation {
     padding-block: 40px;
+  }
+  .extensions {
+    padding-block: 40px;
+  }
+  .journey {
+    flex-direction: column;
+    gap: 0;
+  }
+  .journey li:not(:last-child)::after {
+    content: " ↓";
+  }
+  blockquote {
+    padding: 12px 16px;
   }
   .footer {
     flex-wrap: wrap;

@@ -1,111 +1,152 @@
-import { mkdir, rm } from "node:fs/promises";
+import assert from "node:assert/strict";
+import {
+  chmod,
+  copyFile,
+  cp,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { DOCKET_VERSION } from "../packages/core/src/version";
+import { RELEASE_PACKAGE_DEFINITIONS } from "./release-contract";
+import {
+  checked,
+  digest,
+  type StandaloneManifest,
+  verifyStandaloneSet,
+} from "./standalone-release";
 
-const ROOT = join(import.meta.dir, "..");
-const OUTPUT = join(ROOT, "release", "tarballs");
-const PACKAGES = ["core", "web", "cli", "mcp"] as const;
+export async function packRelease(
+  root: string,
+  options: { sourceOnly?: boolean; artifacts?: string; output?: string } = {},
+) {
+  const output = options.output ?? join(root, "release/tarballs");
+  const artifacts = options.artifacts ?? join(root, "release/standalone");
+  const scratch = await mkdtemp(join(tmpdir(), "gitdocket-npm-pack-"));
+  let source: StandaloneManifest["source"] | undefined;
+  if (!options.sourceOnly) {
+    await verifyStandaloneSet(root, artifacts);
+    source = JSON.parse(
+      await readFile(join(artifacts, "darwin-arm64.json"), "utf8"),
+    ).source;
+  }
+  try {
+    await rm(output, { recursive: true, force: true });
+    await mkdir(output, { recursive: true });
+    for (const definition of RELEASE_PACKAGE_DEFINITIONS) {
+      const binary = definition.id.startsWith("bin-");
+      if (options.sourceOnly && binary) continue;
+      const directory = join(scratch, definition.id);
+      await mkdir(directory);
+      const packageSource = join(root, "packages", definition.id);
+      const manifest = JSON.parse(
+        await readFile(join(packageSource, "package.json"), "utf8"),
+      );
+      assert.equal(manifest.name, definition.name);
+      assert.equal(manifest.version, DOCKET_VERSION);
+      assert(!manifest.private && manifest.files?.length);
+      assert.equal(
+        manifest.repository?.url,
+        "git+https://github.com/GitDocket/gitdocket.git",
+      );
+      assert.equal(manifest.repository.directory, `packages/${definition.id}`);
+      assert.equal(manifest.publishConfig?.access, "public");
+      assert.equal(
+        manifest.publishConfig.registry,
+        "https://registry.npmjs.org/",
+      );
+      delete manifest.devDependencies;
+      for (const field of ["dependencies", "optionalDependencies"]) {
+        for (const [name, value] of Object.entries(manifest[field] ?? {})) {
+          if (name.startsWith("@gitdocket/")) {
+            assert.equal(value, "workspace:*");
+            manifest[field][name] = DOCKET_VERSION;
+          }
+        }
+      }
+      if (binary) {
+        const target = definition.id.slice(4);
+        const proof = JSON.parse(
+          await readFile(join(artifacts, `${target}.json`), "utf8"),
+        ) as StandaloneManifest;
+        checked(
+          ["tar", "-xzf", join(artifacts, proof.archive), "-C", directory],
+          root,
+        );
+        await mkdir(join(directory, "bin"));
+        for (const command of ["docket", "docket-mcp"]) {
+          assert.equal(
+            digest(await readFile(join(directory, command))),
+            proof.files[command],
+          );
+          await copyFile(
+            join(directory, command),
+            join(directory, "bin", command),
+          );
+          await chmod(join(directory, "bin", command), 0o755);
+          await rm(join(directory, command));
+        }
+      } else {
+        const contents =
+          definition.id === "core" || definition.id === "web" ? "src" : "bin";
+        await cp(join(packageSource, contents), join(directory, contents), {
+          recursive: true,
+        });
+        await copyFile(join(root, "LICENSE"), join(directory, "LICENSE"));
+        const readme = join(packageSource, "README.md");
+        if (await Bun.file(readme).exists())
+          await copyFile(readme, join(directory, "README.md"));
+      }
+      if (source && !["core", "web"].includes(definition.id))
+        manifest.gitdocketSource = source;
+      await writeFile(
+        join(directory, "package.json"),
+        `${JSON.stringify(manifest, null, 2)}\n`,
+      );
+      const path = join(
+        output,
+        `gitdocket-${definition.id}-${DOCKET_VERSION}.tgz`,
+      );
+      checked(
+        ["bun", "pm", "pack", "--filename", path, "--ignore-scripts"],
+        directory,
+      );
+      const entries = checked(["tar", "-tzf", path], root).split("\n");
+      assert(entries.includes("package/package.json"));
+      assert(
+        entries.every(
+          (entry) =>
+            !/(?:^|\/)(?:node_modules|\.git|release)(?:\/|$)|\.(?:test|spec)\.[cm]?[jt]sx?$/.test(
+              entry,
+            ),
+        ),
+        "unexpected source/test/private file in tarball",
+      );
+      if (binary)
+        for (const command of ["docket", "docket-mcp"])
+          assert(entries.includes(`package/bin/${command}`));
+      console.log(`verified ${basename(path)}`);
+    }
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+}
 
-type PackageManifest = {
-  name?: string;
-  version?: string;
-  private?: boolean;
-  files?: string[];
-  repository?: { url?: string; directory?: string };
-  publishConfig?: { access?: string; registry?: string };
-};
-
-function run(command: string[], cwd = ROOT): string {
-  const result = Bun.spawnSync(command, {
-    cwd,
-    stdout: "pipe",
-    stderr: "pipe",
+if (import.meta.main) {
+  const tag =
+    process.env.GITHUB_REF_TYPE === "tag"
+      ? process.env.GITHUB_REF_NAME
+      : undefined;
+  if (tag && tag !== `v${DOCKET_VERSION}`)
+    throw new Error(`release tag ${tag} does not match v${DOCKET_VERSION}`);
+  const args = Bun.argv.slice(2);
+  if (args.some((arg) => arg !== "--source-only"))
+    throw new Error("Usage: bun scripts/release-pack.ts [--source-only]");
+  await packRelease(join(import.meta.dir, ".."), {
+    sourceOnly: args.includes("--source-only"),
   });
-  if (result.exitCode !== 0) {
-    throw new Error(
-      `${command.join(" ")} failed\n${result.stdout.toString()}${result.stderr.toString()}`,
-    );
-  }
-  return result.stdout.toString();
-}
-
-function assertManifest(
-  name: (typeof PACKAGES)[number],
-  manifest: PackageManifest,
-): void {
-  const expectedName = `@gitdocket/${name}`;
-  if (manifest.name !== expectedName)
-    throw new Error(`${name}: expected name ${expectedName}`);
-  if (manifest.version !== DOCKET_VERSION) {
-    throw new Error(
-      `${name}: version ${manifest.version} does not match ${DOCKET_VERSION}`,
-    );
-  }
-  if (manifest.private) throw new Error(`${name}: package is private`);
-  if (!manifest.files?.length)
-    throw new Error(`${name}: files allowlist is missing`);
-  if (
-    manifest.repository?.url !==
-    "git+https://github.com/GitDocket/gitdocket.git"
-  ) {
-    throw new Error(
-      `${name}: repository URL does not name the public release mirror exactly`,
-    );
-  }
-  if (manifest.repository.directory !== `packages/${name}`) {
-    throw new Error(`${name}: repository directory is incorrect`);
-  }
-  if (manifest.publishConfig?.access !== "public") {
-    throw new Error(`${name}: publish access is not public`);
-  }
-  if (manifest.publishConfig.registry !== "https://registry.npmjs.org/") {
-    throw new Error(`${name}: publish registry is not npmjs`);
-  }
-}
-
-function inspectTarball(path: string): void {
-  const entries = run(["tar", "-tzf", path]).trim().split("\n").filter(Boolean);
-  const forbidden = entries.filter(
-    (entry) =>
-      /(?:^|\/)(?:node_modules|docket|\.git|release)(?:\/|$)/.test(entry) ||
-      /\.(?:test|spec)\.[cm]?[jt]sx?$/.test(entry),
-  );
-  if (forbidden.length) {
-    throw new Error(
-      `${basename(path)} contains forbidden files:\n${forbidden.join("\n")}`,
-    );
-  }
-  if (!entries.includes("package/package.json")) {
-    throw new Error(`${basename(path)} has no package.json`);
-  }
-}
-
-const tag = process.env.GITHUB_REF_NAME;
-if (tag && tag !== `v${DOCKET_VERSION}`) {
-  throw new Error(`release tag ${tag} does not match v${DOCKET_VERSION}`);
-}
-
-await rm(OUTPUT, { recursive: true, force: true });
-await mkdir(OUTPUT, { recursive: true });
-
-for (const name of PACKAGES) {
-  const directory = join(ROOT, "packages", name);
-  const manifest = (await Bun.file(
-    join(directory, "package.json"),
-  ).json()) as PackageManifest;
-  assertManifest(name, manifest);
-  const filename = `gitdocket-${name}-${DOCKET_VERSION}.tgz`;
-  run(
-    [
-      "bun",
-      "pm",
-      "pack",
-      "--filename",
-      join(OUTPUT, filename),
-      "--ignore-scripts",
-    ],
-    directory,
-  );
-  inspectTarball(join(OUTPUT, filename));
-  console.log(`verified release/${basename(OUTPUT)}/${filename}`);
 }

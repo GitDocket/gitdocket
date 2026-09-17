@@ -1,0 +1,48 @@
+{
+  "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/152.0.0.0 Safari/537.36",
+  "sourceParagraphCharacters": 1039,
+  "results": [
+    {
+      "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/152.0.0.0 Safari/537.36",
+      "width": 500,
+      "surfaces": [
+        {
+          "paragraphLines": 15,
+          "itemLines": 15,
+          "forcedProseBreaks": 0,
+          "intentionalBreaks": 1,
+          "overflow": false
+        },
+        {
+          "paragraphLines": 15,
+          "itemLines": 15,
+          "forcedProseBreaks": 0,
+          "intentionalBreaks": 1,
+          "overflow": false
+        }
+      ],
+      "pageOverflow": false
+    },
+    {
+      "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/152.0.0.0 Safari/537.36",
+      "width": 1440,
+      "surfaces": [
+        {
+          "paragraphLines": 10,
+          "itemLines": 11,
+          "forcedProseBreaks": 0,
+          "intentionalBreaks": 1,
+          "overflow": false
+        },
+        {
+          "paragraphLines": 10,
+          "itemLines": 11,
+          "forcedProseBreaks": 0,
+          "intentionalBreaks": 1,
+          "overflow": false
+        }
+      ],
+      "pageOverflow": false
+    }
+  ]
+}

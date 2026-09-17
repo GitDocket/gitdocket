@@ -1,6 +1,41 @@
 {
-  "description": "Captured from the 0.3.0 tool surface via tools/list on 2026-09-13. Illustrative IDs in descriptions are normalized to HBR/ADR; schemas are otherwise unchanged. Connect to your installed server for its exact contract.",
+  "description": "Captured by actual tools/list from the exact locally packed GitDocket 0.4.0 development candidate on 2026-09-14. Illustrative IDs are normalized to HBR/ADR; schemas are otherwise unchanged. This is not a publication or host behavior receipt; connect to your installed server for its exact contract.",
   "tools": [
+    {
+      "name": "workflow_extensions",
+      "title": "Discover installed workflow extensions",
+      "description": "Read current installed package availability, qualified workflow names, project choices and source paths. Read the selected canonical Markdown with source_page and relevant project_guidance before invocation. Only available workflows may be invoked; installation, discovery and tool bindings grant no task or external-write authority. Reread at each work boundary: running sessions may retain stale instructions. No lifecycle mutation or task selection occurs. Results are bounded to 24 KB and paginated; outputLimited explicitly directs oversized package inspection to CLI show before invocation.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "description": "Optional exact package ID",
+            "type": "string",
+            "minLength": 1
+          },
+          "offset": {
+            "default": 0,
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "limit": {
+            "default": 20,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
     {
       "name": "overview",
       "title": "Orient and review",

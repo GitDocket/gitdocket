@@ -1,0 +1,62 @@
+name: Public installation
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  install:
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            target: linux-x64
+          - os: ubuntu-24.04-arm
+            target: linux-arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: Homebrew/actions/setup-homebrew@1f8e202ffddf94def7f42f6fa3a482e821489f9c # 2026.07.10.1
+        with:
+          stable: true
+      - name: Remove setup action's tap and trust assistance
+        run: |
+          brew untap gitdocket/tap
+          brew untrust gitdocket/tap
+      - uses: actions/checkout@v6
+        with:
+          repository: GitDocket/gitdocket
+          ref: v@VERSION@
+          path: qualification
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - run: npm install --global npm@11.17.0
+      - run: bun install --frozen-lockfile
+        working-directory: qualification
+      - name: Verify public Homebrew and npm installation
+        working-directory: qualification
+        run: bun scripts/public-install-smoke.ts --output "$RUNNER_TEMP/public-install-${{ matrix.target }}.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: public-install-v@VERSION@-${{ matrix.target }}
+          path: ${{ runner.temp }}/public-install-*.json
+          if-no-files-found: error
+          retention-days: 90
+      - name: Restore setup action's checkout link for its post-job cleanup
+        if: always()
+        shell: bash
+        run: |
+          tap="$(brew --repository)/Library/Taps/gitdocket/homebrew-tap"
+          if [[ -d "$tap" && ! -L "$tap" ]]; then
+            mv "$tap" "$RUNNER_TEMP/verified-public-tap"
+          fi
+          if [[ ! -e "$tap" && ! -L "$tap" ]]; then
+            mkdir -p "$(dirname "$tap")"
+            ln -s "$GITHUB_WORKSPACE" "$tap"
+          fi

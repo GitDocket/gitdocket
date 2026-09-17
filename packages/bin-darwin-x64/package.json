@@ -1,0 +1,28 @@
+{
+  "name": "@gitdocket/bin-darwin-x64",
+  "version": "0.4.1",
+  "description": "GitDocket standalone commands for darwin-x64.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/GitDocket/gitdocket.git",
+    "directory": "packages/bin-darwin-x64"
+  },
+  "homepage": "https://gitdocket.com",
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "files": [
+    "bin",
+    "BUILD.json",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.txt"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
+}

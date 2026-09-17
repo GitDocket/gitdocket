@@ -6,6 +6,7 @@ import { exportPublicSnapshot } from "./export-public";
 import {
   buildReleasePlan,
   collectReleaseSnapshot,
+  RELEASE_PACKAGE_DEFINITIONS,
   serializeReleasePlan,
 } from "./release-contract";
 import {
@@ -64,6 +65,18 @@ async function sourceFixture(version = "0.2.0"): Promise<string> {
   const source = await root();
   await git(source, "init", "-q");
   const files: Record<string, string> = {
+    "scripts/npm-smoke.ts": "export {};\n",
+    "scripts/npm-qualify.ts": "export {};\n",
+    "scripts/npm-launcher.test.ts": "export {};\n",
+    "packages/cli/bin/run.cjs": "// fixture\n",
+    "packages/mcp/bin/run.cjs": "// fixture\n",
+    ".github/workflows/standalone.yml": "name: fixture\n",
+    "release/standalone.json": "{}\n",
+    "release/licenses/bun-1.3.14.md": "fixture notice\n",
+    "scripts/standalone-build.ts": "export {};\n",
+    "scripts/standalone-smoke.ts": "export {};\n",
+    "scripts/standalone-release.ts": "export {};\n",
+    "scripts/standalone-release.test.ts": "export {};\n",
     "README.md": `GitDocket ${version}\n`,
     "docs/getting-started.md": `GitDocket reports ${version}.\n`,
     [`docs/releases/v${version}.md`]: `# GitDocket ${version}\n\nReviewed release notes for the stage integration fixture.\n`,
@@ -81,15 +94,14 @@ async function sourceFixture(version = "0.2.0"): Promise<string> {
     "scripts/release-stage.ts": "export {};\n",
     "scripts/release.ts": "export {};\n",
   };
-  const packageDependencies: Record<string, Record<string, string>> = {
-    core: {},
-    web: { "@gitdocket/core": "workspace:*" },
-    cli: {
-      "@gitdocket/core": "workspace:*",
-      "@gitdocket/web": "workspace:*",
-    },
-    mcp: { "@gitdocket/core": "workspace:*" },
-  };
+  const packageDependencies = Object.fromEntries(
+    RELEASE_PACKAGE_DEFINITIONS.map((definition) => [
+      definition.id,
+      Object.fromEntries(
+        definition.dependencies.map((name) => [name, "workspace:*"]),
+      ),
+    ]),
+  );
   for (const [id, dependencies] of Object.entries(packageDependencies)) {
     files[`packages/${id}/package.json`] = `${JSON.stringify(
       { name: `@gitdocket/${id}`, version, dependencies },
@@ -219,6 +231,17 @@ describe("stage receipt binding", () => {
     ).resolves.toBeUndefined();
   });
 
+  test("keeps historical schema-1 stage receipts readable", async () => {
+    const { receipt } = await receiptFixture();
+    receipt.checks = [
+      ...PUBLIC_RELEASE_CHECKS.slice(0, -2),
+      "bun run release:pack",
+    ];
+    expect(parseStageReceipt(receipt)).toEqual(receipt);
+    receipt.checks = ["bun test"];
+    expect(() => parseStageReceipt(receipt)).toThrow("schema 1");
+  });
+
   test("rejects malformed receipts and substituted tarballs", async () => {
     const fixture = await receiptFixture();
     expect(() =>
@@ -284,7 +307,12 @@ describe("public gate runner", () => {
           packageVersions: Object.fromEntries(
             plan.packages.map((item) => [item.name, item.version]),
           ),
-          mcpTools: [...LEGACY_MCP_TOOLS, "source_page"],
+          mcpTools: [
+            ...LEGACY_MCP_TOOLS,
+            "source_page",
+            "project_guidance",
+            "workflow_extensions",
+          ],
           serveStatus: 200,
         }),
       },
@@ -293,7 +321,7 @@ describe("public gate runner", () => {
     expect(result.receipt.approvalReady).toBeTrue();
     expect(result.receipt.sourceCommit).toBe(plan.sourceCommit);
     expect(result.receipt.public.additions).toContain("README.md");
-    expect(result.receipt.tarballs).toHaveLength(4);
+    expect(result.receipt.tarballs).toHaveLength(8);
     expect(commands).toEqual([
       "bun install --frozen-lockfile",
       "bunx biome ci .",
@@ -302,6 +330,7 @@ describe("public gate runner", () => {
       "bun ../../packages/cli/src/index.ts lint",
       "bun ../../packages/cli/src/index.ts index --check",
       "bun run audit:dependencies",
+      "bun run release:standalone verify",
       "bun run release:pack",
     ]);
     expect(

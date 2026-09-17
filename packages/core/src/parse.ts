@@ -23,6 +23,8 @@ export interface Link {
 
 export interface Diagnostic {
   path: string;
+  /** One-based source line, when a diagnostic identifies a specific location. */
+  line?: number;
   message: string;
   severity: "error" | "warning";
 }

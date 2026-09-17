@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Beacon: one delivery, a better next plan — GitDocket</title>
+    <meta name="description" content="See a real agent-assisted delivery example, then try the installed workflow in a disposable project." />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Beacon: one delivery, a better next plan — GitDocket" />
+    <meta property="og:description" content="See a real agent-assisted delivery example, then try the installed workflow in a disposable project." />
+    <meta property="og:image" content="https://gitdocket.com/assets/current-home.jpg" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="shell nav">
+      <a class="brand" href="/" aria-label="GitDocket home"><span class="mark" aria-hidden="true">GD</span>GitDocket</a>
+      <nav aria-label="Primary navigation"><a href="/#product">Product</a><a href="/#workflow">Workflow</a><a href="/docs/">Docs</a><a href="https://github.com/GitDocket/gitdocket">GitHub</a></nav>
+    </header>
+    <div class="shell docs-layout">
+      <aside class="docs-sidebar"><p class="eyebrow">Reference</p><nav aria-label="Documentation"><a href="/docs/">Get started</a><a href="/docs/install/">Installation</a><a href="/docs/example/">One-task example</a><a href="/docs/everyday/">Everyday use</a><a href="/docs/epics/">Epics</a><a href="/docs/extensions/" aria-current="page">Extensions</a><a href="/docs/cli/">CLI commands</a><a href="/docs/mcp/">MCP & workflows</a><a href="/docs/api/">Local HTTP reference</a></nav></aside>
+      <main class="docs-content" id="main" tabindex="-1">
+<p class="eyebrow">A guided workflow example · 0.4.0 preview</p>
+<h1>One delivery. A better next plan.</h1>
+<p class="doc-lede">Beacon is a small bookmark app. Follow a request to export bookmarks through review and verification, then see a fresh session use the recorded decisions to plan import.</p>
+<p>This example comes from recorded test sessions with a synthetic request and supplied test review. The agent produced the implementation and records; browser verification needed the assistance described below.</p>
+<nav class="page-links" aria-label="On this page"><a href="#observed">See what happened</a><a href="#try">Try with a candidate</a><a href="#verified">What we verified</a></nav>
+<section id="observed" aria-labelledby="observed-title"><h2 id="observed-title">See what the workflow leaves behind</h2>
+<ol class="delivery-story">
+<li><h3>A request becomes a concrete proposal</h3><p>The request: “Let me download my bookmarks so I can keep a copy and move them elsewhere.” The agent writes a proposal with a file format, acceptance criteria and exclusions.</p><blockquote class="artifact-excerpt"><p>Add one visible, enabled Export button to Beacon’s existing local interface. Activating it downloads the current saved bookmark collection as a single local JSON file named <code>beacon-bookmarks.json</code>. The export is generated entirely in the browser without fetching stored URLs or sending bookmark data over the network.</p></blockquote><p class="source-caption"><a href="/demo/product-delivery/proposal.md">Actual proposal excerpt</a> · proposal-only work, before acceptance</p></li>
+<li><h3>Review determines the next step</h3><p>The test harness supplied an explicitly synthetic acceptance of that exact proposal and authorized tracked implementation. The agent then created the epic/tasks and built export. In the rejected and unanswered cases, it left implementation untouched. A changed proposal required another review.</p></li>
+<li><h3>Verification earns a local handoff</h3><p>Contract tests passed, but the agent could not start its browser checker's local server. It recorded the failure and withheld a handoff. The supervisor ran the unchanged checker on the same application revision in a clean clone. Real Chrome clicks produced populated and empty downloads; their bytes and storage behavior were checked.</p><p>A fresh agent matched that browser receipt to the application and checker sources, retained the earlier failures, and completed the local handoff. This was assisted verification, not an unattended browser run.</p><blockquote class="artifact-excerpt"><p>Beacon now provides a visible Export bookmarks button that downloads the collection currently shown as <code>beacon-bookmarks.json</code>. The version-one JSON preserves bookmark titles, URLs and tags, including Unicode, and exports an explicitly empty collection successfully. Export stays local, leaves stored bookmarks unchanged and does not fetch stored URLs. Import, selective export, alternate formats, cloud services, sharing, encryption, compression and filename customization are not included.</p></blockquote><p class="source-caption"><a href="/demo/product-delivery/verification.md">Final verification excerpt</a> · <a href="/demo/product-delivery/handoff.md">Actual handoff excerpt</a> · ready for release review, not published</p></li>
+<li><h3>The project retains the decision</h3><blockquote class="artifact-excerpt"><p>Beacon version-one export is a whole-library local JSON download with the exact envelope <code>{ &quot;schemaVersion&quot;: 1, &quot;bookmarks&quot;: [...] }</code>. Each bookmark contains only the existing <code>title</code>, <code>url</code> and <code>tags</code> fields in their existing order, with Unicode preserved. The fixed filename is <code>beacon-bookmarks.json</code>; an explicitly empty saved collection exports <code>bookmarks: []</code>. Export does not mutate storage, fetch stored URLs or add a dependency.</p></blockquote><p class="source-caption"><a href="/demo/product-delivery/decision.md">Actual decision excerpt</a> · retained in project Markdown</p></li>
+<li><h3>A fresh session uses it</h3><p>The new prompt supplied no export decisions: “Plan support for importing a previously exported Beacon bookmark file.” The agent found the retained decision and proposed import validation and confirmation behavior. Two excerpts from its response:</p><blockquote class="artifact-excerpt"><p>   - Accept <code>.json</code> files using the verified schema <code>{ &quot;schemaVersion&quot;: 1, &quot;bookmarks&quot;: [...] }</code>.
+   - Have the effective <code>product owner</code> review these new decisions; the existing export approval does not settle validation, conflict, or storage-write behavior.</p></blockquote><p>It distinguished the established export format from new import choices needing review. The planning request changed no files or tasks.</p><p class="source-caption"><a href="/demo/product-delivery/next-plan.md">Actual fresh-session excerpts</a></p></li>
+</ol></section>
+<section id="try" aria-labelledby="try-title"><h2 id="try-title">Try with a 0.4.1 candidate</h2>
+<p><strong>Prerequisites:</strong> <a href="/docs/install/">GitDocket 0.4.1 installed with Homebrew or npm</a>, Git and a coding agent. This example app and its scripts also need Bun 1.3.14+. Full verification needs Chrome/Chromium and permission to run a local server. Codex was the host used for the recorded agent tests.</p>
+<p>The download below contains the workflow, starting app, checks and guide, <strong>not the CLI or a pre-completed delivery</strong>. Bun is needed by the example app; the installed GitDocket commands do not need a separate Bun runtime.</p>
+<h3>1. Prepare a disposable project</h3>
+<p><a href="/examples/workflow-examples.tar.gz" download>Download the workflow examples</a> and extract them. From the extracted directory, run the following, replacing both absolute paths. The destination must not already exist.</p>
+<pre><code>bun scripts/extensions/prepare-example.ts --dest=/absolute/new/beacon --cli=/absolute/installed/docket
+cd /absolute/new/beacon
+bun run docket -- extension show product-delivery --json</code></pre>
+<p>The helper initializes GitDocket and installs/enables the canonical product-delivery and incident-review packages through that CLI. It creates no proposal, acceptance, implementation tasks or export feature. The synthetic issue text is already saved in <code>docket/requests/BEC-42.md</code>; the default example needs no issue-tracker connection.</p>
+<h3>2. Make one project choice</h3>
+<pre><code>bun run docket -- extension configure product-delivery --set '{"reviewer":"release owner"}' --json
+bun run docket -- extension show product-delivery --json</code></pre>
+<p>Check that the effective reviewer is <code>release owner</code>, owned by the project. This names the required reviewer; it does not approve anything. The earlier observed run used the default <code>product owner</code>.</p>
+<h3>3. Ask for a proposal, then review it</h3>
+<p>Open the prepared repository in a fresh coding-agent session and ask:</p>
+<blockquote><p>Use product-delivery:deliver to prepare a proposal for Beacon issue BEC-42. Bring it back for review before planning implementation.</p></blockquote>
+<p>Read the actual proposal and retain its exact hash or commit. The configured reviewer can accept it, request changes or reject it. Any review supplied for a test must be labeled synthetic. Acceptance must identify the proposal revision and state whether planning or implementation is authorized. Ask explicitly for task creation if you want a tracked plan. You can stop after the proposal.</p>
+<h3>4. Deliver the accepted change</h3>
+<p>After authorized implementation, the agent runs these supplied checks and retains the results:</p>
+<pre><code>bun run test:baseline
+bun run test
+bun run test:browser -- --output=/tmp/beacon-browser.json</code></pre>
+<p>The starting app intentionally fails export checks. After implementation, all required checks must pass, including actual completed browser downloads. A missing browser, denied local server or failed assertion leaves delivery unresolved. The local handoff links the reviewed proposal, implementation, verification and decision. Sending it or publishing a release is a separate action.</p>
+<h3>5. Let the next session use the decision</h3>
+<p>After the verified handoff, open another fresh session in the same repository:</p>
+<blockquote><p>Plan support for importing a previously exported Beacon bookmark file.</p></blockquote>
+<p>Look for a source-backed plan that reuses the saved export contract and identifies new import decisions needing review. This prompt asks for planning; it should create no tasks or code.</p>
+<p>To adopt the package in an existing project or write a different process, use the <a href="/docs/extensions/reference/">extension reference</a>. The archive's <code>examples/product-delivery/README.md</code> documents the application interface and optional local MCP fixture.</p></section>
+<section id="verified" aria-labelledby="verified-title"><h2 id="verified-title">What we verified</h2>
+<p>Actual Codex sessions exercised the installed workflow. The successful path produced the records above, with the disclosed browser assistance. Other sessions tested what should happen when work cannot proceed:</p>
+<ul><li><strong>Review stops:</strong> rejected or unanswered proposals produced no implementation; revised proposals remained unaccepted.</li><li><strong>Failed checks:</strong> an intentionally broken schema failed real assertions, even with a prematurely completed task.</li><li><strong>Continuation:</strong> fresh sessions resumed from retained records and reused accepted decisions.</li><li><strong>Tool uncertainty:</strong> a local synthetic MCP provider exercised missing tools, wrong-revision checks, definite post failure and uncertain delivery. Status reconciliation avoided a duplicate post, including after a fresh session.</li></ul>
+<details><summary>Evidence, methods and limits</summary>
+<p>These are recorded cases, not guaranteed behavior for every prompt or model. The request, reviewer response and provider inputs were synthetic. Codex CLI 0.147.0 supplied the observed agent behavior; Claude authentication prevented behavior qualification. MCP cases called a real local stdio fixture, not a live third-party provider.</p>
+<p>The supervising session's browser run used Chrome 152.0.7977.83 and the unchanged checker at the exact application revision. Network observations covered page/attached-worker/WebSocket and local-server activity through completed downloads plus a configured 1,000 ms window. They do not establish absence of arbitrary later or browser-internal traffic.</p>
+<p>Read the <a href="/demo/product-delivery/README.md">artifact provenance</a> and <a href="/demo/product-delivery/receipt.json">source hashes, scenario outcomes and limitations</a>. These pages reuse qualified feature evidence; they do not imply that copy changes reran the whole feature suite. No human approval, live-provider delivery, deployment or publication is claimed.</p>
+</details></section>
+<nav class="doc-next" aria-label="Next reading"><a href="/docs/extensions/">← Workflow overview</a><a href="/docs/extensions/reference/">Install, customize or author a workflow →</a></nav>
+</main>
+    </div>
+    <footer class="shell footer"><a class="brand" href="/">GitDocket</a><p>Project knowledge and work, together in Git.</p><a href="https://github.com/GitDocket/gitdocket">Source on GitHub ↗</a></footer>
+  </body>
+</html>

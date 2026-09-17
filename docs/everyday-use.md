@@ -68,7 +68,7 @@ Use guidance for chosen working instructions, distinct from descriptive docs and
 
 Inspect the saved source after authoring. The agent should reuse an existing authoritative source rather than create competing instructions. General standards apply within their authored scope; a procedure link does not authorize deployment or other execution. Agents read relevant guidance before direct or tracked implementation and reread after explicit changes or before starting the next piece of work. A save does not instantly alter an already-running session. Broken required sources or contradictory standards should be surfaced, not silently weakened.
 
-Docket's supplied tracker workflows tell the agent how to create, pick up, groom and close work. Project guidance tells it how your project expects work to be done. Both are editable Markdown; installable team/extension packages remain planned. A [synthetic guidance example](../examples/guidance/README.md) shows the source structure; the beginner tutorial needs none of this setup.
+Docket's supplied tracker workflows tell the agent how to create, pick up, groom and close work. Project guidance tells it how your project expects work to be done. Both are editable Markdown. The [0.4.0 preview adds workflow extensions](extensions.md) for sharing a team process. A [synthetic guidance example](../examples/guidance/README.md) shows the source structure; the beginner tutorial needs none of this setup.
 
 ## Inspect and edit saved project knowledge
 
@@ -94,4 +94,4 @@ Use `docket index` after direct source edits to refresh generated views. Lint di
 
 ## Keep customization reviewable
 
-You can edit supplied workflow Markdown today. `docket upgrade --dry-run` previews the existing upgrade path, and `docket upgrade` uses versioned three-way merges while regenerating generated sections of agent instructions. Review actual text and resolve conflicts before using the changed procedures. Same-origin local differences may be retained rather than updated; an origin stamp alone cannot prove that you have the latest workflow body. Commit your customizations so their intent and recovery are reviewable. No installable extension framework or automatic compatibility guarantee is implied.
+You can edit supplied workflow Markdown today. `docket upgrade --dry-run` previews the existing upgrade path, and `docket upgrade` uses versioned three-way merges while regenerating generated sections of agent instructions. Review actual text and resolve conflicts before using the changed procedures. Same-origin local differences may be retained rather than updated; an origin stamp alone cannot prove that you have the latest workflow body. Commit your customizations so their intent and recovery are reviewable. For installed packages in the 0.4.0 preview, [extension updates and choices have their own review path](extensions.md).

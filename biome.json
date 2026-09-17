@@ -11,5 +11,13 @@
     "enabled": true,
     "clientKind": "git",
     "useIgnoreFile": true
-  }
+  },
+  "overrides": [
+    {
+      "includes": ["docket/assets/extensions/dkt199/setup.json"],
+      "formatter": {
+        "enabled": false
+      }
+    }
+  ]
 }

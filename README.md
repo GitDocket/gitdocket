@@ -6,28 +6,29 @@ The loop is simple: read project context → choose a change → implement and v
 
 Docket's engine manages IDs, allowed status changes, dependency readiness and generated views. Your coding agent follows editable supplied workflows to verify work and reconcile affected docs. A done status records a conclusion; review the checks and Git diff that support it. No hosted account is needed: the files and history stay yours.
 
-> GitDocket 0.3.1 is a public preview. File formats and commands are tested, but the compatibility surface may still change as external use provides evidence.
+> GitDocket 0.4.1 is a preview. File formats and commands may still change as external use provides evidence.
 
 ![Current GitDocket Home showing project context and ready work in the synthetic Harbor project](site/assets/current-home.jpg)
 
-## Requirements
-
-- Bun 1.3.14 or newer
-- macOS or Linux
-- Git for task-linked history and commit integration
-
-Windows has not yet passed the release gate and is not supported in the first preview.
-
 ## Install
 
-Install the CLI and MCP server from npm with Bun:
+With Homebrew and Git on macOS or Linux, install both commands:
 
 ```sh
-bun add --global @gitdocket/cli @gitdocket/mcp
+brew install gitdocket/tap/gitdocket
 docket --version
+docket-mcp --version
 ```
 
-The version command should report `0.3.1`. Both packages require Bun 1.3.14 or newer; the installed binaries remain `docket` and `docket-mcp`.
+No separate Bun, Node or npm setup is needed. The project-maintained Homebrew formula supports macOS 15+ on Apple Silicon and Intel, and Homebrew-compatible glibc Linux on ARM64 and x64; native qualification uses Ubuntu 24.04. Windows is not supported. The fully qualified command grants trust to this formula. See [platforms, updates and migration](docs/homebrew.md).
+
+If you already use Node 22 or later, npm is a supported alternative:
+
+```sh
+npm install -g --include=optional @gitdocket/cli @gitdocket/mcp
+```
+
+Both routes install the same standalone release. The npm commands also need no separate Bun installation; keep optional dependencies enabled. See [npm and npx details](docs/npm.md).
 
 ## Quickstart
 
@@ -57,6 +58,12 @@ Once initialized, ask your agent to create and complete one small contributor-gu
 A Docket bundle is one link graph containing documentation, decisions, tasks, epics, and agent workflows. Work state is ordinary frontmatter. Ready work is derived from `status: todo` plus completed dependencies; it is never another stored state.
 
 The [basic example](examples/basic/) is a complete synthetic bundle. See [Getting started](docs/getting-started.md), [Everyday use](docs/everyday-use.md), [Concepts](docs/concepts.md), [CLI reference](docs/cli.md), [local-server safety](docs/serve.md), and [agent integration](docs/agents.md).
+
+## Make your process part of the project
+
+Workflow extensions let your team share a repeatable path from request to reviewed delivery. Adapt the reviews, templates and checks, use tools already connected to your agent, and keep the decisions available for the next change—all in Git. They are optional; one task is still a useful place to start.
+
+In the [Beacon walkthrough](examples/product-delivery/README.md), an agent prepares an export proposal, implements the accepted scope, records verification and leaves a decision that a fresh session uses to plan import. Read the [workflow overview and reference](docs/extensions.md) to adopt or author a package. Workflow extensions are included in the 0.4.1 preview. The example app has its own development prerequisites.
 
 ## Stability and upgrades
 

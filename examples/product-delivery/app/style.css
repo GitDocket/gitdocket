@@ -1,0 +1,60 @@
+:root {
+  font:
+    17px / 1.5 system-ui,
+    sans-serif;
+  color: #243c3a;
+  background: #f5f4ee;
+}
+body {
+  margin: 0;
+}
+main {
+  max-width: 760px;
+  margin: 3rem auto;
+  padding: 0 1.25rem;
+}
+h1 {
+  font-size: 3rem;
+  margin: 0;
+}
+h2 {
+  font-size: 1.2rem;
+}
+.eyebrow {
+  color: #50716d;
+}
+form,
+li {
+  padding: 1.25rem;
+  margin: 1.25rem 0;
+  background: white;
+  border: 1px solid #d5ddd4;
+  border-radius: 0.5rem;
+}
+label {
+  display: block;
+  margin-bottom: 1rem;
+}
+input {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0.5rem;
+  font: inherit;
+}
+button {
+  padding: 0.5rem 0.9rem;
+  font: inherit;
+  color: white;
+  background: #295f57;
+  border: 0;
+  border-radius: 0.25rem;
+  cursor: pointer;
+}
+ul {
+  list-style: none;
+  padding: 0;
+}
+li p {
+  overflow-wrap: anywhere;
+}
