@@ -52,7 +52,7 @@ jobs:
             bun install --frozen-lockfile
           fi
           bun scripts/standalone-release.ts build --output "$GITHUB_WORKSPACE/release/standalone"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: standalone-${{ github.sha }}-${{ matrix.target }}
           path: release/standalone/*
@@ -75,7 +75,7 @@ jobs:
           mkdir -p release/standalone
           gh release view "$MACOS_RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft | grep -qx true
           gh release download "$MACOS_RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --pattern '*darwin*' --dir release/standalone
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: standalone-${{ github.sha }}-macos-local
           path: release/standalone/*
@@ -129,7 +129,7 @@ jobs:
           bun scripts/macos-qualification.ts --artifacts release/standalone
           bun run release:pack
           bun scripts/npm-qualify.ts --output "$GITHUB_WORKSPACE/release/npm-${{ matrix.target }}-node${{ matrix.node }}.json"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: npm-${{ github.sha }}-${{ matrix.target }}-node${{ matrix.node }}
           path: release/npm-*.json
@@ -180,7 +180,7 @@ jobs:
           fi
           bun scripts/macos-qualification.ts --artifacts release/standalone
           bun scripts/homebrew-qualify.ts --output "$GITHUB_WORKSPACE/release/homebrew-${{ matrix.target }}.json"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: homebrew-${{ github.sha }}-${{ matrix.target }}
           path: release/homebrew-*.json
