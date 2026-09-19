@@ -1,8 +1,6 @@
-# npm distribution
+# Install with npm
 
-GitDocket 0.5.0 supports npm as an alternative to [Homebrew](homebrew.md). Node 22 or later and npm are required. CLI/MCP commands use standalone binaries and need no separate Bun installation. Earlier 0.3.1 commands and the core/web library packages remain Bun-dependent.
-
-With Node 22 or later and npm, the standalone release installs both commands through the existing package names:
+If you use Node 22 or later, you can install GitDocket with npm:
 
 ```sh
 npm install -g --include=optional @gitdocket/cli @gitdocket/mcp
@@ -10,18 +8,30 @@ docket --version
 docket-mcp --version
 ```
 
-The small launchers select exact-version `@gitdocket/bin-<os>-<arch>` dependencies. Those packages contain the same qualified binaries, build identity and licenses as the Homebrew archives. There is no install script, runtime download or source fallback. Keep optional dependencies enabled. This route supports macOS and glibc Linux on arm64 and x64; the native qualification matrix is shared with [Homebrew](homebrew.md). Musl/Alpine, Windows and 32-bit systems are unsupported.
+This installs the command-line tool and the MCP server for your coding agent. Keep optional dependencies enabled: they supply the executable for your platform. The supported platforms are macOS 15+ and glibc Linux on ARM64 or x64; see [platform details](homebrew.md#supported-platforms).
 
-For a temporary CLI invocation without a global installation, use:
+Continue with [Getting started](getting-started.md).
+
+## Run with npx
+
+For a temporary invocation:
 
 ```sh
 npx --yes --package=@gitdocket/cli --package=@gitdocket/mcp docket --version
 npx --yes --package=@gitdocket/cli --package=@gitdocket/mcp docket init --agent cursor --agent claude --agent codex
 ```
 
-npm may ask before downloading packages when `--yes` is omitted. For a reproducible invocation, pin both package versions explicitly. npx makes the commands available only for that invocation. Generated MCP configuration names `docket-mcp`, which a later agent may not find; use a stable global installation for persistent MCP configuration, or configure the host explicitly to run `npx --yes --package=@gitdocket/mcp@<version> docket-mcp`. Restart the host after changing its MCP command.
+Omit `--yes` if you want npm to ask before downloading packages. Pin both package versions when you need a reproducible invocation.
 
-Use `npm update -g @gitdocket/cli @gitdocket/mcp` to update both commands and `npm uninstall -g @gitdocket/cli @gitdocket/mcp` to remove them. Updates and removal preserve project bundles. Existing Bun-dependent npm packages upgrade under the same names. A separate Bun global installation uses a different package manager and must be reviewed separately. See the [PATH and MCP migration procedure](homebrew.md#moving-from-npm-or-bun) when switching channels or resolving command collisions. Project instruction reconciliation remains an explicit `docket upgrade --dry-run --json`, followed by a reviewed `docket upgrade`.
+npx makes commands available only for that invocation. For an agent that starts MCP later, use a global installation or configure its MCP command as `npx --yes --package=@gitdocket/mcp@<version> docket-mcp`. Restart the agent after changing that command.
+
+## Updating and removing
+
+Update with `npm update -g @gitdocket/cli @gitdocket/mcp`, or remove the packages with `npm uninstall -g @gitdocket/cli @gitdocket/mcp`. Your project files stay in place.
+
+After an application update, run `docket upgrade --dry-run --json` in each project, review the changes, then run `docket upgrade`. Resolve any conflicts with your customized instructions.
+
+A Bun global installation uses a separate package manager. Follow the [migration guide](homebrew.md#moving-from-npm-or-bun) when switching installers or resolving command collisions.
 
 ## Release preparation
 

@@ -1,20 +1,20 @@
 # Project workflow extensions
 
-Make your team's process part of the project. A workflow extension gives your coding agent reusable instructions for a delivery process, an incident review or another team practice. Adapt the reviews, templates and checks, then keep the resulting decisions in Git for the next session.
+Save your team’s steps for planning, building, and reviewing a change in your repository. A workflow extension packages those instructions with templates and checks so your coding agent can use them again.
 
-For example, Beacon's delivery workflow turns a bookmark-export request into a reviewed proposal, verified implementation and local handoff. A fresh session then uses the recorded export contract to plan import. Start with the [guided Beacon example](../examples/product-delivery/README.md), or use the reference below to install a package in your own project and author one for your team.
+In the [Beacon example](../examples/product-delivery/README.md), an agent adds bookmark export and records the file format it chose. A fresh session uses that decision to plan import. Follow the example, or use this reference to install and customize a workflow for your own project.
 
-**Availability: 0.4.0 preview.** Install GitDocket through [Homebrew](https://github.com/GitDocket/gitdocket/blob/main/docs/homebrew.md) or [npm](https://github.com/GitDocket/gitdocket/blob/main/docs/npm.md). The example download contains workflow sources and a starting app, not the CLI. The example app and its verification scripts require Bun; GitDocket itself does not require a separate Bun installation.
+Install GitDocket with [Homebrew](homebrew.md) or [npm](npm.md). To run the Beacon example, you will also need Bun for its app and verification scripts. GitDocket and its workflow extensions are in preview.
 
 ## What belongs to your project
 
-The extension supplies named workflows, linked templates, scoped guidance, configurable choices and recipes for tools already available to your agent. GitDocket installs and validates the package, records ownership and manages updates. Your agent reads the current instructions and choices when you invoke the workflow, carries out the authorized work and reports evidence or an unresolved requirement. Review instructions are agent-followed prose; GitDocket does not automatically enforce human approval or run your test commands.
+An extension contains workflows, templates, project guidance, configurable choices, and instructions for using tools connected to your agent. GitDocket installs the package and manages updates. Your agent follows the instructions and runs the checks; review steps depend on the agent following those instructions.
 
 Installed content and configuration live under `docket/extensions/` by default. Proposals, reviews, decisions and verification records live elsewhere in your bundle and remain available across sessions and package updates. Ordinary task states still apply. Custom UI/statuses, executable package code, connector hosting and background synchronization are outside this version.
 
 ## Adopt a package
 
-Use an installed 0.5.0 candidate CLI in a Git repository initialized with `docket init --project DEMO`. For fresh native adapters, use `docket init --project DEMO --agent cursor --agent codex --agent claude --json`; omit any unneeded host. Review a local package directory before enabling it. From the adopter repository, use absolute source paths:
+Start in a Git repository initialized with `docket init --project DEMO`. For fresh native adapters, use `docket init --project DEMO --agent cursor --agent codex --agent claude --json`; omit any unneeded host. Review a local package directory before enabling it. From the adopter repository, use absolute source paths:
 
 ```sh
 docket extension inspect /path/to/examples/extensions/product-delivery --json
@@ -27,7 +27,7 @@ docket extension validate product-delivery --json
 
 Installation without `--enable` leaves the package disabled. `show` returns current availability, exact sources and configuration ownership. For example, `effectiveConfig.reviewer` is `{ "value": "release owner", "owner": "project" }`; source entries include bundle-relative paths. Read `docket source extensions/product-delivery/workflows/delivery.md --json`, then pass its exact returned `nextCursor` as `--cursor` with the same path until no continuation remains. A stale cursor requires restarting the read. Commit `docket/extensions/registry.json` and installed content together with generated pointers. A clone works without the original source directory. Completed proposals, decisions, work items and review records belong elsewhere in the project bundle, where extension updates/removal cannot own them. The bundle location follows `docket.yaml`; `docket/` is the default.
 
-Invoke the qualified workflow `product-delivery:deliver`. Codex and Claude adapters can offer a thin `docket-ext-product-delivery-deliver` shortcut where their adapter directories exist. The canonical workflow and current `show`/`list` result remain authoritative. Package guidance applies within its workflow; project guidance and explicit user instructions retain their scope and precedence. If prose requirements conflict, surface the concrete conflict before the affected action. Human titles may match across packages; qualify ambiguous requests instead of choosing installation order.
+Ask your agent to use `product-delivery:deliver`. Codex and Claude adapters can offer a thin `docket-ext-product-delivery-deliver` shortcut where their adapter directories exist. The canonical workflow and current `show`/`list` result remain authoritative. Package guidance applies within its workflow; project guidance and explicit user instructions retain their scope and precedence. If prose requirements conflict, surface the concrete conflict before the affected action. Human titles may match across packages; qualify ambiguous requests instead of choosing installation order.
 
 Configuration accepts declared finite scalar keys with the same JSON types as their defaults. Use `--reset reviewer` to return to the package default. Package commands are readable instructions; the engine never interpolates or executes them. Existing handwritten native files are preserved and reported as adapter conflicts. Valid portable invocation remains available; remove or rename a handwritten collision only after reviewing it, then run `docket extension refresh`.
 

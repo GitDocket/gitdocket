@@ -21,10 +21,12 @@
     </header>
     <div class="shell docs-layout">
       <aside class="docs-sidebar"><p class="eyebrow">Reference</p><nav aria-label="Documentation"><a href="/docs/">Get started</a><a href="/docs/install/">Installation</a><a href="/docs/example/">One-task example</a><a href="/docs/everyday/">Everyday use</a><a href="/docs/epics/">Epics</a><a href="/docs/extensions/">Extensions</a><a href="/docs/cli/">CLI commands</a><a href="/docs/mcp/">MCP & workflows</a><a href="/docs/api/">Local HTTP reference</a></nav></aside>
-      <main class="docs-content" id="main" tabindex="-1"><h1 id="complete-one-useful-change">Complete one useful change</h1>
-<p>GitDocket helps your coding agent resume with less re-explanation. Try one small tracked change, review its checks, and see how the knowledge helps the next session. No spec, epic, populated wiki, Home briefing or project guidance is required.</p>
+      <main class="docs-content" id="main" tabindex="-1">
+<h1 id="complete-one-useful-change">Complete one useful change</h1>
+<p>Try GitDocket by asking your coding agent to complete a small task. Review the result, then open a fresh session and see how it uses a decision recorded during that work.</p>
 <h2 id="1-install-and-initialize">1. Install and initialize</h2>
-<p>GitDocket 0.5.0 installs both commands with Homebrew. You need Homebrew and Git on macOS 15+ or supported glibc Linux, on ARM64 or x64. Windows is not supported. No separate Bun, Node or npm setup is needed:</p>
+<p>You need Homebrew, Git, and a coding agent. See <a href="/docs/install/#supported-platforms">supported platforms</a> or the <a href="/docs/install/#npm-alternative">npm alternative</a>.</p>
+<p>Install with Homebrew and create a small practice project:</p>
 <pre><code class="language-sh">brew install gitdocket/tap/gitdocket
 docket --version
 docket-mcp --version
@@ -36,14 +38,15 @@ docket init --agent codex
 git add .
 git commit -m "Initialize Harbor with Docket"
 </code></pre>
-<p>The fully qualified install command grants trust to the project’s formula. If you already have Node 22+, use <code>npm install -g --include=optional @gitdocket/cli @gitdocket/mcp</code> instead. See <a href="/docs/install/">installation, updates and migration</a> or the <a href="/docs/install/#npm-alternative">npm guide</a>.</p>
-<p>Use <code>--agent cursor</code> for Cursor, <code>--agent claude</code> for Claude Code, or omit the agent flag for portable <code>AGENTS.md</code> guidance. After <code>docket init --agent cursor</code>, enable the Docket MCP server once in Customize → MCPs (Command Palette: Open MCPs); init cannot complete that Cursor approval. Open the initialized repository in a new coding-agent session so it discovers those instructions. If Git cannot commit, configure your usual Git author identity and retry. Init adds a local Markdown bundle, configuration, workflow instructions, index and commit hook. It leaves existing files in place. In an existing project, review its adoption worklist before adding metadata to existing docs; a complete document migration is not a prerequisite for one task.</p>
+<p>The example uses Codex. Choose <code>--agent cursor</code> for Cursor or <code>--agent claude</code> for Claude Code; omit the flag for portable <code>AGENTS.md</code> instructions. For Cursor, enable Docket once in Customize → MCPs (Command Palette: Open MCPs).</p>
+<p>Open the initialized repository in a fresh agent session so it discovers the project instructions. If Git asks for an author identity, configure your usual name and email before committing.</p>
+<p>In an existing project, run <code>docket init</code> there instead. It leaves your existing files in place and creates a <code>docket/</code> folder for docs and work. You can add existing documentation gradually.</p>
 <h2 id="2-ask-for-one-tracked-change">2. Ask for one tracked change</h2>
 <p>Paste this into your coding agent:</p>
 <blockquote>
 <p>Read this project's context. Create one standalone Docket task to add a short contributor guide at docket/reference/contributing.md and link it from README.md. Use Reference frontmatter on the guide, with First step and Review sections. Since this project should remain useful offline, record the decision to use repository-relative documentation links in docket/reference/documentation.md, and explain how future guides should follow it. Acceptance criteria: both guide sections exist, the README link resolves, and the documentation decision is recorded. Start the created task by its actual ID, complete and verify it, reconcile affected docs, and close it with an Outcome and task-linked Git evidence. Do not create a spec or epic.</p>
 </blockquote>
-<p>The agent reads context, creates a task with verifiable criteria, implements the change and checks it. The close workflow asks the agent to update affected docs and record evidence. Docket manages IDs, state changes and readiness; your agent performs the work with its own tools and permissions. If it reports a concrete blocker, resolve the named issue and ask it to resume that same task ID.</p>
+<p>The agent creates a task, writes the guide, checks it, and records the result. It also saves the decision about offline links so the next session can find it. If the agent needs something from you, resolve the issue it names and ask it to resume the same task.</p>
 <h2 id="3-inspect-the-result">3. Inspect the result</h2>
 <pre><code class="language-sh">docket task list --all
 docket ready
@@ -51,18 +54,21 @@ git log -5 --format=full
 git status --short
 docket serve
 </code></pre>
-<p>Open the printed local URL. Inspect the completed task on the Board, or read its file under <code>docket/work/tasks/</code>. Expect exactly one done task with checked criteria and an Outcome explaining what shipped and what was checked. Open the README link, verify both guide sections, read the documentation decision, and review the task-linked Git diff. The task and checks explain the result; the reference doc leaves useful knowledge for later work. A clean fixture has no next ready task. Docket does not invent one.</p>
-<p>An empty Home briefing is valid. Task files, docs and Git history still provide context; the agent does not need to fabricate a summary. Default browser edits save local, uncommitted files. Review Git status before committing. GitDocket includes the shared document editor and optional project guidance; neither is required for this tutorial.</p>
+<p>Open the local URL printed by <code>docket serve</code>. Find the completed task on the Board, or read its Markdown file under <code>docket/work/tasks/</code>. Its Outcome should explain the change and the checks performed.</p>
+<p>Open the README link, check the two guide sections, and read the saved documentation decision. Review the Git diff as well. You should have one completed task and no pending work yet.</p>
+<p>You can also edit docs in the browser. Save writes local files; review <code>git diff</code> and commit when ready. The Home briefing is optional—your tasks, docs, and Git history already provide context.</p>
 <h2 id="4-use-the-knowledge-in-a-fresh-session">4. Use the knowledge in a fresh session</h2>
-<p>Close the agent session, open a new one in the same repository, and ask:</p>
+<p>Open a new agent session in the same repository and ask:</p>
 <blockquote>
 <p>Where did we leave off? Using repository evidence, explain how we should add a troubleshooting guide and make it discoverable. Cite the project decision that affects your recommendation. This is a read-only planning request; do not create or start work.</p>
 </blockquote>
-<p>Check that the answer finds the previous Outcome and recorded decision, proposes links consistent with it, and cites the file. The prompt deliberately does not repeat the decision. Recovering a done status alone is not the goal: earlier knowledge should shape the new recommendation. Authored briefings require an explicit refresh when they age; current readiness is derived from task files.</p>
-<p>See <a href="/docs/example/">one task and a fresh session</a> for the retained scripted run and separate agent response.</p>
-<h2 id="continue-at-your-own-pace">Continue at your own pace</h2>
-<p>For an existing project, choose a small documentation fix, missing test or bounded bug with an observable result. Ask for a task when its criteria and durable receipt will help; a direct “fix this typo” request need not create tracked work. Use the real returned task ID when starting or resuming it. For a larger outcome, follow <a href="/docs/epics/">Grow to an epic</a>. Optional saved standards and browser editing are explained in <a href="/docs/everyday/">Everyday use</a> once you are using a build that includes them; they are not required for this tutorial.</p>
-<p><code>docket index</code> regenerates views after direct source edits. <code>docket lint</code> checks explicit links, metadata and workflow hygiene. The <a href="https://github.com/GitDocket/gitdocket/blob/main/docs/concepts.md">concepts guide</a>, <a href="/docs/cli/">CLI reference</a>, <a href="/docs/mcp/">agent integration</a>, and <a href="/docs/api/">local-server safety</a> provide details as you need them.</p></main>
+<p>Look for a recommendation that cites the saved decision and uses relative links for the troubleshooting guide. You did not repeat that requirement: the agent should find it in the project.</p>
+<p>See <a href="/docs/example/">one task and a fresh session</a> for an example with the task, recorded decision, and a separate agent’s response.</p>
+<h2 id="continue-in-your-project">Continue in your project</h2>
+<p>Choose a small documentation fix, missing test, or bug with a clear result. Ask for a task when you want to keep its scope, checks, and outcome; a quick typo fix can stay a direct request. Use the returned task ID to start or resume tracked work.</p>
+<p>Read <a href="/docs/everyday/">Everyday use</a> for saved project instructions, browser editing, and keeping docs current. Use <a href="/docs/epics/">epics</a> when several tasks contribute to one outcome.</p>
+<p>After editing source files directly, <code>docket index</code> refreshes generated views and <code>docket lint</code> checks links and metadata. The <a href="https://github.com/GitDocket/gitdocket/blob/main/docs/concepts.md">concepts guide</a>, <a href="/docs/cli/">CLI reference</a>, <a href="/docs/mcp/">agent integration</a>, and <a href="/docs/api/">local-server guide</a> explain the details.</p>
+</main>
     </div>
     <footer class="shell footer"><a class="brand" href="/">GitDocket</a><p>Project knowledge and work, together in Git.</p><a href="https://github.com/GitDocket/gitdocket">Source on GitHub ↗</a></footer>
   </body>
