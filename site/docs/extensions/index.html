@@ -22,29 +22,30 @@
     <div class="shell docs-layout">
       <aside class="docs-sidebar"><p class="eyebrow">Reference</p><nav aria-label="Documentation"><a href="/docs/">Get started</a><a href="/docs/install/">Installation</a><a href="/docs/example/">One-task example</a><a href="/docs/everyday/">Everyday use</a><a href="/docs/epics/">Epics</a><a href="/docs/extensions/" aria-current="page">Extensions</a><a href="/docs/cli/">CLI commands</a><a href="/docs/mcp/">MCP & workflows</a><a href="/docs/api/">Local HTTP reference</a></nav></aside>
       <main class="docs-content" id="main" tabindex="-1">
-<p class="eyebrow">Workflow extensions · 0.4.1 preview</p>
+<p class="eyebrow">Workflow extensions</p>
 <h1>Make your process part of the project.</h1>
-<p class="doc-lede">Give your coding agent a repeatable path from request to reviewed delivery. Adapt the reviews and checks to your team, and keep the decisions available for the next change—all in Git.</p>
+<p class="doc-lede">Give your coding agent your team’s steps for planning, building, and reviewing a change. Save the templates and checks in your repository so you can reuse them next time.</p>
 <p class="text-link"><a href="/docs/extensions/beacon/">See a delivery workflow →</a></p>
 <h2>Start with a process you already use</h2>
 <dl class="use-cases">
-<div><dt>Deliver a product change</dt><dd>Prepare a proposal, review the scope, implement it, verify the result and leave a local release handoff.</dd></div>
-<div><dt>Review an incident</dt><dd>Gather the timeline, separate facts from hypotheses and retain a review. Create follow-up work when you ask for it.</dd></div>
-<div><dt>Share your team's approach</dt><dd>Package your own workflow, templates and guidance. Choose the reviewer and project checks instead of repeating them in each session.</dd></div>
+<div><dt>Deliver a product change</dt><dd>Write a proposal, review the scope, build the feature, and check the result.</dd></div>
+<div><dt>Review an incident</dt><dd>Gather the timeline, investigate what happened, and record what to do next.</dd></div>
+<div><dt>Share your team’s approach</dt><dd>Save your workflow and templates so each session starts with the same instructions.</dd></div>
 </dl>
 <h2>One change helps the next</h2>
-<p>In the Beacon example, a request to export bookmarks becomes a reviewed proposal and a verified download feature. The workflow leaves an export-contract decision. A fresh session uses that decision to plan import, including which new choices still need review.</p>
-<ol class="journey" aria-label="Beacon delivery sequence"><li>Request</li><li>Reviewed proposal</li><li>Verified feature</li><li>Retained decision</li><li>Next plan</li></ol>
-<p><a href="/docs/extensions/beacon/#observed">Read the actual records and next-session response →</a></p>
-<h2>Your process, in your repository</h2>
-<p>An extension is a versioned package of Markdown workflows, templates, guidance and tool recipes. GitDocket installs it under <code>docket/extensions/</code> by default and records project choices alongside it. Commit those files so another checkout has the same process.</p>
-<p>Invoke a workflow by name, such as <code>product-delivery:deliver</code>. Your agent reads its current instructions and configuration, follows the work you authorized, and reports results or an unresolved requirement. You review the proposal and decide the next step. GitDocket manages package validation, task state and update conflicts; the agent follows the review instructions and runs checks.</p>
-<p>Proposals, decisions and completed work live elsewhere in your project's linked Markdown. They stay readable when the package is updated or retired. Project choices remain distinct from package defaults; simultaneous local and upstream edits are reported for review.</p>
+<p>In the Beacon example, an agent adds bookmark export and records the file format it chose. A fresh session finds that decision and uses it to plan import.</p>
+<ol class="journey" aria-label="Beacon delivery sequence"><li>Request</li><li>Reviewed proposal</li><li>Checked change</li><li>Recorded decision</li><li>Next change</li></ol>
+<p><a href="/docs/extensions/beacon/#observed">Read the proposal, decision, and next-session response →</a></p>
+<h2>Keep the workflow with the project</h2>
+<p>An extension is a package of Markdown workflows, templates, guidance, and tool instructions. GitDocket installs it under <code>docket/extensions/</code>. Commit those files and your project choices so another checkout has the same process.</p>
+<p>Ask your agent to use a named workflow, such as <code>product-delivery:deliver</code>. It reads the instructions, prepares the work, and brings the result back for review. You can choose the reviewer, change the checks, and adapt the templates.</p>
+<p>Your proposals, decisions, and completed work stay in the project when you update or remove an extension. GitDocket manages package updates and flags conflicts with your edits.</p>
 <h2>Use the tools your agent already has</h2>
-<p>A workflow can read an issue, inspect checks or prepare a handoff using tools exposed by your agent host, including MCP tools. You bind those available tools to the workflow's recipes. Posting a prepared handoff needs your authorization for its content and destination. The extension does not set up connections or credentials.</p>
-<aside class="reference-note availability" aria-label="Preview availability">
-<p><strong>Included in the 0.4.1 preview.</strong> <a href="/docs/install/">Install GitDocket with Homebrew or npm</a>. The example download contains sources and a starting app; its app and verification scripts additionally require Bun.</p>
-<p>You can read the <a href="/docs/extensions/beacon/">Beacon walkthrough</a> now. If you already have the candidate, follow its setup steps. Otherwise, <a href="/docs/">start with one task</a> on the published release. Workflows are optional.</p>
+<p>A workflow can use connected tools to read an issue, inspect checks, or prepare a handoff. It uses your agent’s existing connections and permissions. You decide when to send a handoff or publish a result.</p>
+<p>The agent follows the workflow’s instructions and runs the checks. Review steps depend on those instructions being followed; installing an extension does not set up external services or enforce approvals automatically.</p>
+<aside class="reference-note availability" aria-label="Get started with extensions">
+<p><a href="/docs/install/">Install GitDocket with Homebrew or npm</a>, then try the <a href="/docs/extensions/beacon/">Beacon walkthrough</a>. Its example app also needs Bun; the guide lists the setup steps.</p>
+<p>GitDocket and its extensions are in preview. You can also <a href="/docs/">start with one task</a> and add a workflow later.</p>
 </aside>
 <nav class="doc-next" aria-label="Next reading"><a href="/docs/extensions/beacon/">Follow Beacon →</a><a href="/docs/extensions/reference/">Install, customize or author a workflow →</a></nav>
 </main>

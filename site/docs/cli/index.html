@@ -23,23 +23,23 @@
       <aside class="docs-sidebar"><p class="eyebrow">Reference</p><nav aria-label="Documentation"><a href="/docs/">Get started</a><a href="/docs/install/">Installation</a><a href="/docs/extensions/">Extensions</a><a href="/docs/cli/" aria-current="page">CLI commands</a><a href="/docs/mcp/">MCP & workflows</a><a href="/docs/api/">Local HTTP reference</a></nav></aside>
       <main class="docs-content" id="main" tabindex="-1"><p class="eyebrow">GitDocket docs</p><h1>CLI commands.</h1><p class="doc-lede">A short reference for working from the terminal. Run commands inside your initialized repository.</p>
         <section aria-labelledby="read"><h2 id="read">Find the context</h2><div class="table-wrap"><table><thead><tr><th>Command</th><th>Purpose</th></tr></thead><tbody>
-<tr><td><code>docket overview --json</code></td><td>Read the project briefing, active work, and next frontier.</td></tr>
+<tr><td><code>docket overview --json</code></td><td>Read the project briefing, active work, and what is ready next.</td></tr>
 <tr><td><code>docket guidance --json</code></td><td>Read optional project standards and scoped source links.</td></tr>
 <tr><td><code>docket ready --json</code></td><td>Find todo tasks whose dependencies are done.</td></tr>
 <tr><td><code>docket task list --all</code></td><td>List tracked work, including done and closed items.</td></tr>
 <tr><td><code>docket search "welcome guide"</code></td><td>Search the Markdown bundle.</td></tr>
 <tr><td><code>docket source workflows/docket-epic.md</code></td><td>Read a bounded page of an exact bundle source path.</td></tr>
 </tbody></table></div></section>
-        <section aria-labelledby="work"><h2 id="work">Manage tracked work</h2><p>Replace <code>&lt;ID&gt;</code> with a real ID from your task list. Use the checked-in pickup and close workflows for implementation, verification, and documentation reconciliation.</p>
+        <section aria-labelledby="work"><h2 id="work">Manage tracked work</h2><p>Replace <code>&lt;ID&gt;</code> with a real ID from your task list. Ask your agent to start the task, make and check the change, and update the affected docs before closing it.</p>
 <div class="table-wrap"><table><thead><tr><th>Command</th><th>Purpose</th></tr></thead><tbody>
 <tr><td><code>docket task create --title "Write the guide"</code></td><td>Create a task with a generated ID.</td></tr>
 <tr><td><code>docket task start &lt;ID&gt; --json</code></td><td>Start selected work and return its context packet.</td></tr>
 <tr><td><code>docket task log &lt;ID&gt; "Verified the guide links"</code></td><td>Record a dated work note.</td></tr>
-<tr><td><code>docket task move &lt;ID&gt; review</code></td><td>Change stored status through the state machine.</td></tr>
+<tr><td><code>docket task move &lt;ID&gt; review</code></td><td>Move an item to review.</td></tr>
 <tr><td><code>docket task edit &lt;ID&gt; --priority p1</code></td><td>Update a task’s fields.</td></tr>
 <tr><td><code>docket task stop</code></td><td>Clear the active task; its status stays unchanged.</td></tr>
 <tr><td><code>docket task close &lt;ID&gt;</code></td><td>Complete the item after the close workflow’s checks.</td></tr>
-</tbody></table></div><p>To close without completion, use <code>docket task close &lt;ID&gt; --without-completion --note "Reason"</code>. Closing state alone is not evidence that the work was verified.</p></section>
+</tbody></table></div><p>To close without completion, use <code>docket task close &lt;ID&gt; --without-completion --note "Reason"</code>. Review the checks and changed files before completing a task.</p></section>
         <section aria-labelledby="maintain"><h2 id="maintain">Maintain &amp; browse</h2><div class="table-wrap"><table><thead><tr><th>Command</th><th>Purpose</th></tr></thead><tbody>
 <tr><td><code>docket init --agent cursor</code></td><td>Initialize a project and install an optional native adapter. Also <code>--agent claude</code> and <code>--agent codex</code>.</td></tr>
 <tr><td><code>docket lint</code></td><td>Check schema, links, and workflow hygiene.</td></tr>

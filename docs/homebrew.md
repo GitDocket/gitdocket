@@ -1,6 +1,6 @@
-# Homebrew distribution
+# Install with Homebrew
 
-Install GitDocket 0.5.0 with Homebrew and Git:
+Install GitDocket with Homebrew:
 
 ```sh
 brew install gitdocket/tap/gitdocket
@@ -8,27 +8,54 @@ docket --version
 docket-mcp --version
 ```
 
-One formula supplies both commands without separately installing Bun, Node or npm. Continue with [Getting started](getting-started.md), or use the [npm alternative](npm.md) if you already have Node 22+.
+This installs `docket`, the command-line tool, and `docket-mcp`, which connects your coding agent to the project. Continue with [Getting started](getting-started.md). If you already use Node 22+, [npm](npm.md) is another installation option.
 
-## Support and trust
+## Supported platforms
 
-The project-maintained tap is `GitDocket/homebrew-tap`; its formula is `gitdocket`. It is separate from Homebrew core and uses the same checked, versioned standalone archives as the other distribution channels. It does not use a cask. Linux qualification uses Ubuntu 24.04 on ARM64 and x64. Mac release checks run locally on Apple Silicon, including Intel compatibility through Rosetta; receipts record the actual macOS version and execution assistance. Rosetta does not establish testing on physical Intel hardware or an older macOS release. The formula requires macOS 15 or later and 64-bit ARM or Intel hardware; Linux must satisfy Homebrew's own supported-system requirements. Other Linux distributions and older OS releases have not been qualified. Windows is outside this release's scope.
+You need Git and Homebrew. GitDocket supports:
 
-Homebrew 6 and later require trust for third-party formulae. A fully qualified `brew install gitdocket/tap/gitdocket` grants trust to that formula, keeping installation to one command. It does not trust all future tap content. See [Homebrew tap trust](https://docs.brew.sh/Tap-Trust).
+- macOS 15 or later on Apple Silicon or Intel.
+- Homebrew-compatible glibc Linux on ARM64 or x64. Release checks use Ubuntu 24.04; other distributions have not been qualified.
+
+Windows, Alpine/musl Linux and 32-bit systems are unsupported. Mac release checks run on Apple Silicon, with Intel compatibility checked through Rosetta rather than physical Intel hardware. Linux must meet [Homebrew’s system requirements](https://docs.brew.sh/Installation).
+
+## About the tap
+
+The command uses the project-maintained `GitDocket/homebrew-tap`. On Homebrew 6 and later, the fully qualified command grants trust to this formula. See [Homebrew tap trust](https://docs.brew.sh/Tap-Trust).
 
 ## Updating and removing
 
-Use `brew update` followed by `brew upgrade gitdocket/tap/gitdocket`. `brew reinstall gitdocket/tap/gitdocket` repairs the installed package; `brew uninstall gitdocket/tap/gitdocket` removes it. Homebrew manages its own executable files. These commands do not migrate or delete project bundles, authored Markdown, agent configurations or hooks.
+Update the application with:
 
-Inside each project, review `docket upgrade --dry-run --json`, then run `docket upgrade` and resolve any reported instruction conflicts. Updating the executable does not imply that project instructions have been reconciled.
+```sh
+brew update
+brew upgrade gitdocket/tap/gitdocket
+```
+
+Then update the supplied instructions in each project:
+
+```sh
+docket upgrade --dry-run --json
+docket upgrade
+```
+
+Review the dry-run output first and resolve any reported conflicts with your customizations.
+
+Use `brew reinstall gitdocket/tap/gitdocket` to repair the installation, or `brew uninstall gitdocket/tap/gitdocket` to remove it. Your project files and agent configuration stay in place.
 
 ## Moving from npm or Bun
 
-Before switching channels, run `type -a docket docket-mcp` to see which executables your shell resolves. Inspect the existing installation with `npm ls -g --depth=0` or `bun pm ls -g`, depending on the installer you used. Install the Homebrew package, then inspect its commands directly with `$(brew --prefix gitdocket/tap/gitdocket)/bin/docket --version` and the corresponding `docket-mcp --version`.
+Check which commands your shell currently uses:
 
-If Homebrew reports an existing link collision, review the named paths and uninstall only the prior GitDocket packages with their original package manager: `npm uninstall -g @gitdocket/cli @gitdocket/mcp` or `bun remove -g @gitdocket/cli @gitdocket/mcp`. Do not force-overwrite unknown executable paths. Then run `brew link gitdocket/tap/gitdocket`, refresh your shell's command cache or open a new terminal, and rerun `type -a docket docket-mcp` and both version commands. An earlier directory on PATH can still select another installation even when Homebrew linking succeeds.
+```sh
+type -a docket docket-mcp
+```
 
-Agent MCP configurations can contain an absolute path to the old executable. Review `.mcp.json`, `.cursor/mcp.json`, `.codex/config.toml` and any host-level MCP configuration. Point intentional custom entries at the selected `docket-mcp`. Re-running `docket init --agent cursor --agent claude --agent codex` applies normal preservation rules and may leave an existing custom MCP entry untouched; inspect the result and restart the agent host. Cursor still requires a one-time Customize → MCPs enable after a new project server is written. Removing a package does not remove project files or rewrite those entries for you.
+Inspect your previous installation with `npm ls -g --depth=0` or `bun pm ls -g`, depending on the installer you used. Install the Homebrew package, then check it directly with `$(brew --prefix gitdocket/tap/gitdocket)/bin/docket --version` and the corresponding `docket-mcp --version`.
+
+If Homebrew reports a link collision, remove the old GitDocket packages with their original installer: `npm uninstall -g @gitdocket/cli @gitdocket/mcp` or `bun remove -g @gitdocket/cli @gitdocket/mcp`. Review the named paths before removing anything; avoid force-overwriting unknown executables. Run `brew link gitdocket/tap/gitdocket`, open a new terminal, and check `type -a docket docket-mcp` again.
+
+An agent may still point to the old executable through `.mcp.json`, `.cursor/mcp.json`, `.codex/config.toml` or its host-level MCP settings. Update any old absolute paths and restart the agent. Re-running `docket init` preserves custom entries, so check those yourself. For a new Cursor registration, enable Docket in Customize → MCPs.
 
 ## Maintaining the tap
 
