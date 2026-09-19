@@ -26,10 +26,16 @@ async function request<T>(url: string, body?: unknown): Promise<T> {
   const response = await fetch(
     url,
     body === undefined
-      ? { cache: "no-store" }
+      ? {
+          cache: "no-store",
+          headers: { "X-Docket-Trigger": "explicit" },
+        }
       : {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "X-Docket-Trigger": "explicit",
+          },
           body: JSON.stringify(body),
         },
   );

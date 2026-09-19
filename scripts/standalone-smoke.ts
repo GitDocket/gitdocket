@@ -72,6 +72,8 @@ export async function smokeStandalone(
         "codex",
         "--agent",
         "claude",
+        "--agent",
+        "cursor",
         "--json",
       ]),
     );

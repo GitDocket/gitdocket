@@ -14,7 +14,7 @@ Installed content and configuration live under `docket/extensions/` by default. 
 
 ## Adopt a package
 
-Use an installed 0.4.1 candidate CLI in a Git repository initialized with `docket init --project DEMO`. For fresh native adapters, use `docket init --project DEMO --agent codex --agent claude --json`; omit any unneeded host. Review a local package directory before enabling it. From the adopter repository, use absolute source paths:
+Use an installed 0.5.0 candidate CLI in a Git repository initialized with `docket init --project DEMO`. For fresh native adapters, use `docket init --project DEMO --agent cursor --agent codex --agent claude --json`; omit any unneeded host. Review a local package directory before enabling it. From the adopter repository, use absolute source paths:
 
 ```sh
 docket extension inspect /path/to/examples/extensions/product-delivery --json

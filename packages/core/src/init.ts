@@ -169,7 +169,13 @@ export function upgradeHookBlock(existing: string): InitResult {
     : { action: "update", content };
 }
 
-const MCP_SERVER = { command: "docket-mcp" };
+const jsonMcpServer = (host: "claude" | "cursor") => ({
+  command: "docket-mcp",
+  env: {
+    DOCKET_TELEMETRY_ACTOR: "agent",
+    DOCKET_TELEMETRY_HOST: host,
+  },
+});
 
 const CODEX_MCP_BEGIN = `# >>> docket mcp@${DOCKET_VERSION} >>>`;
 const CODEX_MCP_END = "# <<< docket mcp <<<";
@@ -177,17 +183,25 @@ const CODEX_MCP_BEGIN_RE = /# >>> docket mcp(@\S+)? >>>/;
 const CODEX_MCP_BLOCK = `${CODEX_MCP_BEGIN}
 [mcp_servers.docket]
 command = "docket-mcp"
+
+[mcp_servers.docket.env]
+DOCKET_TELEMETRY_ACTOR = "agent"
+DOCKET_TELEMETRY_HOST = "codex"
 ${CODEX_MCP_END}
 `;
 const CODEX_MCP_BLOCK_RE =
   /# >>> docket mcp(@\S+)? >>>[\s\S]*?# <<< docket mcp <<<\n?/;
 
-/** Register the docket MCP server in .mcp.json without touching other entries. */
-export function mergeMcpJson(existing: string | undefined): InitResult {
+/** Register the docket MCP server in JSON MCP config without touching other entries. */
+export function mergeMcpJson(
+  existing: string | undefined,
+  host: "claude" | "cursor",
+): InitResult {
+  const server = jsonMcpServer(host);
   if (existing === undefined) {
     return {
       action: "create",
-      content: `${JSON.stringify({ mcpServers: { docket: MCP_SERVER } }, null, 2)}\n`,
+      content: `${JSON.stringify({ mcpServers: { docket: server } }, null, 2)}\n`,
     };
   }
   let parsed: unknown;
@@ -207,7 +221,7 @@ export function mergeMcpJson(existing: string | undefined): InitResult {
   if (servers.docket) {
     return { action: "skip", content: existing, reason: "already registered" };
   }
-  root.mcpServers = { ...servers, docket: MCP_SERVER };
+  root.mcpServers = { ...servers, docket: server };
   return { action: "update", content: `${JSON.stringify(root, null, 2)}\n` };
 }
 

@@ -24,7 +24,7 @@
       <main class="docs-content" id="main" tabindex="-1"><h1 id="complete-one-useful-change">Complete one useful change</h1>
 <p>GitDocket helps your coding agent resume with less re-explanation. Try one small tracked change, review its checks, and see how the knowledge helps the next session. No spec, epic, populated wiki, Home briefing or project guidance is required.</p>
 <h2 id="1-install-and-initialize">1. Install and initialize</h2>
-<p>GitDocket 0.4.1 installs both commands with Homebrew. You need Homebrew and Git on macOS 15+ or supported glibc Linux, on ARM64 or x64. Windows is not supported. No separate Bun, Node or npm setup is needed:</p>
+<p>GitDocket 0.5.0 installs both commands with Homebrew. You need Homebrew and Git on macOS 15+ or supported glibc Linux, on ARM64 or x64. Windows is not supported. No separate Bun, Node or npm setup is needed:</p>
 <pre><code class="language-sh">brew install gitdocket/tap/gitdocket
 docket --version
 docket-mcp --version
@@ -37,7 +37,7 @@ git add .
 git commit -m "Initialize Harbor with Docket"
 </code></pre>
 <p>The fully qualified install command grants trust to the project’s formula. If you already have Node 22+, use <code>npm install -g --include=optional @gitdocket/cli @gitdocket/mcp</code> instead. See <a href="/docs/install/">installation, updates and migration</a> or the <a href="/docs/install/#npm-alternative">npm guide</a>.</p>
-<p>Use <code>--agent claude</code> for Claude Code, or omit the agent flag for portable <code>AGENTS.md</code> guidance. Open the initialized repository in a new coding-agent session so it discovers those instructions. If Git cannot commit, configure your usual Git author identity and retry. Init adds a local Markdown bundle, configuration, workflow instructions, index and commit hook. It leaves existing files in place. In an existing project, review its adoption worklist before adding metadata to existing docs; a complete document migration is not a prerequisite for one task.</p>
+<p>Use <code>--agent cursor</code> for Cursor, <code>--agent claude</code> for Claude Code, or omit the agent flag for portable <code>AGENTS.md</code> guidance. After <code>docket init --agent cursor</code>, enable the Docket MCP server once in Customize → MCPs (Command Palette: Open MCPs); init cannot complete that Cursor approval. Open the initialized repository in a new coding-agent session so it discovers those instructions. If Git cannot commit, configure your usual Git author identity and retry. Init adds a local Markdown bundle, configuration, workflow instructions, index and commit hook. It leaves existing files in place. In an existing project, review its adoption worklist before adding metadata to existing docs; a complete document migration is not a prerequisite for one task.</p>
 <h2 id="2-ask-for-one-tracked-change">2. Ask for one tracked change</h2>
 <p>Paste this into your coding agent:</p>
 <blockquote>

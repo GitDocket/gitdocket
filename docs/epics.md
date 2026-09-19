@@ -8,11 +8,11 @@ Start in a scratch Git repository if you want to try the full loop before using
 it on your project. Install the native adapter for your agent:
 
 ```sh
+docket init --agent cursor
 docket init --agent codex
 ```
 
-Use `--agent claude` for Claude Code; omit the flag for portable `AGENTS.md`
-guidance. Open the initialized repository in your coding agent and ask:
+Use `--agent claude` for Claude Code; omit the flag for portable `AGENTS.md` guidance. After `--agent cursor`, enable Docket once in Customize → MCPs. Open the initialized repository in your coding agent and ask:
 
 > Create a “Welcome guide” epic with two dependent tasks: write a short
 > contributor guide, then link it from README. Give each task concrete

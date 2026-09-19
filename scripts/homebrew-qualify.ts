@@ -179,6 +179,8 @@ export async function qualifyHomebrew(options: {
         "claude",
         "--agent",
         "codex",
+        "--agent",
+        "cursor",
         "--json",
       ],
       project,

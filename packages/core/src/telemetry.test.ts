@@ -3,7 +3,12 @@ import { afterEach, expect, test } from "bun:test";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Telemetry, TelemetryStore } from "./telemetry";
+import {
+  attributionFromMcpMeta,
+  resolveAttribution,
+  Telemetry,
+  TelemetryStore,
+} from "./telemetry";
 
 const dirs: string[] = [];
 function fixture() {
@@ -165,4 +170,98 @@ test("async-local work counts do not mix concurrent operations", async () => {
     .map((e) => e.work?.parse)
     .sort((a, b) => (a ?? 0) - (b ?? 0));
   expect(work).toEqual([1, 10]);
+});
+
+test("per-request attribution overrides launch defaults; invalid claims stay unknown", () => {
+  const { store, telemetry } = fixture();
+  store.enable();
+  telemetry.record(event, {
+    actor: "agent",
+    host: "cursor",
+  });
+  telemetry.record(event, {
+    actor: "not-an-actor",
+    host: "codex",
+  });
+  telemetry.record(event, {
+    actor: "human",
+    host: "claude",
+  });
+  const ops = store.events().filter((e) => e.kind === "operation");
+  expect(ops.map((e) => [e.actor, e.host])).toEqual([
+    ["agent", "cursor"],
+    ["unknown", "codex"],
+    ["human", "claude"],
+  ]);
+});
+
+test("explicit request claims beat launch defaults and do not fall back when invalid", () => {
+  expect(
+    resolveAttribution({
+      launch: { actor: "agent", host: "cursor" },
+      request: { actor: "human", host: "claude" },
+    }),
+  ).toEqual({ actor: "human", host: "claude" });
+  expect(
+    resolveAttribution({
+      launch: { actor: "agent", host: "cursor" },
+      request: { actor: "nope" },
+    }),
+  ).toEqual({ actor: "nope", host: "cursor" });
+  expect(
+    resolveAttribution({
+      launch: { actor: "agent", host: "codex", trigger: "explicit" },
+    }),
+  ).toEqual({ actor: "agent", host: "codex", trigger: "explicit" });
+});
+
+test("MCP meta ignores launch workflow so a long-lived process does not join unrelated work", () => {
+  expect(
+    attributionFromMcpMeta(undefined, {
+      actor: "agent",
+      host: "cursor",
+      workflow: "launch-wide",
+    }),
+  ).toEqual({ actor: "agent", host: "cursor", trigger: "explicit" });
+  expect(
+    attributionFromMcpMeta(
+      { "docket/workflow": "request-a" },
+      { actor: "agent", host: "cursor", workflow: "launch-wide" },
+    ),
+  ).toEqual({
+    actor: "agent",
+    host: "cursor",
+    trigger: "explicit",
+    workflow: "request-a",
+  });
+});
+
+test("optional outcome fields distinguish missing from zero and keep historical records readable", () => {
+  const { store, telemetry } = fixture();
+  store.enable();
+  telemetry.record(event);
+  telemetry.record({
+    ...event,
+    resultCount: 0,
+    resultTotal: 0,
+    truncated: "none",
+    saveState: "unchanged",
+  });
+  const ops = store
+    .events()
+    .filter((entry) => entry.kind === "operation")
+    .slice(-2);
+  expect(ops[0]?.resultCount).toBeNull();
+  expect(ops[0]?.saveState).toBeNull();
+  expect(ops[1]?.resultCount).toBe(0);
+  expect(ops[1]?.truncated).toBe("none");
+  expect(ops[1]?.saveState).toBe("unchanged");
+  expect(
+    store.append(() => [
+      {
+        ...ops[0],
+        resultCount: "PRIVATE",
+      },
+    ]),
+  ).toBe("dropped");
 });

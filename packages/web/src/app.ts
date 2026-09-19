@@ -39,8 +39,11 @@ import {
 } from "@gitdocket/core";
 import { deriveOverview, epicNeedsCleanup } from "@gitdocket/core/overview";
 import {
-  type Operation,
+  attributionFromHttpHeaders,
   observeOperation,
+  recordOperationOutcome,
+  searchOutcome,
+  serveOperation,
   Telemetry,
 } from "@gitdocket/core/telemetry";
 import { type Handler, Hono } from "hono";
@@ -422,56 +425,15 @@ export function createApp(
 
   const telemetry = new Telemetry(ctx.root, "serve");
   app.use("/api/*", async (c, next) => {
-    const route = c.req.path;
-    const reads: Record<string, Operation> = {
-      "/api/nav": "docs",
-      "/api/home": "overview",
-      "/api/docs": "docs",
-      "/api/activity": "activity",
-      "/api/search": "search",
-      "/api/board": "board",
-      "/api/epics": "epics",
-      "/api/tasks": "task_list",
-      "/api/facets": "config",
-    };
-    const mutations: Record<string, Operation> = {
-      status: "set_status",
-      priority: "set_priority",
-      reorder: "set_rank",
-      rank: "set_rank",
-      epic: "set_epic",
-    };
-    const mutation =
-      /^\/api\/tasks\/[^/]+\/(status|priority|reorder|rank|epic)$/.exec(route);
-    const operation =
-      c.req.method === "POST" && mutation
-        ? mutations[mutation[1] ?? ""]
-        : c.req.method === "GET"
-          ? (reads[route] ??
-            (route.startsWith("/api/source/")
-              ? "source_page"
-              : route.startsWith("/api/concept/") ||
-                  route.startsWith("/api/work/")
-                ? "task_get"
-                : undefined))
-          : undefined;
+    const operation = serveOperation(c.req.method, c.req.path);
     if (!operation) return next();
-    const trigger = c.req.header("X-Docket-Trigger");
     await observeOperation(telemetry, operation, next, {
       dimensions: () => ctx.telemetryDimensions?.() ?? {},
-      attribution: {
-        trigger:
-          trigger === "background" || trigger === "explicit"
-            ? trigger
-            : "unknown",
-        workflow: c.req.header("X-Docket-Workflow"),
-        actor: c.req.header("X-Docket-Actor"),
-        host: c.req.header("X-Docket-Host"),
-      },
+      attribution: attributionFromHttpHeaders((name) => c.req.header(name)),
       resultError: () =>
         c.res.status < 400
           ? "none"
-          : c.res.status === 400
+          : c.res.status === 400 || c.res.status === 413 || c.res.status === 422
             ? "validation"
             : c.res.status === 404
               ? "not_found"
@@ -480,6 +442,12 @@ export function createApp(
                 : c.res.status === 403
                   ? "permission"
                   : "internal",
+      resultOutcome: () =>
+        c.res.status === 413
+          ? { failureReason: "too_large" }
+          : c.res.status === 422
+            ? { failureReason: "unsupported" }
+            : {},
     });
   });
 
@@ -1004,6 +972,9 @@ export function createApp(
         includeGraph: false,
         maxSnippetChars: 240,
       });
+      recordOperationOutcome(
+        searchOutcome(result.hits.length, result.total, limit),
+      );
       return c.json({
         hits: result.hits.map((hit) => {
           const concept = conceptMap(c.get("repo").bundle).get(hit.path);
@@ -1021,8 +992,12 @@ export function createApp(
         },
       });
     }
+    const result = search.searchPage(q, { limit });
+    recordOperationOutcome(
+      searchOutcome(result.hits.length, result.total, limit),
+    );
     return c.json({
-      hits: search.search(q, { limit }),
+      hits: result.hits,
     });
   });
 
@@ -1313,8 +1288,15 @@ export function createApp(
           ...(commitError ? { commitError } : {}),
         };
       });
+      recordOperationOutcome({ saveState: result.saveState });
       return c.json(result);
     } catch (error) {
+      if (error instanceof SyntaxError)
+        recordOperationOutcome({ failureReason: "invalid_patch" });
+      if (error instanceof DocumentEditError && error.code === "too_large")
+        recordOperationOutcome({ failureReason: "too_large" });
+      if (error instanceof DocumentEditError && error.code === "unsupported")
+        recordOperationOutcome({ failureReason: "unsupported" });
       return c.json(
         editFailure(error),
         error instanceof SyntaxError ? 400 : editStatus(error),

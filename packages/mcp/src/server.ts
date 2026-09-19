@@ -28,11 +28,13 @@ import {
 } from "@gitdocket/core";
 import { deriveRepositoryOverview } from "@gitdocket/core/orientation";
 import {
-  environmentAttribution,
+  attributionFromMcpMeta,
   errorCategory,
   OPERATIONS,
   type Operation,
   observeOperation,
+  recordOperationOutcome,
+  searchOutcome,
   Telemetry,
 } from "@gitdocket/core/telemetry";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -53,9 +55,13 @@ const WRITE = {
   openWorldHint: false,
 } as const;
 
-const json = (value: unknown) => ({
-  content: [{ type: "text" as const, text: JSON.stringify(value, null, 2) }],
-});
+const json = (value: unknown) => {
+  const text = JSON.stringify(value, null, 2);
+  recordOperationOutcome({ responseBytes: Buffer.byteLength(text) });
+  return {
+    content: [{ type: "text" as const, text }],
+  };
+};
 
 const summarize = (w: WorkItem) => ({
   id: w.fm.id,
@@ -97,17 +103,7 @@ export function createDocketServer(
       const operation = params?.name;
       if (!operation || !OPERATIONS.includes(operation as Operation))
         return handler(request, extra);
-      const meta = params?._meta;
-      const attribution = {
-        ...environmentAttribution(),
-        trigger: "explicit" as const,
-      };
-      if (typeof meta?.["docket/workflow"] === "string")
-        attribution.workflow = meta["docket/workflow"];
-      if (typeof meta?.["docket/actor"] === "string")
-        attribution.actor = meta["docket/actor"];
-      if (typeof meta?.["docket/host"] === "string")
-        attribution.host = meta["docket/host"];
+      const attribution = attributionFromMcpMeta(params?._meta);
       return observeOperation(
         telemetry,
         operation as Operation,
@@ -284,7 +280,11 @@ export function createDocketServer(
     },
     async ({ query, limit }) => {
       const { snapshot } = await owner.read();
-      return json(snapshot.search.search(query, { limit }));
+      const page = snapshot.search.searchPage(query, { limit });
+      recordOperationOutcome(
+        searchOutcome(page.hits.length, page.total, limit),
+      );
+      return json(page.hits);
     },
   );
 
@@ -314,6 +314,10 @@ export function createDocketServer(
         cursor,
       });
       if (!page) throw new Error(`not found: ${path}`);
+      recordOperationOutcome({
+        responseBytes: Buffer.byteLength(page.text),
+        truncated: page.nextCursor ? "response" : "none",
+      });
       return json(page);
     },
   );

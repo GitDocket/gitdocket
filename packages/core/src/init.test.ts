@@ -161,19 +161,27 @@ describe("composeHook", () => {
 });
 
 describe("mergeMcpJson", () => {
-  test("creates from scratch", () => {
-    const result = mergeMcpJson(undefined);
+  test("creates from scratch with host-scoped agent attribution", () => {
+    const result = mergeMcpJson(undefined, "claude");
     expect(result.action).toBe("create");
-    expect(JSON.parse(result.content).mcpServers.docket.command).toBe(
-      "docket-mcp",
-    );
+    expect(JSON.parse(result.content).mcpServers.docket).toEqual({
+      command: "docket-mcp",
+      env: {
+        DOCKET_TELEMETRY_ACTOR: "agent",
+        DOCKET_TELEMETRY_HOST: "claude",
+      },
+    });
+    expect(
+      JSON.parse(mergeMcpJson(undefined, "cursor").content).mcpServers.docket
+        .env.DOCKET_TELEMETRY_HOST,
+    ).toBe("cursor");
   });
 
   test("adds docket alongside existing servers", () => {
     const existing = JSON.stringify({
       mcpServers: { other: { command: "other-mcp" } },
     });
-    const result = mergeMcpJson(existing);
+    const result = mergeMcpJson(existing, "claude");
     expect(result.action).toBe("update");
     const parsed = JSON.parse(result.content);
     expect(parsed.mcpServers.other.command).toBe("other-mcp");
@@ -184,13 +192,13 @@ describe("mergeMcpJson", () => {
     const existing = JSON.stringify({
       mcpServers: { docket: { command: "custom" } },
     });
-    const result = mergeMcpJson(existing);
+    const result = mergeMcpJson(existing, "claude");
     expect(result.action).toBe("skip");
     expect(result.content).toBe(existing);
   });
 
   test("refuses to clobber unparseable JSON", () => {
-    const result = mergeMcpJson("{ not json");
+    const result = mergeMcpJson("{ not json", "cursor");
     expect(result.action).toBe("skip");
     expect(result.reason).toBe("not valid JSON");
   });
@@ -202,6 +210,8 @@ describe("mergeCodexConfig", () => {
     expect(result.action).toBe("create");
     expect(result.content).toContain("[mcp_servers.docket]");
     expect(result.content).toContain('command = "docket-mcp"');
+    expect(result.content).toContain('DOCKET_TELEMETRY_ACTOR = "agent"');
+    expect(result.content).toContain('DOCKET_TELEMETRY_HOST = "codex"');
     expect(result.content).toContain(`docket mcp@${DOCKET_VERSION}`);
   });
 

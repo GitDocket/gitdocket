@@ -6,7 +6,7 @@
 import { execFileSync } from "node:child_process";
 import { chmod, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { basename, isAbsolute, join } from "node:path";
+import { basename, dirname, isAbsolute, join } from "node:path";
 import {
   CONFIG_FILENAME,
   composeFreshnessBaseline,
@@ -266,23 +266,29 @@ export async function runInit(
   // MCP registration and permissions are harness-specific capabilities. A
   // dead command is never registered, but other useful adapter files land.
   const hasMcp = Bun.which("docket-mcp") !== null;
+  const registerJsonMcp = async (target: "claude" | "cursor", rel: string) => {
+    if (!hasMcp) {
+      record(
+        target,
+        rel,
+        "skip",
+        `docket-mcp not on PATH — install both commands (https://gitdocket.com/docs/install/), then rerun \`docket init --agent ${target}\``,
+      );
+      return;
+    }
+    const mcpPath = join(root, rel);
+    const mcp = mergeMcpJson(await readIfPresent(mcpPath), target);
+    if (mcp.action !== "skip") {
+      await mkdir(dirname(mcpPath), { recursive: true });
+      await writeFile(mcpPath, mcp.content, "utf8");
+    }
+    record(target, rel, mcp.action, mcp.reason);
+  };
   if (targets.has("claude")) {
     // .mcp.json registers `command: "docket-mcp"` — a dead entry if the
     // binary isn't installed. Keep the outcome honest: skip
     // with the install hint rather than silently write broken config.
-    const mcpPath = join(root, ".mcp.json");
-    if (!hasMcp) {
-      record(
-        "claude",
-        ".mcp.json",
-        "skip",
-        "docket-mcp not on PATH — install both commands (https://gitdocket.com/docs/install/), then rerun `docket init --agent claude`",
-      );
-    } else {
-      const mcp = mergeMcpJson(await readIfPresent(mcpPath));
-      if (mcp.action !== "skip") await writeFile(mcpPath, mcp.content, "utf8");
-      record("claude", ".mcp.json", mcp.action, mcp.reason);
-    }
+    await registerJsonMcp("claude", ".mcp.json");
 
     const settingsPath = join(root, ".claude", "settings.json");
     const settings = mergeClaudeSettings(await readIfPresent(settingsPath));
@@ -291,6 +297,10 @@ export async function runInit(
       await writeFile(settingsPath, settings.content, "utf8");
     }
     record("claude", ".claude/settings.json", settings.action, settings.reason);
+  }
+
+  if (targets.has("cursor")) {
+    await registerJsonMcp("cursor", join(".cursor", "mcp.json"));
   }
 
   if (targets.has("codex")) {

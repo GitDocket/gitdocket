@@ -45,10 +45,15 @@ import {
 import { scanActivity, taskLinkedCommitsSince } from "@gitdocket/core/cache";
 import { deriveRepositoryOverview } from "@gitdocket/core/orientation";
 import {
+  checkoutWorkflowToken,
+  cliOperation,
+  createWorkflowToken,
   type Dimensions,
   environmentAttribution,
-  type Operation,
   observeOperation,
+  recordOperationOutcome,
+  resolveAttribution,
+  searchOutcome,
   Telemetry,
 } from "@gitdocket/core/telemetry";
 import { Command, CommanderError } from "commander";
@@ -144,6 +149,8 @@ const fail = (error: unknown): never => {
 
 const activeTaskPath = (root: string): string =>
   join(root, ".docket", "active-task");
+const workflowTokenPath = (root: string): string =>
+  join(root, ".docket", "workflow-token");
 
 // One screenful: header lines for the structure, then the body verbatim.
 async function printPacket(packet: ContextPacket): Promise<void> {
@@ -244,6 +251,9 @@ program
     const hits = await searchFresh(store, config, parts.join(" "), {
       limit: Number(opts.limit) || 20,
     });
+    recordOperationOutcome(
+      searchOutcome(hits.length, null, Number(opts.limit) || 20),
+    );
     if (opts.json) await print(JSON.stringify(hits, null, 2));
     else if (hits.length === 0) await print("no hits");
     else
@@ -382,7 +392,7 @@ program
   .option("--codex", "install the Codex adapter (alias for --agent codex)")
   .option(
     "--agent <target>",
-    "install an agent adapter; repeat for multiple targets (claude, codex)",
+    "install an agent adapter; repeat for multiple targets (claude, codex, cursor)",
     (value: string, previous: string[]) => [...previous, value],
     [],
   )
@@ -446,6 +456,7 @@ program
             (s) =>
               (s.step === "claude" ||
                 s.step === "codex" ||
+                s.step === "cursor" ||
                 s.step === "skills") &&
               s.gitignored,
           )
@@ -463,7 +474,7 @@ program
         }
         if (agents.length === 0) {
           await print(
-            "\nnative agent adapters skipped — rerun with --agent claude, --agent codex, or both",
+            "\nnative agent adapters skipped — rerun with --agent claude, --agent codex, --agent cursor, or a combination",
           );
         }
         await print(
@@ -633,6 +644,10 @@ program
         maxChars: opts.maxChars,
       });
       if (!page) throw new Error(`not found: ${path}`);
+      recordOperationOutcome({
+        responseBytes: Buffer.byteLength(page.text),
+        truncated: page.nextCursor ? "response" : "none",
+      });
       await print(
         opts.json
           ? JSON.stringify(page, null, 2)
@@ -778,6 +793,15 @@ task
       if (!already) await setStatus(store, config, item.fm.id, "in-progress");
       await mkdir(join(root, ".docket"), { recursive: true });
       await writeFile(activeTaskPath(root), `${item.fm.id}\n`, "utf8");
+      let telemetryWorkflow = already ? checkoutWorkflowToken(root) : undefined;
+      if (!telemetryWorkflow) {
+        telemetryWorkflow = createWorkflowToken();
+        await writeFile(
+          workflowTokenPath(root),
+          `${telemetryWorkflow}\n`,
+          "utf8",
+        );
+      }
 
       const fresh = await metadata(true);
       const commits = scanActivity(root, config.git.trailer, fresh.byId)
@@ -796,6 +820,7 @@ task
             {
               picked,
               started: already ? null : { from, to: "in-progress" },
+              telemetryWorkflow,
               ...packet,
             },
             null,
@@ -828,6 +853,7 @@ task
       return;
     }
     await rm(path);
+    await rm(workflowTokenPath(root), { force: true });
     const id = current.trim();
     await print(
       id
@@ -992,34 +1018,8 @@ task
   });
 
 // Only static command names reach telemetry. No argument values are retained.
-const cliOperations: Record<string, Operation> = {
-  ready: "ready",
-  overview: "overview",
-  search: "search",
-  source: "source_page",
-  guidance: "project_guidance",
-  lint: "lint",
-  index: "index",
-  verify: "verify",
-  init: "init",
-  upgrade: "upgrade",
-  freshness: "freshness",
-};
-const taskOperations: Record<string, Operation> = {
-  list: "task_list",
-  create: "task_create",
-  start: "task_start",
-  stop: "task_stop",
-  move: "set_status",
-  edit: "task_edit",
-  close: "task_close",
-  log: "append_log",
-};
 const args = process.argv.slice(2);
-const usageOperation =
-  args[0] === "task"
-    ? taskOperations[args[1] ?? ""]
-    : cliOperations[args[0] ?? ""];
+const usageOperation = cliOperation(args);
 let telemetry: Telemetry | undefined;
 if (usageOperation && !args.includes("--help") && !args.includes("-h")) {
   try {
@@ -1040,7 +1040,18 @@ try {
       },
       {
         dimensions: () => usageDimensions,
-        attribution: { ...environmentAttribution(), trigger: "explicit" },
+        attribution: () => {
+          const launch = environmentAttribution();
+          return resolveAttribution({
+            launch: {
+              ...launch,
+              trigger: "explicit",
+              workflow:
+                launch.workflow ??
+                (usageRoot ? checkoutWorkflowToken(usageRoot) : undefined),
+            },
+          });
+        },
         resultError: () => (process.exitCode ? "validation" : "none"),
       },
     );

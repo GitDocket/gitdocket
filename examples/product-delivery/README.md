@@ -10,7 +10,7 @@ The agent follows the process; you review and authorize the next step. GitDocket
 
 ## 1. Prepare the starting project
 
-Install GitDocket 0.4.1 with `brew install gitdocket/tap/gitdocket`, or use the [npm alternative](https://github.com/GitDocket/gitdocket/blob/main/docs/npm.md). This example app and its verification scripts additionally need Bun 1.3.14+, Git and a coding agent. Full delivery verification needs Chrome/Chromium and permission to run a local server. The source archive does not include the CLI. Bun is an example-app prerequisite; the installed GitDocket commands do not need a separate Bun runtime.
+Install GitDocket 0.5.0 with `brew install gitdocket/tap/gitdocket`, or use the [npm alternative](https://github.com/GitDocket/gitdocket/blob/main/docs/npm.md). This example app and its verification scripts additionally need Bun 1.3.14+, Git and a coding agent. Full delivery verification needs Chrome/Chromium and permission to run a local server. The source archive does not include the CLI. Bun is an example-app prerequisite; the installed GitDocket commands do not need a separate Bun runtime.
 
 From an extracted example download or GitDocket source checkout, prepare a previously nonexistent disposable repository:
 

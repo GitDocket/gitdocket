@@ -5,12 +5,13 @@ GitDocket separates deterministic mechanics from judgment. The CLI owns parsing,
 `docket init` always writes a portable `AGENTS.md` section. Native adapters are optional:
 
 ```sh
+docket init --agent cursor
 docket init --agent codex
 docket init --agent claude
-docket init --agent codex --agent claude
+docket init --agent cursor --agent claude --agent codex
 ```
 
-Adapters point back to the bundle workflows; they are not a second source of policy. Existing hand-authored configuration is preserved, and malformed or unavailable MCP configuration is reported rather than overwritten.
+Adapters point back to the bundle workflows; they are not a second source of policy. Existing hand-authored configuration is preserved, and malformed or unavailable MCP configuration is reported rather than overwritten. After `docket init --agent cursor`, enable the Docket server once in Customize → MCPs; Cursor keeps new project servers disconnected until that approval, and init cannot complete it.
 
 Homebrew installs `docket` and `docket-mcp` together. With the [npm alternative](npm.md), install both `@gitdocket/cli` and `@gitdocket/mcp`. Run `docket-mcp --version` to verify the command. When switching installers, review any absolute MCP command paths and restart the agent host; see [migration](homebrew.md#moving-from-npm-or-bun).
 

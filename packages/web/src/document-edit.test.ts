@@ -135,7 +135,7 @@ test("complete source saves refresh concept, search, backlinks and navigation", 
 
 test("stale/invalid/oversized/unsupported requests preserve source and report structured errors", async () => {
   const draft = await read();
-  await writeFile(join(root, "docs", path), source + "agent change");
+  await writeFile(join(root, "docs", path), `${source}agent change`);
   const stale = await save(draft, { body: "stale" });
   expect(stale.status).toBe(409);
   expect((await stale.json()).code).toBe("conflict");
@@ -147,7 +147,7 @@ test("stale/invalid/oversized/unsupported requests preserve source and report st
       .status,
   ).toBe(409);
   expect(await readFile(join(root, "docs", path), "utf8")).toBe(
-    source + "agent change",
+    `${source}agent change`,
   );
   expect((await app.request("/api/edit-source/index.md")).status).toBe(422);
   expect((await app.request("/api/edit-source/missing.md")).status).toBe(404);

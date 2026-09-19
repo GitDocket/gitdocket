@@ -422,6 +422,8 @@ export async function runInstalledSmoke(
           "codex",
           "--agent",
           "claude",
+          "--agent",
+          "cursor",
           "--json",
         ],
         project,

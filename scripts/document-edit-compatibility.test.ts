@@ -115,7 +115,7 @@ test("saved authored edits remain compatible with retained MCP, CLI pickup/index
       "workflows/customized.md",
     );
     await edit("workflows/customized.md", {
-      body: base.body + "\nProject-specific clarification.\n",
+      body: `${base.body}\nProject-specific clarification.\n`,
     });
     const customized = await store.read("workflows/customized.md");
     const upgraded = upgradeWorkflowFile(customized, {

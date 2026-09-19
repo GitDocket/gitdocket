@@ -1,6 +1,6 @@
 # npm distribution
 
-GitDocket 0.4.1 supports npm as an alternative to [Homebrew](homebrew.md). Node 22 or later and npm are required. CLI/MCP commands use standalone binaries and need no separate Bun installation. Earlier 0.3.1 commands and the core/web library packages remain Bun-dependent.
+GitDocket 0.5.0 supports npm as an alternative to [Homebrew](homebrew.md). Node 22 or later and npm are required. CLI/MCP commands use standalone binaries and need no separate Bun installation. Earlier 0.3.1 commands and the core/web library packages remain Bun-dependent.
 
 With Node 22 or later and npm, the standalone release installs both commands through the existing package names:
 
@@ -16,7 +16,7 @@ For a temporary CLI invocation without a global installation, use:
 
 ```sh
 npx --yes --package=@gitdocket/cli --package=@gitdocket/mcp docket --version
-npx --yes --package=@gitdocket/cli --package=@gitdocket/mcp docket init --agent claude --agent codex
+npx --yes --package=@gitdocket/cli --package=@gitdocket/mcp docket init --agent cursor --agent claude --agent codex
 ```
 
 npm may ask before downloading packages when `--yes` is omitted. For a reproducible invocation, pin both package versions explicitly. npx makes the commands available only for that invocation. Generated MCP configuration names `docket-mcp`, which a later agent may not find; use a stable global installation for persistent MCP configuration, or configure the host explicitly to run `npx --yes --package=@gitdocket/mcp@<version> docket-mcp`. Restart the host after changing its MCP command.

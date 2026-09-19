@@ -185,6 +185,22 @@ describe("public export", () => {
     expect(await git(destination, "status", "--porcelain")).toBe("");
   });
 
+  test("live allowlist includes every package source file", async () => {
+    const root = join(import.meta.dir, "..");
+    const manifest = JSON.parse(
+      await readFile(join(root, "release/public-export.json"), "utf8"),
+    ) as { paths: string[] };
+    const allowlisted = new Set(manifest.paths);
+    const missing: string[] = [];
+    for await (const file of new Bun.Glob(
+      "packages/**/*.{ts,tsx,json,cjs,md}",
+    ).scan({ cwd: root, onlyFiles: true })) {
+      if (file.includes("node_modules")) continue;
+      if (!allowlisted.has(file)) missing.push(file);
+    }
+    expect(missing).toEqual([]);
+  });
+
   test("requires the exact clean source HEAD", async () => {
     const source = await makeRepo();
     const destination = await makeRepo();

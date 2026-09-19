@@ -55,15 +55,29 @@ describe("docket task start pickup contract", () => {
     expect(started.started).toEqual({ from: "todo", to: "in-progress" });
     expect(started.suggestedSessionTitle).toBe(`${id} — Make pickup reliable`);
     expect(started.task.fm.id).toBe(id);
+    expect(typeof started.telemetryWorkflow).toBe("string");
+    expect(started.telemetryWorkflow.length).toBeGreaterThan(8);
     expect(await readFile(join(repo, ".docket", "active-task"), "utf8")).toBe(
       `${id}\n`,
     );
+    expect(
+      await readFile(join(repo, ".docket", "workflow-token"), "utf8"),
+    ).toBe(`${started.telemetryWorkflow}\n`);
 
     const resumed = sh(["bun", CLI, "task", "start", id, "--json"]);
     expect(resumed.code).toBe(0);
     const again = JSON.parse(resumed.stdout);
     expect(again.started).toBeNull();
     expect(again.suggestedSessionTitle).toBe(`${id} — Make pickup reliable`);
+    expect(again.telemetryWorkflow).toBe(started.telemetryWorkflow);
+
+    const stopped = sh(["bun", CLI, "task", "stop"]);
+    expect(stopped.code).toBe(0);
+    expect(
+      await readFile(join(repo, ".docket", "workflow-token"), "utf8").catch(
+        () => "",
+      ),
+    ).toBe("");
   });
 
   test("bare pickup keeps ready selection and human packet output unchanged", () => {

@@ -41,7 +41,7 @@
 <tr><td><code>docket task close &lt;ID&gt;</code></td><td>Complete the item after the close workflow’s checks.</td></tr>
 </tbody></table></div><p>To close without completion, use <code>docket task close &lt;ID&gt; --without-completion --note "Reason"</code>. Closing state alone is not evidence that the work was verified.</p></section>
         <section aria-labelledby="maintain"><h2 id="maintain">Maintain &amp; browse</h2><div class="table-wrap"><table><thead><tr><th>Command</th><th>Purpose</th></tr></thead><tbody>
-<tr><td><code>docket init --agent codex</code></td><td>Initialize a project and install an optional native adapter.</td></tr>
+<tr><td><code>docket init --agent cursor</code></td><td>Initialize a project and install an optional native adapter. Also <code>--agent claude</code> and <code>--agent codex</code>.</td></tr>
 <tr><td><code>docket lint</code></td><td>Check schema, links, and workflow hygiene.</td></tr>
 <tr><td><code>docket index</code></td><td>Regenerate the index and cache after direct Markdown edits.</td></tr>
 <tr><td><code>docket verify status</code></td><td>Inspect spec-to-test linkage; this does not run tests.</td></tr>

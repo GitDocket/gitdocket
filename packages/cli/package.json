@@ -1,6 +1,6 @@
 {
   "name": "@gitdocket/cli",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "type": "module",
   "description": "Local-first Markdown docs and work tracking from the terminal.",
   "license": "Apache-2.0",

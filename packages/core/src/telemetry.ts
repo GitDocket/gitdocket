@@ -1,7 +1,14 @@
 /** Opt-in local observations. Kept on a Bun-only subpath, separate from cache. */
 import { Database } from "bun:sqlite";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { createHmac, randomUUID } from "node:crypto";
-import { chmodSync, existsSync, mkdirSync, realpathSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  realpathSync,
+} from "node:fs";
 import { homedir } from "node:os";
 import {
   basename,
@@ -33,6 +40,23 @@ export const OPERATIONS = [
   "search",
   "source_page",
   "project_guidance",
+  "workflow_extensions",
+  "edit_open",
+  "edit_preview",
+  "edit_save",
+  "extension_list",
+  "extension_show",
+  "extension_inspect",
+  "extension_refresh",
+  "extension_install",
+  "extension_update",
+  "extension_enable",
+  "extension_disable",
+  "extension_remove",
+  "extension_configure",
+  "extension_validate",
+  "extension_reconcile",
+  "extension_recover",
   "lint",
   "index",
   "verify",
@@ -86,7 +110,7 @@ export const eventSchema = z.discriminatedUnion("kind", [
     ]),
     trigger: z.enum(["explicit", "background", "unknown"]),
     actor: z.enum(["human", "agent", "unknown"]),
-    host: z.enum(["codex", "claude", "other", "unknown"]),
+    host: z.enum(["codex", "claude", "cursor", "other", "unknown"]),
     workflow: id.nullable(),
     before: dimensionsSchema,
     after: dimensionsSchema,
@@ -97,6 +121,24 @@ export const eventSchema = z.discriminatedUnion("kind", [
         dependencyEdge: count,
         searchDocument: count,
       })
+      .nullable()
+      .default(null),
+    resultCount: count.nullable().default(null),
+    resultTotal: count.nullable().default(null),
+    responseBytes: count.nullable().default(null),
+    truncated: z.enum(["none", "results", "response"]).nullable().default(null),
+    failureReason: z
+      .enum([
+        "too_large",
+        "unsupported",
+        "invalid_cursor",
+        "source_changed",
+        "invalid_patch",
+      ])
+      .nullable()
+      .default(null),
+    saveState: z
+      .enum(["unchanged", "saved_locally", "committed", "commit_failed"])
       .nullable()
       .default(null),
     dropped: count,
@@ -375,11 +417,92 @@ export class TelemetryStore {
   }
 }
 
+export const TELEMETRY_ACTORS = ["human", "agent"] as const;
+export const TELEMETRY_HOSTS = ["codex", "claude", "cursor", "other"] as const;
+export type TelemetryActor = (typeof TELEMETRY_ACTORS)[number];
+export type TelemetryHost = (typeof TELEMETRY_HOSTS)[number];
+
 export interface Attribution {
   trigger?: OperationEvent["trigger"];
   actor?: string;
   host?: string;
   workflow?: string;
+}
+
+const claimed = (value: string | undefined): value is string =>
+  typeof value === "string";
+
+export function normalizeActor(
+  value: string | undefined,
+): OperationEvent["actor"] {
+  return TELEMETRY_ACTORS.includes(value as TelemetryActor)
+    ? (value as TelemetryActor)
+    : "unknown";
+}
+
+export function normalizeHost(
+  value: string | undefined,
+): OperationEvent["host"] {
+  return TELEMETRY_HOSTS.includes(value as TelemetryHost)
+    ? (value as TelemetryHost)
+    : "unknown";
+}
+
+function pickClaim(
+  request: Attribution | undefined,
+  launch: Attribution | undefined,
+  key: "actor" | "host" | "workflow",
+): string | undefined {
+  if (claimed(request?.[key])) return request[key];
+  if (claimed(launch?.[key])) return launch[key];
+  return undefined;
+}
+
+/** Per-request claims override launch defaults; an invalid claim stays unknown instead of falling back. */
+export function resolveAttribution(
+  options: { request?: Attribution; launch?: Attribution } = {},
+): Attribution {
+  const trigger = options.request?.trigger ?? options.launch?.trigger;
+  return {
+    ...(trigger ? { trigger } : {}),
+    actor: pickClaim(options.request, options.launch, "actor"),
+    host: pickClaim(options.request, options.launch, "host"),
+    workflow: pickClaim(options.request, options.launch, "workflow"),
+  };
+}
+
+export function attributionFromMcpMeta(
+  meta: Record<string, unknown> | undefined,
+  launch: Attribution = environmentAttribution(),
+): Attribution {
+  const request: Attribution = {};
+  if (typeof meta?.["docket/workflow"] === "string")
+    request.workflow = meta["docket/workflow"];
+  if (typeof meta?.["docket/actor"] === "string")
+    request.actor = meta["docket/actor"];
+  if (typeof meta?.["docket/host"] === "string")
+    request.host = meta["docket/host"];
+  return resolveAttribution({
+    request,
+    launch: { ...launch, trigger: "explicit", workflow: undefined },
+  });
+}
+
+export function attributionFromHttpHeaders(
+  header: (name: string) => string | undefined,
+): Attribution {
+  const trigger = header("X-Docket-Trigger");
+  return resolveAttribution({
+    request: {
+      trigger:
+        trigger === "explicit" || trigger === "background"
+          ? trigger
+          : undefined,
+      actor: header("X-Docket-Actor"),
+      host: header("X-Docket-Host"),
+      workflow: header("X-Docket-Workflow"),
+    },
+  });
 }
 export interface Observation {
   operation: Operation;
@@ -389,6 +512,62 @@ export interface Observation {
   before?: Partial<Dimensions>;
   after?: Partial<Dimensions>;
   work?: OperationEvent["work"];
+  resultCount?: OperationEvent["resultCount"];
+  resultTotal?: OperationEvent["resultTotal"];
+  responseBytes?: OperationEvent["responseBytes"];
+  truncated?: OperationEvent["truncated"];
+  failureReason?: OperationEvent["failureReason"];
+  saveState?: OperationEvent["saveState"];
+}
+
+export type OperationOutcome = Pick<
+  Observation,
+  | "resultCount"
+  | "resultTotal"
+  | "responseBytes"
+  | "truncated"
+  | "failureReason"
+  | "saveState"
+>;
+
+const outcomeSlot = new AsyncLocalStorage<OperationOutcome>();
+
+/** Fill optional diagnostic fields from already-computed results; never required. */
+export function recordOperationOutcome(update: OperationOutcome): void {
+  const slot = outcomeSlot.getStore();
+  if (!slot) return;
+  Object.assign(slot, update);
+}
+
+export function searchOutcome(
+  returned: number,
+  total: number | null,
+  limit: number | null,
+): OperationOutcome {
+  const truncated =
+    total !== null
+      ? returned < total
+        ? "results"
+        : "none"
+      : limit !== null && returned >= limit
+        ? "results"
+        : "none";
+  return {
+    resultCount: returned,
+    resultTotal: total,
+    truncated,
+  };
+}
+
+export function failureReasonFromMessage(
+  message: string,
+): OperationEvent["failureReason"] {
+  if (/too large|too_large/i.test(message)) return "too_large";
+  if (/unsupported/i.test(message)) return "unsupported";
+  if (/source changed/i.test(message)) return "source_changed";
+  if (/invalid source cursor/i.test(message)) return "invalid_cursor";
+  if (/invalid |expected |JSON/i.test(message)) return "invalid_patch";
+  return null;
 }
 export class Telemetry {
   private readonly runtime = randomUUID();
@@ -434,12 +613,8 @@ export class Telemetry {
             before: dimensionsSchema.parse(observation.before ?? {}),
             after,
             trigger: attribution.trigger ?? "unknown",
-            actor: ["human", "agent"].includes(attribution.actor ?? "")
-              ? attribution.actor
-              : "unknown",
-            host: ["codex", "claude", "other"].includes(attribution.host ?? "")
-              ? attribution.host
-              : "unknown",
+            actor: normalizeActor(attribution.actor),
+            host: normalizeHost(attribution.host),
             workflow:
               attribution.workflow && attribution.workflow.length <= 256
                 ? hash(salt, `${project}:${attribution.workflow}`)
@@ -510,14 +685,31 @@ export function environmentAttribution(): Attribution {
   };
 }
 
+export function createWorkflowToken(): string {
+  return randomUUID();
+}
+
+export function checkoutWorkflowToken(root: string): string | undefined {
+  try {
+    const value = readFileSync(
+      join(root, ".docket", "workflow-token"),
+      "utf8",
+    ).trim();
+    return value.length > 0 && value.length <= 256 ? value : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function observeOperation<T>(
   telemetry: Telemetry | undefined,
   operation: Operation,
   run: () => Promise<T>,
   options: {
     dimensions?: () => Partial<Dimensions>;
-    attribution?: Attribution;
+    attribution?: Attribution | (() => Attribution | undefined);
     resultError?: (result: T) => OperationEvent["error"];
+    resultOutcome?: () => OperationOutcome;
   } = {},
 ): Promise<T> {
   if (!telemetry) return run();
@@ -532,8 +724,11 @@ export async function observeOperation<T>(
   const counts = newWorkCounts();
   const start = performance.now();
   let category: OperationEvent["error"] = "none";
+  const slot: OperationOutcome = {};
   try {
-    const result = await workCounts.run(counts, run);
+    const result = await workCounts.run(counts, () =>
+      outcomeSlot.run(slot, run),
+    );
     try {
       category = options.resultError?.(result) ?? "none";
     } catch {
@@ -542,9 +737,28 @@ export async function observeOperation<T>(
     return result;
   } catch (error) {
     category = errorCategory(error);
+    const reason = failureReasonFromMessage(
+      error instanceof Error ? error.message : String(error),
+    );
+    if (reason) Object.assign(slot, { failureReason: reason });
     throw error;
   } finally {
     const durationMs = performance.now() - start;
+    let attribution: Attribution | undefined;
+    try {
+      attribution =
+        typeof options.attribution === "function"
+          ? options.attribution()
+          : options.attribution;
+    } catch {
+      attribution = undefined;
+    }
+    let extra: OperationOutcome = {};
+    try {
+      extra = options.resultOutcome?.() ?? {};
+    } catch {
+      extra = {};
+    }
     telemetry.record(
       {
         operation,
@@ -554,8 +768,22 @@ export async function observeOperation<T>(
         before,
         after: safeDimensions(),
         work: counts,
+        ...extra,
+        ...slot,
       },
-      options.attribution,
+      attribution,
     );
   }
 }
+
+export type {
+  CoverageStatus,
+  SurfaceCoverage,
+} from "./telemetry-coverage";
+export {
+  cliOperation,
+  coverageFor,
+  serveOperation,
+  serveRouteId,
+  TELEMETRY_COVERAGE,
+} from "./telemetry-coverage";

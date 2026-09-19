@@ -14,23 +14,23 @@
     },
     "packages/bin-darwin-arm64": {
       "name": "@gitdocket/bin-darwin-arm64",
-      "version": "0.4.1",
+      "version": "0.5.0",
     },
     "packages/bin-darwin-x64": {
       "name": "@gitdocket/bin-darwin-x64",
-      "version": "0.4.1",
+      "version": "0.5.0",
     },
     "packages/bin-linux-arm64": {
       "name": "@gitdocket/bin-linux-arm64",
-      "version": "0.4.1",
+      "version": "0.5.0",
     },
     "packages/bin-linux-x64": {
       "name": "@gitdocket/bin-linux-x64",
-      "version": "0.4.1",
+      "version": "0.5.0",
     },
     "packages/cli": {
       "name": "@gitdocket/cli",
-      "version": "0.4.1",
+      "version": "0.5.0",
       "bin": {
         "docket": "./bin/run.cjs",
       },
@@ -48,7 +48,7 @@
     },
     "packages/core": {
       "name": "@gitdocket/core",
-      "version": "0.4.1",
+      "version": "0.5.0",
       "dependencies": {
         "remark-frontmatter": "^5.0.0",
         "remark-gfm": "^4.0.1",
@@ -61,7 +61,7 @@
     },
     "packages/mcp": {
       "name": "@gitdocket/mcp",
-      "version": "0.4.1",
+      "version": "0.5.0",
       "bin": {
         "docket-mcp": "./bin/run.cjs",
       },
@@ -79,7 +79,7 @@
     },
     "packages/web": {
       "name": "@gitdocket/web",
-      "version": "0.4.1",
+      "version": "0.5.0",
       "dependencies": {
         "@gitdocket/core": "workspace:*",
         "hono": "^4.13.5",

@@ -43,7 +43,7 @@ describe("versioned authored source editing", () => {
     const store = seed();
     await save(store, { body: "\n# Updated\n" });
     expect(await store.read(path)).toBe(
-      source.slice(0, source.indexOf("\n# Body")) + "\n# Updated\n",
+      `${source.slice(0, source.indexOf("\n# Body"))}\n# Updated\n`,
     );
     const result = await save(store, {
       title: "Unicode 雪",
@@ -93,25 +93,25 @@ describe("versioned authored source editing", () => {
   test("stale versions and changes immediately before write never replace source", async () => {
     const store = seed();
     const draft = await readEditableDocument(store, config, path);
-    await store.write(path, source + "agent edit");
+    await store.write(path, `${source}agent edit`);
     await expect(
       editDocument(store, config, path, {
         expectedVersion: draft.version,
         patch: { body: "browser" },
       }),
     ).rejects.toMatchObject({ code: "conflict" });
-    expect(await store.read(path)).toBe(source + "agent edit");
+    expect(await store.read(path)).toBe(`${source}agent edit`);
     const next = await readEditableDocument(store, config, path);
     const read = store.read.bind(store);
     let reads = 0;
-    store.read = async (p) => (++reads === 2 ? source + "new race" : read(p));
+    store.read = async (p) => (++reads === 2 ? `${source}new race` : read(p));
     await expect(
       editDocument(store, config, path, {
         expectedVersion: next.version,
         patch: { body: "browser" },
       }),
     ).rejects.toMatchObject({ code: "conflict" });
-    expect(await read(path)).toBe(source + "agent edit");
+    expect(await read(path)).toBe(`${source}agent edit`);
   });
   test("simultaneous engine edits serialize and lifecycle stays separate", async () => {
     const store = seed(

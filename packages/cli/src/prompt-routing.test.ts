@@ -88,6 +88,7 @@ describe("cross-harness prompt routing", () => {
     portable: renderedSurface(),
     claude: renderedSurface(AGENT_ADAPTERS.claude),
     codex: renderedSurface(AGENT_ADAPTERS.codex),
+    cursor: renderedSurface(AGENT_ADAPTERS.cursor),
   };
 
   test.each(Object.entries(surfaces))(
@@ -122,7 +123,7 @@ describe("cross-harness prompt routing", () => {
     },
   );
 
-  test("Claude and Codex stubs differ only at declared lifecycle bindings", () => {
+  test("native stubs differ only at declared lifecycle bindings", () => {
     for (const workflow of DOCKET_WORKFLOWS) {
       const claude = renderTargetSkillStub(
         AGENT_ADAPTERS.claude,
@@ -134,21 +135,38 @@ describe("cross-harness prompt routing", () => {
         workflow,
         "docket/",
       );
+      const cursor = renderTargetSkillStub(
+        AGENT_ADAPTERS.cursor,
+        workflow,
+        "docket/",
+      );
       if (
         workflow.slug === "docket-pickup" ||
         workflow.slug === "docket-epic"
       ) {
         expect(withoutNativeBinding(claude)).toBe(withoutNativeBinding(codex));
+        expect(withoutNativeBinding(claude)).toBe(withoutNativeBinding(cursor));
       }
       if (workflow.slug === "docket-pickup") {
         expect(claude).toContain(DOCKET_INTENTS.pickup.discovery);
         expect(codex).toContain(DOCKET_INTENTS.pickup.discovery);
+        expect(cursor).toContain(DOCKET_INTENTS.pickup.discovery);
         expect(claude).toContain("rename unsupported");
         expect(codex).toContain("retained epic-manager identity");
         expect(codex).toContain("same-epic or unrelated task pickup");
         expect(codex).toContain("do not call `codex_app__set_thread_title`");
         expect(codex).toContain("explicitly asks to repurpose this chat");
         expect(codex).toContain("codex_app__set_thread_title");
+        expect(cursor).toContain("retained epic-manager identity");
+        expect(cursor).toContain("same-epic or unrelated task pickup");
+        expect(cursor).toContain("do not call `rename_chat`");
+        expect(cursor).toContain("explicitly asks to repurpose this chat");
+        expect(cursor).toContain("rename_chat");
+        expect(cursor).toContain("{ title: suggestedSessionTitle }");
+        expect(cursor).toContain("successful pickup title intent");
+        expect(cursor).not.toContain("codex_app__");
+        expect(claude).not.toContain("rename_chat");
+        expect(codex).not.toContain("rename_chat");
       } else if (workflow.slug === "docket-epic") {
         expect(claude).toContain("no verified native worker lifecycle binding");
         expect(claude).toContain("current-session rename unsupported");
@@ -166,19 +184,52 @@ describe("cross-harness prompt routing", () => {
         expect(codex).toContain("one app task in an isolated Git worktree");
         expect(codex).toContain("wait cursor");
         expect(codex).toContain("canonical serial fallback");
+        expect(cursor).toContain("`Epic <ID> — <title>`");
+        expect(cursor).toContain("rename_chat");
+        expect(cursor).toContain("{ title: managerTitle }");
+        expect(cursor).toContain("after every successful child pickup");
+        expect(cursor).toContain("before the completion or blocker receipt");
+        expect(cursor).toContain(
+          "never apply the manager title to an isolated child",
+        );
+        expect(cursor).toContain("no verified native worker lifecycle binding");
+        expect(cursor).toContain("serially in the calling session");
+        expect(cursor).toContain("successful epic-manager title intent");
+        expect(cursor).not.toContain("codex_app__");
+        expect(cursor).not.toContain(
+          "one app task in an isolated Git worktree",
+        );
+        expect(claude).not.toContain("rename_chat");
+        expect(codex).not.toContain("rename_chat");
       } else {
         expect(claude).toBe(codex);
+        expect(claude).toBe(cursor);
       }
     }
   });
 
-  test("a synthetic install writes portable, Claude, and Codex generator output", async () => {
+  test("canonical workflows and Claude/Codex adapters stay free of Cursor tool names", () => {
+    for (const workflow of DOCKET_WORKFLOWS) {
+      expect(workflow.body).not.toContain("rename_chat");
+      expect(workflow.body).not.toContain(".cursor/skills");
+    }
+    expect(AGENT_ADAPTERS.claude.pickupBinding ?? "").not.toContain(
+      "rename_chat",
+    );
+    expect(AGENT_ADAPTERS.claude.epicBinding ?? "").not.toContain(
+      "rename_chat",
+    );
+    expect(AGENT_ADAPTERS.codex.pickupBinding).not.toContain("rename_chat");
+    expect(AGENT_ADAPTERS.codex.epicBinding).not.toContain("rename_chat");
+  });
+
+  test("a synthetic install writes portable, Claude, Codex, and Cursor generator output", async () => {
     const root = await mkdtemp(join(tmpdir(), "docket-public-adapters-"));
     try {
       await runInit(root, {
         project: "DKT",
         bundle: "docket/",
-        agents: ["claude", "codex"],
+        agents: ["claude", "codex", "cursor"],
       });
       expect(await readFile(join(root, "AGENTS.md"), "utf8")).toContain(
         SECTION.trim(),
@@ -188,7 +239,7 @@ describe("cross-harness prompt routing", () => {
       );
 
       for (const workflow of DOCKET_WORKFLOWS) {
-        for (const target of ["claude", "codex"] as const) {
+        for (const target of ["claude", "codex", "cursor"] as const) {
           const adapter = AGENT_ADAPTERS[target];
           expect(
             await readFile(
@@ -198,6 +249,30 @@ describe("cross-harness prompt routing", () => {
           ).toBe(renderTargetSkillStub(adapter, workflow, "docket/"));
         }
       }
+      expect(
+        await readFile(
+          join(root, ".cursor", "skills", "docket-pickup", "SKILL.md"),
+          "utf8",
+        ),
+      ).toContain("rename_chat");
+      expect(
+        await readFile(
+          join(root, ".cursor", "skills", "docket-epic", "SKILL.md"),
+          "utf8",
+        ),
+      ).toContain("{ title: managerTitle }");
+      expect(
+        await readFile(
+          join(root, ".claude", "skills", "docket-pickup", "SKILL.md"),
+          "utf8",
+        ),
+      ).not.toContain("rename_chat");
+      expect(
+        await readFile(
+          join(root, ".agents", "skills", "docket-epic", "SKILL.md"),
+          "utf8",
+        ),
+      ).not.toContain("rename_chat");
     } finally {
       await rm(root, { recursive: true, force: true });
     }

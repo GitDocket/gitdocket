@@ -1,6 +1,6 @@
 # Homebrew distribution
 
-Install GitDocket 0.4.1 with Homebrew and Git:
+Install GitDocket 0.5.0 with Homebrew and Git:
 
 ```sh
 brew install gitdocket/tap/gitdocket
@@ -28,7 +28,7 @@ Before switching channels, run `type -a docket docket-mcp` to see which executab
 
 If Homebrew reports an existing link collision, review the named paths and uninstall only the prior GitDocket packages with their original package manager: `npm uninstall -g @gitdocket/cli @gitdocket/mcp` or `bun remove -g @gitdocket/cli @gitdocket/mcp`. Do not force-overwrite unknown executable paths. Then run `brew link gitdocket/tap/gitdocket`, refresh your shell's command cache or open a new terminal, and rerun `type -a docket docket-mcp` and both version commands. An earlier directory on PATH can still select another installation even when Homebrew linking succeeds.
 
-Agent MCP configurations can contain an absolute path to the old executable. Review `.mcp.json`, `.codex/config.toml` and any host-level MCP configuration. Point intentional custom entries at the selected `docket-mcp`. Re-running `docket init --agent claude --agent codex` applies normal preservation rules and may leave an existing custom MCP entry untouched; inspect the result and restart the agent host. Removing a package does not remove project files or rewrite those entries for you.
+Agent MCP configurations can contain an absolute path to the old executable. Review `.mcp.json`, `.cursor/mcp.json`, `.codex/config.toml` and any host-level MCP configuration. Point intentional custom entries at the selected `docket-mcp`. Re-running `docket init --agent cursor --agent claude --agent codex` applies normal preservation rules and may leave an existing custom MCP entry untouched; inspect the result and restart the agent host. Cursor still requires a one-time Customize → MCPs enable after a new project server is written. Removing a package does not remove project files or rewrite those entries for you.
 
 ## Maintaining the tap
 

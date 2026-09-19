@@ -7,6 +7,7 @@ import {
   type OperationEvent,
   type UsageEvent,
 } from "./telemetry";
+import { TELEMETRY_COVERAGE } from "./telemetry-coverage";
 
 const ADMIN = new Set<Operation>([
   "task_create",
@@ -20,6 +21,15 @@ const ADMIN = new Set<Operation>([
   "set_epic",
   "append_log",
   "index",
+  "extension_install",
+  "extension_update",
+  "extension_enable",
+  "extension_disable",
+  "extension_remove",
+  "extension_configure",
+  "extension_reconcile",
+  "extension_recover",
+  "extension_refresh",
 ]);
 const start = (e: OperationEvent) => e.time - e.durationMs;
 const percentile = (values: number[], q: number, minimum: number) =>
@@ -246,6 +256,131 @@ export function usageReport(input: unknown[], options: ReportOptions = {}) {
       expired++;
     intervalOverlapPairs += i - expired;
   }
+  const mcpOperations = operations.filter((e) => e.surface === "mcp").length;
+  const knownActor = operations.filter((e) => e.actor !== "unknown").length;
+  const knownHost = operations.filter((e) => e.host !== "unknown").length;
+  const correlated = operations.filter((e) => e.workflow).length;
+  const attribution = [
+    ...group(
+      operations,
+      (e) => `${e.surface}\t${e.project}\t${e.version}`,
+    ).entries(),
+  ].map(([key, events]) => {
+    const [surface, project, version] = key.split("\t");
+    return {
+      surface,
+      project,
+      version,
+      n: events.length,
+      knownActor: events.filter((e) => e.actor !== "unknown").length,
+      unknownActor: events.filter((e) => e.actor === "unknown").length,
+      knownHost: events.filter((e) => e.host !== "unknown").length,
+      unknownHost: events.filter((e) => e.host === "unknown").length,
+      correlated: events.filter((e) => e.workflow).length,
+      uncorrelated: events.filter((e) => !e.workflow).length,
+    };
+  });
+  const versionMix = [...group(operations, (e) => e.version).entries()]
+    .map(([version, events]) => ({
+      version,
+      n: events.length,
+      first: events[0]?.time ?? null,
+      last: events.at(-1)?.time ?? null,
+      surfaces: [...new Set(events.map((e) => e.surface))],
+      runtimes: [...new Set(events.map((e) => e.runtime))].length,
+    }))
+    .sort((a, b) => (a.first ?? 0) - (b.first ?? 0));
+  const inventory = TELEMETRY_COVERAGE.filter(
+    (entry) => entry.status === "supported" && entry.operation,
+  ).reduce(
+    (rows, entry) => {
+      const operation = entry.operation;
+      if (!operation || rows.has(operation)) return rows;
+      const n = operations.filter((e) => e.operation === operation).length;
+      rows.set(operation, {
+        operation,
+        since: entry.since,
+        n,
+        interpretation:
+          n > 0
+            ? "observed"
+            : entry.since === "unreleased"
+              ? "unreleased_zero_or_unobserved"
+              : "observed_zero_or_unobserved",
+      });
+      return rows;
+    },
+    new Map<
+      string,
+      {
+        operation: Operation;
+        since: string;
+        n: number;
+        interpretation: string;
+      }
+    >(),
+  );
+  const emptySearch = operations.filter(
+    (e) => e.operation === "search" && e.resultCount === 0,
+  ).length;
+  const nonemptySearch = operations.filter(
+    (e) =>
+      e.operation === "search" && e.resultCount !== null && e.resultCount > 0,
+  ).length;
+  const unknownSearchCount = operations.filter(
+    (e) => e.operation === "search" && e.resultCount === null,
+  ).length;
+  const truncated = {
+    results: operations.filter((e) => e.truncated === "results").length,
+    response: operations.filter((e) => e.truncated === "response").length,
+  };
+  const saveStates = {
+    unchanged: operations.filter((e) => e.saveState === "unchanged").length,
+    savedLocally: operations.filter((e) => e.saveState === "saved_locally")
+      .length,
+    committed: operations.filter((e) => e.saveState === "committed").length,
+    commitFailed: operations.filter((e) => e.saveState === "commit_failed")
+      .length,
+    unknown: operations.filter(
+      (e) => e.operation === "edit_save" && e.saveState === null,
+    ).length,
+  };
+  const failureReasons = [
+    ...group(
+      operations.filter((e) => e.failureReason),
+      (e) => e.failureReason ?? "unknown",
+    ).entries(),
+  ].map(([reason, events]) => ({ reason, n: events.length }));
+  const possibleRecovery: {
+    workflow: string | null;
+    operation: Operation;
+    evidenceIds: string[];
+  }[] = [];
+  for (const events of workflows.values()) {
+    const ordered = [...events].sort(
+      (a, b) => start(a) - start(b) || a.id.localeCompare(b.id),
+    );
+    for (let i = 0; i < ordered.length; i++) {
+      const failed = ordered[i];
+      if (failed?.outcome !== "error") continue;
+      const recovered = ordered
+        .slice(i + 1)
+        .find(
+          (event) =>
+            event.operation === failed.operation &&
+            event.outcome === "success" &&
+            failed.time <= start(event),
+        );
+      if (!recovered) continue;
+      possibleRecovery.push({
+        workflow: failed.workflow,
+        operation: failed.operation,
+        evidenceIds: [failed.id, recovered.id],
+      });
+      if (possibleRecovery.length >= 20) break;
+    }
+    if (possibleRecovery.length >= 20) break;
+  }
   return {
     schema: 1,
     window: { since, until },
@@ -265,6 +400,14 @@ export function usageReport(input: unknown[], options: ReportOptions = {}) {
       unknownActor: operations.filter((e) => e.actor === "unknown").length,
       unknownHost: operations.filter((e) => e.host === "unknown").length,
       uncorrelated: operations.filter((e) => !e.workflow).length,
+      knownActor,
+      knownHost,
+      correlated,
+      mcpOperations,
+      mcpSilence:
+        mcpOperations === 0
+          ? "no_mcp_observations_not_proof_of_no_mcp_usage"
+          : null,
       limits,
       retentionMayOmitEarlierData: true,
       unobservedOperations: null,
@@ -328,6 +471,42 @@ export function usageReport(input: unknown[], options: ReportOptions = {}) {
       reason:
         "Use the pilot's dated Git/task baseline; no history scan is performed by this report.",
     },
+    attribution,
+    versionMix,
+    inventory: {
+      method:
+        "Feature inventory vs observed counts; n=0 is not unused and not uninstrumented",
+      uninstrumented: TELEMETRY_COVERAGE.filter(
+        (entry) => entry.status === "uninstrumented",
+      ).map((entry) => ({
+        surface: entry.surface,
+        id: entry.id,
+        operation: entry.operation,
+        since: entry.since,
+        notes: entry.notes ?? null,
+      })),
+      excluded: TELEMETRY_COVERAGE.filter(
+        (entry) => entry.status === "excluded",
+      ).map((entry) => ({
+        surface: entry.surface,
+        id: entry.id,
+        operation: entry.operation,
+        since: entry.since,
+        notes: entry.notes ?? null,
+      })),
+      supported: [...inventory.values()].sort((a, b) => a.n - b.n),
+    },
+    outcomes: {
+      emptySearch,
+      nonemptySearch,
+      unknownSearchCount,
+      truncated,
+      saveStates,
+      failureReasons,
+      possibleRecovery,
+      possibleRecoveryNote:
+        "Same hashed workflow token, later non-overlapping success of the same operation after an error. Not proven recovery, retry, or user satisfaction.",
+    },
     overhead: {
       scope:
         "Synthetic 50-concept macOS arm64, Bun 1.3.14, 2026-09-11; 30 alternating pairs; full round trips",
@@ -345,17 +524,107 @@ export function usageReport(input: unknown[], options: ReportOptions = {}) {
       "RSS samples and overlapping observation intervals do not prove a leak or simultaneous residency. Idle periods are not sampled.",
       "Owner flags are explicit operator input for review; candidate ordering is not a validated product recommendation.",
       "Telemetry append is excluded from event duration; the separate synthetic overhead experiment includes it. Browser paint and end-to-end visible confirmation are unavailable.",
+      "Zero MCP observations and zero counts for supported operations are absence of retained records, not proof those surfaces or features were unused. Uninstrumented inventory entries cannot produce observations.",
+      "Historical records keep unknown actor/host/workflow and missing outcome fields; reports do not rewrite them. Possible recovery requires an explicit non-overlapping token match and is not a proven retry.",
     ],
   };
 }
 export type UsageReport = ReturnType<typeof usageReport>;
+const DAY_MS = 86400000;
+export function compactUsageWindow(report: UsageReport) {
+  return {
+    window: report.window,
+    coverage: report.coverage,
+    surfaceMix: report.surfaceMix,
+    attribution: report.attribution,
+    versionMix: report.versionMix,
+    inventory: {
+      supportedObserved: report.inventory.supported.filter((row) => row.n > 0)
+        .length,
+      supportedZero: report.inventory.supported.filter((row) => row.n === 0)
+        .length,
+      uninstrumented: report.inventory.uninstrumented.length,
+      excluded: report.inventory.excluded.length,
+    },
+    outcomes: {
+      emptySearch: report.outcomes.emptySearch,
+      nonemptySearch: report.outcomes.nonemptySearch,
+      unknownSearchCount: report.outcomes.unknownSearchCount,
+      truncated: report.outcomes.truncated,
+      saveStates: report.outcomes.saveStates,
+      failureReasons: report.outcomes.failureReasons,
+      possibleRecovery: report.outcomes.possibleRecovery.length,
+    },
+  };
+}
+export function usageWindows(input: unknown[], options: ReportOptions = {}) {
+  const until = options.until ?? Date.now();
+  const selectedSince = options.since ?? Math.max(0, until - 14 * DAY_MS);
+  const selected = usageReport(input, {
+    ...options,
+    since: selectedSince,
+    until,
+  });
+  return {
+    asOf: until,
+    selected,
+    hours24: compactUsageWindow(
+      usageReport(input, {
+        ...options,
+        since: Math.max(0, until - DAY_MS),
+        until,
+      }),
+    ),
+    days7: compactUsageWindow(
+      usageReport(input, {
+        ...options,
+        since: Math.max(0, until - 7 * DAY_MS),
+        until,
+      }),
+    ),
+    fullPilot: compactUsageWindow(
+      usageReport(input, { ...options, since: 0, until }),
+    ),
+  };
+}
+export type UsageWindows = ReturnType<typeof usageWindows>;
+function windowLine(
+  label: string,
+  window: { since: number; until: number },
+  coverage: UsageReport["coverage"],
+) {
+  return `${label}: ${new Date(window.since).toISOString()} through ${new Date(window.until).toISOString()} — ${coverage.observedOperations} operations, actor ${coverage.knownActor}/${coverage.observedOperations} known, host ${coverage.knownHost} known, ${coverage.correlated} correlated, MCP ${coverage.mcpOperations}${coverage.mcpSilence ? " (silence is not unused)" : ""}`;
+}
+export function renderUsageWindows(windows: UsageWindows): string {
+  return [
+    `As of ${new Date(windows.asOf).toISOString()}`,
+    windowLine(
+      "Last 24 hours",
+      windows.hours24.window,
+      windows.hours24.coverage,
+    ),
+    windowLine("Last 7 days", windows.days7.window, windows.days7.coverage),
+    windowLine(
+      "Full retained sample",
+      windows.fullPilot.window,
+      windows.fullPilot.coverage,
+    ),
+    windowLine(
+      "Selected window",
+      windows.selected.window,
+      windows.selected.coverage,
+    ),
+    "",
+    renderUsageReport(windows.selected),
+  ].join("\n");
+}
 export function renderUsageReport(report: UsageReport): string {
   const ms = (n: number | null) =>
     n === null ? "unavailable" : `${n.toFixed(2)} ms`;
   const lines = [
     `Local usage: ${report.coverage.observedOperations} operations, ${report.coverage.resourceSamples} resource samples, ${report.coverage.projects.length} projects`,
     `Window: ${new Date(report.window.since).toISOString()} through ${new Date(report.window.until).toISOString()}`,
-    `Coverage: ${report.coverage.reportedDrops} reported drops; ${report.coverage.uncorrelated} uncorrelated operations. Missing activity/retention gaps are unknown.`,
+    `Coverage: ${report.coverage.reportedDrops} reported drops; ${report.coverage.knownActor}/${report.coverage.observedOperations} known actor; ${report.coverage.knownHost} known host; ${report.coverage.correlated} correlated / ${report.coverage.uncorrelated} uncorrelated. Missing activity/retention gaps are unknown.`,
     "",
     "Candidates for manual review (owner flag, then total observed wait):",
   ];
@@ -367,6 +636,19 @@ export function renderUsageReport(report: UsageReport): string {
   lines.push(
     "",
     `Explicit workflows: ${report.workflows.n}; possible repeated names: ${report.workflows.possibleRepeats ?? "unavailable"}; orientation follow-ups: ${report.workflows.orientationFollowups ?? "unavailable"}/${report.workflows.orientationWorkflows ?? "unavailable"}; administrative operations/workflow: ${report.workflows.administrativePerWorkflow ?? "unavailable"}.`,
+  );
+  if (report.coverage.mcpSilence)
+    lines.push(
+      "",
+      "MCP: no retained observations in this window. That is not proof MCP was unused.",
+    );
+  const unobserved = report.inventory.supported.filter((row) => row.n === 0);
+  lines.push(
+    "",
+    `Inventory: ${report.inventory.supported.filter((row) => row.n > 0).length} supported operations observed, ${unobserved.length} supported with zero retained records, ${report.inventory.uninstrumented.length} uninstrumented, ${report.inventory.excluded.length} excluded. Zero is not unused.`,
+  );
+  lines.push(
+    `Outcomes: empty search=${report.outcomes.emptySearch}, unknown search count=${report.outcomes.unknownSearchCount}, truncated results=${report.outcomes.truncated.results}, possible recovery pairs=${report.outcomes.possibleRecovery.length} (not proven).`,
   );
   lines.push("", "Cold/warm and workload breakdowns:");
   for (const row of report.breakdowns.slice(0, 20))

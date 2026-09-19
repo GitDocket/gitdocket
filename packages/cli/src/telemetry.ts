@@ -2,8 +2,8 @@ import { findRepoRoot } from "@gitdocket/core";
 import type { Operation } from "@gitdocket/core/telemetry";
 import { TelemetryStore } from "@gitdocket/core/telemetry";
 import {
-  renderUsageReport,
-  usageReport,
+  renderUsageWindows,
+  usageWindows,
 } from "@gitdocket/core/telemetry-report";
 import type { Command } from "commander";
 
@@ -90,12 +90,10 @@ export function registerTelemetry(
       if (options.all && options.project)
         throw new Error("choose --all or --project");
       const until = options.until ? Date.parse(options.until) : Date.now();
-      const report = usageReport(
+      const windows = usageWindows(
         observations.events(Boolean(options.all || options.project)),
         {
-          since: options.since
-            ? Date.parse(options.since)
-            : Math.max(0, until - 14 * 86400000),
+          since: options.since ? Date.parse(options.since) : undefined,
           until,
           projects: options.all
             ? undefined
@@ -106,8 +104,21 @@ export function registerTelemetry(
       );
       await write(
         options.json
-          ? JSON.stringify(report, null, 2)
-          : renderUsageReport(report),
+          ? JSON.stringify(
+              {
+                ...windows.selected,
+                asOf: windows.asOf,
+                windows: {
+                  hours24: windows.hours24,
+                  days7: windows.days7,
+                  fullPilot: windows.fullPilot,
+                  selected: windows.selected.window,
+                },
+              },
+              null,
+              2,
+            )
+          : renderUsageWindows(windows),
       );
     });
 }

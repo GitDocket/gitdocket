@@ -257,6 +257,10 @@ describe("docket init", () => {
     const mcp = JSON.parse(await readFile(join(repo, ".mcp.json"), "utf8"));
     expect(mcp.mcpServers.other.command).toBe("x");
     expect(mcp.mcpServers.docket.command).toBe("docket-mcp");
+    expect(mcp.mcpServers.docket.env).toEqual({
+      DOCKET_TELEMETRY_ACTOR: "agent",
+      DOCKET_TELEMETRY_HOST: "claude",
+    });
 
     const settings = JSON.parse(
       await readFile(join(repo, ".claude", "settings.json"), "utf8"),
@@ -289,6 +293,7 @@ describe("docket init", () => {
     expect(action(rerun, "claude", ".mcp.json")).toBe("create");
     const mcp = JSON.parse(await readFile(join(repo, ".mcp.json"), "utf8"));
     expect(mcp.mcpServers.docket.command).toBe("docket-mcp");
+    expect(mcp.mcpServers.docket.env.DOCKET_TELEMETRY_HOST).toBe("claude");
   });
 
   test("scaffolds bundle workflows and an AGENTS.md section; both idempotent", async () => {
@@ -411,9 +416,15 @@ describe("docket init", () => {
     expect(config.startsWith(original)).toBe(true);
     expect(config).toContain("[mcp_servers.docket]");
     const parsed = Bun.TOML.parse(config) as {
-      mcp_servers: { docket: { command: string } };
+      mcp_servers: {
+        docket: { command: string; env?: Record<string, string> };
+      };
     };
     expect(parsed.mcp_servers.docket.command).toBe("docket-mcp");
+    expect(parsed.mcp_servers.docket.env).toEqual({
+      DOCKET_TELEMETRY_ACTOR: "agent",
+      DOCKET_TELEMETRY_HOST: "codex",
+    });
     expect(
       await readFile(join(skills, "docket-task", "SKILL.md"), "utf8"),
     ).toContain("My Codex-specific version.");
@@ -565,6 +576,226 @@ describe("docket init", () => {
     ).toBe("create");
   });
 
+  test("--agent cursor writes skills and MCP JSON without touching Claude or Codex", async () => {
+    sh(["git", "init", "-q"]);
+    await writeFile(
+      join(repo, ".mcp.json"),
+      JSON.stringify({ mcpServers: { other: { command: "x" } } }, null, 2) +
+        "\n",
+    );
+    await mkdir(join(repo, ".codex"), { recursive: true });
+    await writeFile(join(repo, ".codex", "config.toml"), 'model = "gpt-5"\n');
+    const claudeMcp = await readFile(join(repo, ".mcp.json"), "utf8");
+    const codexConfig = await readFile(
+      join(repo, ".codex", "config.toml"),
+      "utf8",
+    );
+
+    const first = initEnv(
+      pinnedEnv(`${await fakeMcpBin()}:${BASE_PATH}`),
+      "--agent",
+      "cursor",
+    );
+    expect(action(first, "cursor", ".cursor/mcp.json")).toBe("create");
+    expect(action(first, "skills", ".cursor/skills/docket-task/SKILL.md")).toBe(
+      "create",
+    );
+    expect(
+      first.steps.some((s) => s.path === ".mcp.json" && s.step === "claude"),
+    ).toBe(false);
+    expect(first.steps.some((s) => s.path === ".codex/config.toml")).toBe(
+      false,
+    );
+    expect(first.steps.some((s) => s.path === ".claude/settings.json")).toBe(
+      false,
+    );
+    expect(await readFile(join(repo, ".mcp.json"), "utf8")).toBe(claudeMcp);
+    expect(await readFile(join(repo, ".codex", "config.toml"), "utf8")).toBe(
+      codexConfig,
+    );
+
+    const mcp = JSON.parse(
+      await readFile(join(repo, ".cursor", "mcp.json"), "utf8"),
+    );
+    expect(mcp.mcpServers.docket.command).toBe("docket-mcp");
+    expect(mcp.mcpServers.docket.env).toEqual({
+      DOCKET_TELEMETRY_ACTOR: "agent",
+      DOCKET_TELEMETRY_HOST: "cursor",
+    });
+    const pickup = await readFile(
+      join(repo, ".cursor", "skills", "docket-pickup", "SKILL.md"),
+      "utf8",
+    );
+    expect(pickup).toContain("rename_chat");
+    expect(pickup).toContain("{ title: suggestedSessionTitle }");
+
+    const rerun = initEnv(
+      pinnedEnv(`${await fakeMcpBin()}:${BASE_PATH}`),
+      "--agent",
+      "cursor",
+    );
+    expect(action(rerun, "cursor", ".cursor/mcp.json")).toBe("skip");
+    expect(
+      rerun.steps
+        .filter((s) => s.path.startsWith(".cursor/skills/"))
+        .every((s) => s.action === "skip"),
+    ).toBe(true);
+  });
+
+  test("--agent cursor preserves other MCP servers and existing docket entries", async () => {
+    sh(["git", "init", "-q"]);
+    await mkdir(join(repo, ".cursor"), { recursive: true });
+    await writeFile(
+      join(repo, ".cursor", "mcp.json"),
+      JSON.stringify({
+        mcpServers: {
+          other: { command: "other-mcp" },
+        },
+      }),
+    );
+
+    const merged = initEnv(
+      pinnedEnv(`${await fakeMcpBin()}:${BASE_PATH}`),
+      "--agent",
+      "cursor",
+    );
+    expect(action(merged, "cursor", ".cursor/mcp.json")).toBe("update");
+    const afterMerge = JSON.parse(
+      await readFile(join(repo, ".cursor", "mcp.json"), "utf8"),
+    );
+    expect(afterMerge.mcpServers.other.command).toBe("other-mcp");
+    expect(afterMerge.mcpServers.docket.command).toBe("docket-mcp");
+    expect(afterMerge.mcpServers.docket.env.DOCKET_TELEMETRY_HOST).toBe(
+      "cursor",
+    );
+
+    const custom = {
+      mcpServers: {
+        docket: {
+          command: "/opt/homebrew/bin/bun",
+          args: ["packages/mcp/src/index.ts"],
+        },
+      },
+    };
+    await writeFile(
+      join(repo, ".cursor", "mcp.json"),
+      `${JSON.stringify(custom, null, 2)}\n`,
+    );
+    const skipped = initEnv(
+      pinnedEnv(`${await fakeMcpBin()}:${BASE_PATH}`),
+      "--agent",
+      "cursor",
+    );
+    expect(action(skipped, "cursor", ".cursor/mcp.json")).toBe("skip");
+    expect(await readFile(join(repo, ".cursor", "mcp.json"), "utf8")).toBe(
+      `${JSON.stringify(custom, null, 2)}\n`,
+    );
+  });
+
+  test("--agent cursor skips malformed MCP JSON, missing binaries, and hand-authored skills", async () => {
+    sh(["git", "init", "-q"]);
+    await mkdir(join(repo, ".cursor"), { recursive: true });
+    const malformed = "{ mcpServers: nope";
+    await writeFile(join(repo, ".cursor", "mcp.json"), malformed);
+    await mkdir(join(repo, ".cursor", "skills", "docket-task"), {
+      recursive: true,
+    });
+    await writeFile(
+      join(repo, ".cursor", "skills", "docket-task", "SKILL.md"),
+      "---\nname: docket-task\n---\n\nMy Cursor-specific version.\n",
+    );
+
+    const missing = initEnv(pinnedEnv(BASE_PATH), "--agent", "cursor");
+    const missingStep = missing.steps.find(
+      (s) => s.path === ".cursor/mcp.json",
+    );
+    expect(missingStep?.action).toBe("skip");
+    expect(missingStep?.reason).toContain("docket-mcp not on PATH");
+    expect(await readFile(join(repo, ".cursor", "mcp.json"), "utf8")).toBe(
+      malformed,
+    );
+    expect(
+      action(missing, "skills", ".cursor/skills/docket-groom/SKILL.md"),
+    ).toBe("create");
+    expect(
+      await readFile(
+        join(repo, ".cursor", "skills", "docket-task", "SKILL.md"),
+        "utf8",
+      ),
+    ).toContain("My Cursor-specific version.");
+
+    const invalid = initEnv(
+      pinnedEnv(`${await fakeMcpBin()}:${BASE_PATH}`),
+      "--agent",
+      "cursor",
+    );
+    const invalidStep = invalid.steps.find(
+      (s) => s.path === ".cursor/mcp.json",
+    );
+    expect(invalidStep?.action).toBe("skip");
+    expect(invalidStep?.reason).toBe("not valid JSON");
+    expect(await readFile(join(repo, ".cursor", "mcp.json"), "utf8")).toBe(
+      malformed,
+    );
+  });
+
+  test("combined --agent flags install Claude, Codex, and Cursor together", async () => {
+    sh(["git", "init", "-q"]);
+    const report = initEnv(
+      pinnedEnv(`${await fakeMcpBin()}:${BASE_PATH}`),
+      "--agent",
+      "claude",
+      "--agent",
+      "codex",
+      "--agent",
+      "cursor",
+    );
+    expect(action(report, "claude", ".mcp.json")).toBe("create");
+    expect(action(report, "codex", ".codex/config.toml")).toBe("create");
+    expect(action(report, "cursor", ".cursor/mcp.json")).toBe("create");
+    expect(
+      report.steps.some((s) =>
+        s.path.startsWith(".claude/skills/docket-task/"),
+      ),
+    ).toBe(true);
+    expect(
+      report.steps.some((s) =>
+        s.path.startsWith(".agents/skills/docket-task/"),
+      ),
+    ).toBe(true);
+    expect(
+      report.steps.some((s) =>
+        s.path.startsWith(".cursor/skills/docket-task/"),
+      ),
+    ).toBe(true);
+    const claudePickup = await readFile(
+      join(repo, ".claude", "skills", "docket-pickup", "SKILL.md"),
+      "utf8",
+    );
+    const cursorPickup = await readFile(
+      join(repo, ".cursor", "skills", "docket-pickup", "SKILL.md"),
+      "utf8",
+    );
+    expect(claudePickup).toContain("rename unsupported");
+    expect(claudePickup).not.toContain("rename_chat");
+    expect(cursorPickup).toContain("rename_chat");
+  });
+
+  test("init help lists cursor and rejects unknown agent targets", () => {
+    const help = sh(["bun", CLI, "init", "--help"]);
+    expect(help.code).toBe(0);
+    expect(help.stdout).toContain("claude, codex, cursor");
+    const unknown = sh([
+      process.execPath,
+      CLI,
+      "init",
+      "--json",
+      "--agent",
+      "windsurf",
+    ]);
+    expect(unknown.code).not.toBe(0);
+  });
+
   test("adds .docket/ to .gitignore without touching existing rules; idempotent", async () => {
     sh(["git", "init", "-q"]);
     await writeFile(join(repo, ".gitignore"), "node_modules/\n");
@@ -583,18 +814,23 @@ describe("docket init", () => {
     sh(["git", "init", "-q"]);
     await writeFile(
       join(repo, ".gitignore"),
-      ".claude/\n.mcp.json\n.agents/\n.codex/\n",
+      ".claude/\n.mcp.json\n.agents/\n.codex/\n.cursor/\n",
     );
 
-    const report = init("--claude", "--codex");
+    const report = init("--claude", "--codex", "--agent", "cursor");
     const flagged = (path: string) =>
       report.steps.find((s) => s.path.endsWith(path))?.gitignored;
     expect(flagged(".mcp.json")).toBe(true);
     expect(flagged(".claude/settings.json")).toBe(true);
     expect(flagged("docket-task/SKILL.md")).toBe(true);
     expect(flagged(".codex/config.toml")).toBe(true);
+    expect(flagged(".cursor/mcp.json")).toBe(true);
     expect(
       report.steps.find((s) => s.path === ".agents/skills/docket-task/SKILL.md")
+        ?.gitignored,
+    ).toBe(true);
+    expect(
+      report.steps.find((s) => s.path === ".cursor/skills/docket-task/SKILL.md")
         ?.gitignored,
     ).toBe(true);
     expect(flagged("docket.yaml")).toBeUndefined();

@@ -4,7 +4,7 @@ GitDocket helps your coding agent resume with less re-explanation. Try one small
 
 ## 1. Install and initialize
 
-GitDocket 0.4.1 installs both commands with Homebrew. You need Homebrew and Git on macOS 15+ or supported glibc Linux, on ARM64 or x64. Windows is not supported. No separate Bun, Node or npm setup is needed:
+GitDocket 0.5.0 installs both commands with Homebrew. You need Homebrew and Git on macOS 15+ or supported glibc Linux, on ARM64 or x64. Windows is not supported. No separate Bun, Node or npm setup is needed:
 
 ```sh
 brew install gitdocket/tap/gitdocket
@@ -21,7 +21,7 @@ git commit -m "Initialize Harbor with Docket"
 
 The fully qualified install command grants trust to the project’s formula. If you already have Node 22+, use `npm install -g --include=optional @gitdocket/cli @gitdocket/mcp` instead. See [installation, updates and migration](homebrew.md) or the [npm guide](npm.md).
 
-Use `--agent claude` for Claude Code, or omit the agent flag for portable `AGENTS.md` guidance. Open the initialized repository in a new coding-agent session so it discovers those instructions. If Git cannot commit, configure your usual Git author identity and retry. Init adds a local Markdown bundle, configuration, workflow instructions, index and commit hook. It leaves existing files in place. In an existing project, review its adoption worklist before adding metadata to existing docs; a complete document migration is not a prerequisite for one task.
+Use `--agent cursor` for Cursor, `--agent claude` for Claude Code, or omit the agent flag for portable `AGENTS.md` guidance. After `docket init --agent cursor`, enable the Docket MCP server once in Customize → MCPs (Command Palette: Open MCPs); init cannot complete that Cursor approval. Open the initialized repository in a new coding-agent session so it discovers those instructions. If Git cannot commit, configure your usual Git author identity and retry. Init adds a local Markdown bundle, configuration, workflow instructions, index and commit hook. It leaves existing files in place. In an existing project, review its adoption worklist before adding metadata to existing docs; a complete document migration is not a prerequisite for one task.
 
 ## 2. Ask for one tracked change
 

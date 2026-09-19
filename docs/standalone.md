@@ -1,6 +1,6 @@
 # Standalone distribution development
 
-GitDocket 0.4.1 distributes standalone CLI and MCP executables through [Homebrew](homebrew.md) and [npm](npm.md). This page describes their build and qualification process; ordinary installation does not require the build tools.
+GitDocket 0.5.0 distributes standalone CLI and MCP executables through [Homebrew](homebrew.md) and [npm](npm.md). This page describes their build and qualification process; ordinary installation does not require the build tools.
 
 Build both commands from a development checkout with its frozen dependencies installed:
 

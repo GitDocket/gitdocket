@@ -6,7 +6,7 @@ The loop is simple: read project context → choose a change → implement and v
 
 Docket's engine manages IDs, allowed status changes, dependency readiness and generated views. Your coding agent follows editable supplied workflows to verify work and reconcile affected docs. A done status records a conclusion; review the checks and Git diff that support it. No hosted account is needed: the files and history stay yours.
 
-> GitDocket 0.4.1 is a preview. File formats and commands may still change as external use provides evidence.
+> GitDocket 0.5.0 is a preview. File formats and commands may still change as external use provides evidence.
 
 ![Current GitDocket Home showing project context and ready work in the synthetic Harbor project](site/assets/current-home.jpg)
 
@@ -47,6 +47,7 @@ docket serve
 To install native guidance for a supported coding agent:
 
 ```sh
+docket init --agent cursor
 docket init --agent codex
 docket init --agent claude
 ```
@@ -63,7 +64,7 @@ The [basic example](examples/basic/) is a complete synthetic bundle. See [Gettin
 
 Workflow extensions let your team share a repeatable path from request to reviewed delivery. Adapt the reviews, templates and checks, use tools already connected to your agent, and keep the decisions available for the next change—all in Git. They are optional; one task is still a useful place to start.
 
-In the [Beacon walkthrough](examples/product-delivery/README.md), an agent prepares an export proposal, implements the accepted scope, records verification and leaves a decision that a fresh session uses to plan import. Read the [workflow overview and reference](docs/extensions.md) to adopt or author a package. Workflow extensions are included in the 0.4.1 preview. The example app has its own development prerequisites.
+In the [Beacon walkthrough](examples/product-delivery/README.md), an agent prepares an export proposal, implements the accepted scope, records verification and leaves a decision that a fresh session uses to plan import. Read the [workflow overview and reference](docs/extensions.md) to adopt or author a package. Workflow extensions are included in the 0.5.0 preview. The example app has its own development prerequisites.
 
 ## Stability and upgrades
 
