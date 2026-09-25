@@ -431,15 +431,21 @@ td code {
   height: 32px;
   margin: 0;
   padding: 0;
-  border: 1px solid transparent;
+  border: 0;
   border-radius: 6px;
+  appearance: none;
+  -webkit-appearance: none;
   background: transparent;
   color: #eff4ee;
   cursor: pointer;
+  line-height: 0;
 }
 .copy-command svg {
-  width: 18px;
-  height: 18px;
+  display: block;
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+  stroke: none;
 }
 .copy-command:hover {
   background: rgba(255, 255, 255, 0.08);
