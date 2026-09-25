@@ -57,7 +57,7 @@ jobs:
         working-directory: examples/basic
       - name: Audit dependencies
         run: bun run audit:dependencies
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v8
         with:
           pattern: standalone-${{ github.sha }}-*
           path: release/standalone
@@ -96,13 +96,13 @@ jobs:
           node-version: "24"
       - run: npm install --global npm@11.17.0
       - run: bun install --frozen-lockfile
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v8
         with:
           pattern: standalone-${{ github.sha }}-*
           path: release/standalone
           merge-multiple: true
       - run: bun run release:pack
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v8
         with:
           name: release-preflight-${{ github.ref_name }}-${{ github.run_attempt }}
           path: release/receipts
@@ -149,12 +149,12 @@ jobs:
         with:
           bun-version: 1.3.14
       - run: bun install --frozen-lockfile
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v8
         with:
           pattern: standalone-${{ github.sha }}-*
           path: release/standalone
           merge-multiple: true
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v8
         with:
           name: release-registry-receipt-${{ github.ref_name }}-${{ github.run_attempt }}
           path: release/receipts
