@@ -49,7 +49,7 @@ jobs:
             bun install --frozen-lockfile
           fi
           bun scripts/standalone-release.ts build --output "$GITHUB_WORKSPACE/release/standalone"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: standalone-${{ github.sha }}-${{ matrix.target }}
           path: release/standalone/*
@@ -71,7 +71,7 @@ jobs:
           mkdir -p release/standalone
           gh release view "$QUALIFIED_RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft | grep -qx true
           gh release download "$QUALIFIED_RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --dir release/standalone
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: standalone-${{ github.sha }}-qualified-local
           path: release/standalone/*
