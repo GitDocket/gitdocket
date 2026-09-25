@@ -150,6 +150,8 @@ When another edit changes the source, the editor keeps your draft and shows a co
 
 Tasks, epics, specs, references, decisions, playbooks, workflows, and custom concepts share this editor. Generated indexes and Git history are read-only; introductions, briefings, and logs use their own workflows. Use task commands to change status or identity. Editing an acceptance checkbox does not change task status. The editor supports Markdown documents up to 262,144 bytes.
 
+Fenced `mermaid` blocks render as diagrams on Markdown pages and in editor previews. The diagram source stays editable Markdown. GitDocket loads Mermaid only when a page needs it, from assets bundled with the install, including standalone builds with no network. A diagram that fails to render shows its source and does not break the rest of the page.
+
 ## Keep knowledge current
 
 Closing a task updates the docs affected by that change. You can also ask for a wider review:

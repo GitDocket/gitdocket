@@ -1,6 +1,6 @@
 # Website deployment
 
-The site is static: no package install, build step, server runtime, analytics, cookies, scripts, or third-party requests.
+The site is static: no package install, build step, server runtime, analytics, cookies, or third-party requests. The homepage and installation page load one local script, `site/copy-install.js`, so the Homebrew command can be copied. That script is the only script the content security policy allows, and only from this site.
 
 For Cloudflare Pages:
 
@@ -14,9 +14,9 @@ The homepage leads with picking up where you left off, a plain Homebrew installa
 
 The extension reading path is `/docs/extensions/` → `/docs/extensions/beacon/` → `/docs/extensions/reference/`. The overview explains the benefit; Beacon shows actual excerpted delivery records and versioned installation setup; the reference renders `docs/extensions.md` with its Beacon links mapped to the site walkthrough. Keep the reference in sync with that Markdown source. `site/demo/product-delivery/` retains verbatim qualified artifact excerpts, source hashes, assistance and limits. Do not turn supplied test review into observed human approval, or the assisted browser check into an unattended run.
 
-The 0.5.0 launch is live: Homebrew supplies both commands from the project tap, npm is the Node-based alternative, Cursor is a first-class harness, and workflow extensions remain included as a preview. Four-platform public installation checks passed before the release commit reached `main`. The example app still requires Bun independently of GitDocket. Rebuild its source archive with `bun scripts/extensions/package-examples.ts` after changing docs/examples, then independently extract and verify the manifest and prepared-project links.
+GitDocket 0.6.0 is the current public release: Homebrew supplies both commands from the project tap, npm is the Node-based alternative, Cursor is a first-class harness, and workflow extensions remain included as a preview. The public guides explain wiki creation and recoverable moves, accepted Decisions, local Mermaid rendering, and task progress across linked worktrees. Operator-only release workflow changes are omitted from the marketing site. The example app still requires Bun independently of GitDocket. Rebuild its source archive with `bun scripts/extensions/package-examples.ts` after changing docs/examples, then independently extract and verify the manifest and prepared-project links.
 
-`site/docs/mcp/tools.json` was captured from the locally packed candidate on September 14, 2026 for 0.4.0. It is a reference snapshot, not a promise that all installed versions expose the same tools. Example project IDs in descriptions are normalized to HBR/ADR. No published OpenAPI specification exists; the HTTP page identifies its routes as a small subset of the local UI implementation.
+`site/docs/mcp/tools.json` was captured by `tools/list` against the 0.6.0 source server on September 24, 2026. It is a reference snapshot of that version, not a promise that every installed release exposes the same tools. Example project IDs in descriptions are normalized to HBR/ADR. No published OpenAPI specification exists; the HTTP page identifies its routes as a small subset of the local UI implementation.
 
 The current Home and Board screenshots use a synthetic Harbor fixture and the current development UI. The fixture has an authored re-entry note and a short project introduction. Only JPEG compression was applied to native screenshots. Historical scripted demo evidence and replay instructions remain in `site/demo/`. Its original completed-epic image is historical run evidence, not a current UI showcase. The homepage and README use `current-home.jpg`.
 

@@ -23,17 +23,26 @@
       <aside class="docs-sidebar"><p class="eyebrow">Reference</p><nav aria-label="Documentation"><a href="/docs/">Get started</a><a href="/docs/install/">Installation</a><a href="/docs/example/">One-task example</a><a href="/docs/everyday/">Everyday use</a><a href="/docs/epics/">Epics</a><a href="/docs/extensions/">Extensions</a><a href="/docs/cli/">CLI commands</a><a href="/docs/mcp/" aria-current="page">MCP & workflows</a><a href="/docs/api/">Local HTTP reference</a></nav></aside>
       <main class="docs-content" id="main" tabindex="-1"><p class="eyebrow">GitDocket docs</p><h1>MCP &amp; workflows.</h1><p class="doc-lede">Connect your coding agent to the project’s docs and tasks, and use editable workflows to guide the work.</p>
         <section aria-labelledby="connect"><h2 id="connect">Connect over stdio</h2><p><a href="/docs/install/">Install with Homebrew</a>; npm users install <code>@gitdocket/cli</code> and <code>@gitdocket/mcp</code>. Check <code>docket-mcp --version</code> before configuring your agent. Configure your MCP client to launch that command with the project repository as its working directory. It resolves the nearest <code>docket.yaml</code>. There is no HTTP MCP endpoint.</p><p>For supported coding agents, <code>docket init --agent cursor</code>, <code>docket init --agent claude</code>, or <code>docket init --agent codex</code> installs the native integration. For Cursor, enable Docket once in Customize → MCPs after initialization. Other clients use their own stdio server configuration.</p></section>
-        <section aria-labelledby="tools"><h2 id="tools">Available tools</h2><p>The downloadable reference contains twelve tools captured from version 0.4.0. <a href="/docs/mcp/tools.json">Download the input schemas (JSON)</a>, or request <code>tools/list</code> from your installed server for its exact contract.</p>
+        <section aria-labelledby="tools"><h2 id="tools">Available tools</h2><p>The downloadable reference contains twenty-one tools captured from version 0.6.0 on September 24, 2026. It describes that snapshot, not every installed release. <a href="/docs/mcp/tools.json">Download the input schemas (JSON)</a>, or request <code>tools/list</code> from your installed server for its exact contract.</p>
 <div class="table-wrap"><table><thead><tr><th>Tool</th><th>Required input</th><th>Purpose</th></tr></thead><tbody>
 <tr><td><code>overview</code></td><td>None</td><td>Project orientation.</td></tr>
 <tr><td><code>ready</code></td><td>None</td><td>Ready work; optional limit.</td></tr>
 <tr><td><code>task_list</code></td><td>None</td><td>Work items with status/type filters and pagination.</td></tr>
-<tr><td><code>task_get</code></td><td><code>id</code></td><td>Full task or epic source.</td></tr>
+<tr><td><code>task_get</code></td><td><code>id</code></td><td>Full task, epic or decision source.</td></tr>
+<tr><td><code>task_progress</code></td><td>None</td><td>Saved progress across linked worktrees; optional <code>id</code>.</td></tr>
 <tr><td><code>search</code></td><td><code>query</code></td><td>Ranked bundle search.</td></tr>
 <tr><td><code>project_guidance</code></td><td>None</td><td>Optional project standards, scoped source links and diagnostics.</td></tr>
 <tr><td><code>workflow_extensions</code></td><td>Optional package ID and paging</td><td>Installed packages, project choices and workflow sources.</td></tr>
 <tr><td><code>source_page</code></td><td><code>path</code></td><td>Bounded source with a continuation cursor.</td></tr>
 <tr><td><code>lint</code></td><td>None</td><td>Bundle diagnostics.</td></tr>
+<tr><td><code>index</code></td><td>None</td><td>Refresh wiki discovery after authoring.</td></tr>
+<tr><td><code>document_create</code></td><td><code>path</code>, <code>type</code>, <code>title</code>, <code>body</code></td><td>Create a Reference, Spec or Playbook; writes files.</td></tr>
+<tr><td><code>document_read</code></td><td><code>path</code></td><td>Complete editable document and source version.</td></tr>
+<tr><td><code>document_edit</code></td><td><code>path</code>, <code>expectedVersion</code>, <code>patch</code></td><td>Save a versioned edit; writes files.</td></tr>
+<tr><td><code>document_move_plan</code></td><td><code>from</code>, <code>to</code></td><td>Inspect a wiki move without writing.</td></tr>
+<tr><td><code>document_move_apply</code></td><td><code>from</code>, <code>to</code>, <code>expectedVersion</code></td><td>Apply a reviewed wiki move; writes files.</td></tr>
+<tr><td><code>document_move_recover</code></td><td><code>token</code></td><td>Recover an interrupted wiki move.</td></tr>
+<tr><td><code>decision_create</code></td><td><code>title</code></td><td>Record an accepted Decision; writes files. Supply context, decision and consequences when you have them.</td></tr>
 <tr><td><code>task_create</code></td><td><code>title</code></td><td>Create a task or epic; writes files.</td></tr>
 <tr><td><code>set_status</code></td><td><code>id</code>, <code>to</code></td><td>Change stored status; writes files.</td></tr>
 <tr><td><code>append_log</code></td><td><code>id</code>, <code>entry</code></td><td>Append a dated work note; writes files.</td></tr>

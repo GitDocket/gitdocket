@@ -24,8 +24,9 @@
       <main class="docs-content" id="main" tabindex="-1">
 <h1 id="install-gitdocket">Install GitDocket</h1>
 <p>Install GitDocket with Homebrew:</p>
-<pre><code class="language-sh">brew install gitdocket/tap/gitdocket
-docket --version
+<div class="command-row"><pre><code class="language-sh">brew install gitdocket/tap/gitdocket</code></pre><button type="button" class="copy-command" data-copy="brew install gitdocket/tap/gitdocket" aria-label="Copy Homebrew install command" aria-describedby="copy-status-install"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="8" y="7" width="11" height="13" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M6 16.5H5.5A1.5 1.5 0 0 1 4 15V4.5A1.5 1.5 0 0 1 5.5 3H15a1.5 1.5 0 0 1 1.5 1.5V6" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></button></div>
+<p id="copy-status-install" class="copy-status" role="status"></p>
+<pre><code class="language-sh">docket --version
 docket-mcp --version
 </code></pre>
 <p>This installs <code>docket</code>, the command-line tool, and <code>docket-mcp</code>, which connects your coding agent to the project. Continue with <a href="/docs/">Getting started</a>. If you already use Node 22+, <a href="/docs/install/#npm-alternative">npm</a> is another installation option.</p>
@@ -78,5 +79,6 @@ npx --yes --package=@gitdocket/cli --package=@gitdocket/mcp docket init --agent 
 </main>
     </div>
     <footer class="shell footer"><a class="brand" href="/">GitDocket</a><p>Project knowledge and work, together in Git.</p><a href="https://github.com/GitDocket/gitdocket">Source on GitHub ↗</a></footer>
+    <script src="/copy-install.js" defer></script>
   </body>
 </html>

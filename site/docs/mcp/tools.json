@@ -1,5 +1,5 @@
 {
-  "description": "Captured by actual tools/list from the exact locally packed GitDocket 0.4.0 development candidate on 2026-09-14. Illustrative IDs are normalized to HBR/ADR; schemas are otherwise unchanged. This is not a publication or host behavior receipt; connect to your installed server for its exact contract.",
+  "description": "Captured by actual tools/list from the GitDocket 0.6.0 source server on 2026-09-24. Illustrative IDs are normalized to HBR/ADR. This is a reference snapshot of that version, not a promise that every installed release exposes the same tools. Connect to your installed server for its exact contract.",
   "tools": [
     {
       "name": "workflow_extensions",
@@ -27,29 +27,15 @@
           }
         },
         "$schema": "http://json-schema.org/draft-07/schema#"
-      },
-      "annotations": {
-        "readOnlyHint": true,
-        "openWorldHint": false
-      },
-      "execution": {
-        "taskSupport": "forbidden"
       }
     },
     {
       "name": "overview",
       "title": "Orient and review",
-      "description": "Read-only orientation — answer what is happening or what comes next from the shared Docket overview.",
+      "description": "Read-only orientation \u2014 answer what is happening or what comes next from the shared Docket overview.",
       "inputSchema": {
         "type": "object",
         "properties": {}
-      },
-      "annotations": {
-        "readOnlyHint": true,
-        "openWorldHint": false
-      },
-      "execution": {
-        "taskSupport": "forbidden"
       }
     },
     {
@@ -66,19 +52,12 @@
           }
         },
         "$schema": "http://json-schema.org/draft-07/schema#"
-      },
-      "annotations": {
-        "readOnlyHint": true,
-        "openWorldHint": false
-      },
-      "execution": {
-        "taskSupport": "forbidden"
       }
     },
     {
       "name": "task_list",
       "title": "List work items",
-      "description": "All work items, optionally filtered by status or type.",
+      "description": "Local work items with observed worktree progress, optionally filtered by recorded status or type. Use task_progress to discover tasks existing only on other branches.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -97,7 +76,10 @@
           "type": {
             "description": "Task or Epic",
             "type": "string",
-            "enum": ["Epic", "Task"]
+            "enum": [
+              "Epic",
+              "Task"
+            ]
           },
           "limit": {
             "type": "integer",
@@ -112,13 +94,6 @@
           }
         },
         "$schema": "http://json-schema.org/draft-07/schema#"
-      },
-      "annotations": {
-        "readOnlyHint": true,
-        "openWorldHint": false
-      },
-      "execution": {
-        "taskSupport": "forbidden"
       }
     },
     {
@@ -134,15 +109,24 @@
             "description": "e.g. HBR-14 or ADR-2"
           }
         },
-        "required": ["id"],
+        "required": [
+          "id"
+        ],
         "$schema": "http://json-schema.org/draft-07/schema#"
-      },
-      "annotations": {
-        "readOnlyHint": true,
-        "openWorldHint": false
-      },
-      "execution": {
-        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "task_progress",
+      "title": "Read task progress across worktrees",
+      "description": "Bounded local worktree and committed-ref observations, including foreign-only tasks, conflicts and coverage; read-only.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#"
       }
     },
     {
@@ -152,19 +136,12 @@
       "inputSchema": {
         "type": "object",
         "properties": {}
-      },
-      "annotations": {
-        "readOnlyHint": true,
-        "openWorldHint": false
-      },
-      "execution": {
-        "taskSupport": "forbidden"
       }
     },
     {
       "name": "search",
       "title": "Search the bundle",
-      "description": "Ranked text search across every file in the bundle — tokenized multi-term queries, title/id matches boosted, best hits first; hits carry the owning concept's id plus its link neighborhood (outbound links and backlinks).",
+      "description": "Ranked text search across every file in the bundle \u2014 tokenized multi-term queries, title/id matches boosted, best hits first; hits carry the owning concept's id plus its link neighborhood (outbound links and backlinks).",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -179,15 +156,10 @@
             "maximum": 100
           }
         },
-        "required": ["query"],
+        "required": [
+          "query"
+        ],
         "$schema": "http://json-schema.org/draft-07/schema#"
-      },
-      "annotations": {
-        "readOnlyHint": true,
-        "openWorldHint": false
-      },
-      "execution": {
-        "taskSupport": "forbidden"
       }
     },
     {
@@ -221,18 +193,17 @@
                 "maximum": 9007199254740991
               }
             },
-            "required": ["path", "sourceHash", "offset"]
+            "required": [
+              "path",
+              "sourceHash",
+              "offset"
+            ]
           }
         },
-        "required": ["path"],
+        "required": [
+          "path"
+        ],
         "$schema": "http://json-schema.org/draft-07/schema#"
-      },
-      "annotations": {
-        "readOnlyHint": true,
-        "openWorldHint": false
-      },
-      "execution": {
-        "taskSupport": "forbidden"
       }
     },
     {
@@ -242,13 +213,220 @@
       "inputSchema": {
         "type": "object",
         "properties": {}
-      },
-      "annotations": {
-        "readOnlyHint": true,
-        "openWorldHint": false
-      },
-      "execution": {
-        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "index",
+      "title": "Refresh wiki discovery",
+      "description": "Refresh the generated bundle index after authorized source changes, preserving authored index regions. Does not select or change tracked work.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "document_move_plan",
+      "title": "Inspect a wiki page move",
+      "description": "Plan an ordinary Reference/Spec/Playbook path move without writing. Returns affected paths, supported link replacements, blockers, unmanaged-reference warnings and a complete bundle version. Title-only edits use document_edit.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "to"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "document_move_apply",
+      "title": "Apply a reviewed wiki page move",
+      "description": "Recompute and apply a reviewed plan from from/to/expectedVersion; repair supported links and index. Does not change tracker state or guidance. If state is recovery_required, retain the receipt and use document_move_recover; originals remain in its journal.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          },
+          "expectedVersion": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "expectedVersion"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "document_move_recover",
+      "title": "Recover an interrupted wiki move",
+      "description": "Resume a move using its recovery token. Validates the journal and original/planned source versions; unrelated changes require explicit reconciliation. Never blindly restore journal bytes.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "document_create",
+      "title": "Create a wiki page",
+      "description": "Create an ordinary Reference, Spec or Playbook at a bundle-relative path; collisions are rejected. Search for existing knowledge first. Does not track work or activate guidance. Run index afterward.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "Reference",
+              "Spec",
+              "Playbook"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "path",
+          "type",
+          "title",
+          "body"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "document_read",
+      "title": "Read a complete editable document",
+      "description": "Read the complete body, title, description and version for a versioned save. Never use paged source excerpts as replacement drafts.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "document_edit",
+      "title": "Save a versioned document edit",
+      "description": "Replace only the supplied body/title/description at expectedVersion. A newer source conflicts without writing. No tracker transitions or guidance selection occur. Run index after changes.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "expectedVersion": {
+            "type": "string"
+          },
+          "patch": {
+            "type": "object",
+            "properties": {
+              "body": {
+                "type": "string"
+              },
+              "title": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "description": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "path",
+          "expectedVersion",
+          "patch"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "decision_create",
+      "title": "Record a decision",
+      "description": "Create an accepted Decision under decisions/ with the configured decision prefix and its own sequence. Record context, alternatives, choice and consequences. Does not start tracked work or change project guidance. Run index afterward to refresh the derived index.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "context": {
+            "description": "context, relevant links and alternatives considered",
+            "type": "string"
+          },
+          "decision": {
+            "description": "accepted choice and why",
+            "type": "string"
+          },
+          "consequences": {
+            "description": "tradeoffs and follow-up effects",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
       }
     },
     {
@@ -265,14 +443,17 @@
           "type": {
             "default": "Task",
             "type": "string",
-            "enum": ["Epic", "Task"]
+            "enum": [
+              "Epic",
+              "Task"
+            ]
           },
           "description": {
             "description": "one-sentence description",
             "type": "string"
           },
           "epic": {
-            "description": "bundle-absolute link, e.g. /work/epics/HBR-2-….md",
+            "description": "bundle-absolute link, e.g. /work/epics/HBR-2-\u2026.md",
             "type": "string"
           },
           "depends_on": {
@@ -285,7 +466,12 @@
           "priority": {
             "default": "p2",
             "type": "string",
-            "enum": ["p0", "p1", "p2", "p3"]
+            "enum": [
+              "p0",
+              "p1",
+              "p2",
+              "p3"
+            ]
           },
           "assignee": {
             "type": "string"
@@ -297,22 +483,16 @@
             }
           }
         },
-        "required": ["title"],
+        "required": [
+          "title"
+        ],
         "$schema": "http://json-schema.org/draft-07/schema#"
-      },
-      "annotations": {
-        "readOnlyHint": false,
-        "destructiveHint": false,
-        "openWorldHint": false
-      },
-      "execution": {
-        "taskSupport": "forbidden"
       }
     },
     {
       "name": "set_status",
       "title": "Change a work item's status",
-      "description": "Move a work item through the state machine (invalid transitions are rejected). A disposition note is required when moving to closed; other transitions may optionally append a dated Log entry.",
+      "description": "Move a work item through the state machine (invalid transitions are rejected). Moving to closed requires a disposition note. A project may permit closed Tasks or Epics to return to todo; that move requires a reason note and preserves the earlier disposition.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -332,20 +512,15 @@
             ]
           },
           "note": {
-            "description": "dated Log entry; required when `to` is `closed`",
+            "description": "dated Log entry; required when moving to closed or reopening closed work",
             "type": "string"
           }
         },
-        "required": ["id", "to"],
+        "required": [
+          "id",
+          "to"
+        ],
         "$schema": "http://json-schema.org/draft-07/schema#"
-      },
-      "annotations": {
-        "readOnlyHint": false,
-        "destructiveHint": false,
-        "openWorldHint": false
-      },
-      "execution": {
-        "taskSupport": "forbidden"
       }
     },
     {
@@ -364,16 +539,11 @@
             "minLength": 1
           }
         },
-        "required": ["id", "entry"],
+        "required": [
+          "id",
+          "entry"
+        ],
         "$schema": "http://json-schema.org/draft-07/schema#"
-      },
-      "annotations": {
-        "readOnlyHint": false,
-        "destructiveHint": false,
-        "openWorldHint": false
-      },
-      "execution": {
-        "taskSupport": "forbidden"
       }
     }
   ]

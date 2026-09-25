@@ -422,6 +422,58 @@ td code {
   border-radius: 0;
   white-space: nowrap;
 }
+.copy-command {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #eff4ee;
+  cursor: pointer;
+}
+.copy-command svg {
+  width: 18px;
+  height: 18px;
+}
+.copy-command:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+.copy-command:focus-visible {
+  outline: 2px solid #f4f7f2;
+  outline-offset: 2px;
+}
+.copy-status {
+  min-height: 1.2em;
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+.command-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 20px 0 0;
+  padding: 12px 14px;
+  background: #202822;
+  color: #eff4ee;
+  border-radius: 8px;
+}
+.command-row pre {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  background: none;
+}
+.command-row + .copy-status {
+  margin-top: 8px;
+}
 .hero-next {
   margin-top: 8px;
 }
