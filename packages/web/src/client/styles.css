@@ -1867,3 +1867,91 @@ textarea {
     grid-template-columns: 1fr;
   }
 }
+
+.wiki-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+.new-page-action {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.5rem 0.8rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+.new-wiki-page {
+  min-width: 0;
+}
+.document-editor select {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  margin-bottom: 0.75rem;
+}
+.document-save-receipt {
+  overflow-wrap: anywhere;
+}
+
+.editor-discard {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.8rem;
+  margin: 1rem 0;
+}
+.editor-discard p {
+  margin-top: 0;
+}
+
+/* Diagrams keep their readable intrinsic width inside a bounded scroller. */
+.md .mermaid-diagram {
+  margin: 1.5rem 0;
+  min-width: 0;
+}
+.mermaid-output {
+  overflow-x: auto;
+  padding: 0.5rem 0;
+}
+.mermaid-output > svg {
+  display: block;
+}
+.mermaid-diagram summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+.mermaid-diagram [role="status"] {
+  overflow-wrap: anywhere;
+}
+.mermaid-staging {
+  position: absolute;
+  left: -100000px;
+  top: 0;
+  visibility: hidden;
+}
+
+.worktree-progress {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-top: 0.35rem;
+  overflow-wrap: anywhere;
+}
+.worktree-progress-panel {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+}
+.worktree-progress-panel > ul {
+  padding-left: 1.2rem;
+}
+.worktree-progress-panel li {
+  margin: 0.5rem 0;
+  overflow-wrap: anywhere;
+}
+.worktree-progress-panel details {
+  font-size: 0.8rem;
+}

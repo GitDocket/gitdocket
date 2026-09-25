@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { DOCKET_VERSION } from "../packages/core/src/version";
 import { runInstalledSmoke, type SmokeResult } from "./release-stage";
+import { waitUntil } from "./release-wait";
 import {
   type StandaloneAsset,
   verifyStandaloneSet,
@@ -299,7 +300,7 @@ function assertGitHubContext(
   };
 }
 
-async function packageCandidate(
+export async function packageCandidate(
   root: string,
   id: (typeof PACKAGE_IDS)[number],
 ): Promise<PackageCandidate> {
@@ -346,7 +347,7 @@ async function packageCandidate(
   };
 }
 
-function assertPackageGraph(packages: PackageCandidate[]): void {
+export function assertPackageGraph(packages: PackageCandidate[]): void {
   const expected = Object.fromEntries(
     RELEASE_PACKAGE_DEFINITIONS.map((item) => [
       item.name,
@@ -573,54 +574,70 @@ export function assertTrustedPublishingRuntime(
   }
 }
 
-async function waitFor(
-  candidate: PackageCandidate,
+async function waitForSet(
+  candidate: PublicationCandidate,
   registry: RegistryBoundary,
-  predicate: (view: RegistryView) => boolean,
-  sleep: (milliseconds: number) => Promise<void>,
-  monotonicNow: () => number,
-  onProgress: (message: string) => void,
-): Promise<RegistryView> {
-  const deadline = monotonicNow() + 10 * 60_000;
-  for (;;) {
-    const view = await registry.inspect(candidate.name, candidate.version);
-    const state = classifyRegistry(
-      {
-        version: candidate.version,
-        sourceTag: "",
-        publicCommit: "",
-        stageReceiptSha256: "",
-        repository: RELEASE_REPOSITORY,
-        registry: RELEASE_REGISTRY,
-        npmVersion: RELEASE_NPM_VERSION,
-        workflowRef: "",
-        holdingTag: "staged",
-        publicTag: "latest",
-        packages: [candidate],
-      },
-      [view],
+  tag: string,
+  options: {
+    sleep: (ms: number) => Promise<void>;
+    monotonicNow: () => number;
+    onProgress: (message: string) => void;
+    output?: string;
+    input?: string;
+  },
+): Promise<RegistrySnapshot> {
+  const result = await waitUntil({
+    predicate: { name: "registry", candidate, tag },
+    output: options.output,
+    resume: [
+      "bun",
+      "run",
+      "release",
+      "--",
+      "wait",
+      "registry",
+      "--input",
+      options.input ?? "release/receipts/preflight.json",
+      "--tag",
+      tag,
+      "--output",
+      options.output ?? "release/receipts/visibility.json",
+    ],
+    now: options.monotonicNow,
+    sleep: options.sleep,
+    timeoutMs: 600_000,
+    progress: () =>
+      options.onProgress(
+        `waiting for coordinated package set ${tag} visibility`,
+      ),
+    observe: async () => {
+      const state = await snapshot(candidate, registry);
+      const conflicts = state.packages.some((item) =>
+        item.reasons.some(
+          (reason) =>
+            reason !== "trusted-publisher provenance is absent" &&
+            reason !== "SLSA provenance predicate is absent",
+        ),
+      );
+      return {
+        state: conflicts
+          ? "CONFLICT"
+          : state.classification === "complete" &&
+              (tag === candidate.holdingTag ? state.holding : state.public) ===
+                "complete"
+            ? "READY"
+            : "PENDING",
+        detail: state,
+      };
+    },
+  });
+  if (result.state === "CONFLICT")
+    assertNoConflicts(result.detail as RegistrySnapshot);
+  if (result.state !== "READY")
+    throw new Error(
+      "registry did not converge for the coordinated package set within 10 minutes; publication may already have succeeded. Reconcile accepted writes and rerun the read-only waiter, not publication.",
     );
-    const conflicts = state.packages[0]?.reasons ?? [];
-    if (
-      conflicts.some(
-        (reason) =>
-          reason !== "trusted-publisher provenance is absent" &&
-          reason !== "SLSA provenance predicate is absent",
-      )
-    ) {
-      assertNoConflicts(state);
-    }
-    if (predicate(view)) return view;
-    const remaining = deadline - monotonicNow();
-    if (remaining <= 0) break;
-    onProgress(
-      `waiting for ${candidate.name}@${candidate.version} registry visibility (${Math.ceil(remaining / 1_000)}s remaining)`,
-    );
-    await sleep(Math.min(10_000, remaining));
-  }
-  throw new Error(
-    `registry did not converge for ${candidate.name}@${candidate.version} within 10 minutes; publication may already have succeeded. Reconcile its immutable metadata before retrying the same candidate.`,
-  );
+  return result.detail as RegistrySnapshot;
 }
 
 export async function runRegistryPublication(
@@ -628,6 +645,9 @@ export async function runRegistryPublication(
   registry: RegistryBoundary,
   options: {
     smoke: (candidate: PublicationCandidate) => Promise<SmokeResult>;
+    holdOnly?: boolean;
+    waitReceiptPath?: string;
+    waitInputPath?: string;
     sleep?: (milliseconds: number) => Promise<void>;
     monotonicNow?: () => number;
     onProgress?: (message: string) => void;
@@ -647,7 +667,7 @@ export async function runRegistryPublication(
   }
 
   for (const item of candidate.packages) {
-    let view = await registry.inspect(item.name, item.version);
+    const view = await registry.inspect(item.name, item.version);
     const state = classifyRegistry({ ...candidate, packages: [item] }, [view]);
     assertNoConflicts(state);
     if (state.packages[0]?.state === "absent") {
@@ -655,35 +675,37 @@ export async function runRegistryPublication(
       recordAction(
         `published ${item.name}@${item.version} under ${candidate.holdingTag}`,
       );
-      view = await waitFor(
-        item,
-        registry,
-        (current) =>
-          Boolean(current.version) &&
-          compareVersion(item, current.version as RegistryVersion).length === 0,
-        sleep,
-        monotonicNow,
-        onProgress,
-      );
+      const observed = classifyRegistry({ ...candidate, packages: [item] }, [
+        await registry.inspect(item.name, item.version),
+      ]);
+      if (
+        observed.packages.some((entry) =>
+          entry.reasons.some(
+            (reason) =>
+              reason !== "trusted-publisher provenance is absent" &&
+              reason !== "SLSA provenance predicate is absent",
+          ),
+        )
+      )
+        assertNoConflicts(observed);
+      // Publish already requests the holding tag. Do not repeat accepted writes while reads lag.
+      continue;
     } else {
       recordAction(`kept existing correct ${item.name}@${item.version}`);
     }
     if (view.distTags[candidate.holdingTag] !== candidate.version) {
       await registry.setTag(item.name, item.version, candidate.holdingTag);
       recordAction(`set ${item.name}@${item.version} ${candidate.holdingTag}`);
-      await waitFor(
-        item,
-        registry,
-        (current) =>
-          current.distTags[candidate.holdingTag] === candidate.version,
-        sleep,
-        monotonicNow,
-        onProgress,
-      );
     }
   }
 
-  const held = await snapshot(candidate, registry);
+  const held = await waitForSet(candidate, registry, candidate.holdingTag, {
+    sleep,
+    monotonicNow,
+    onProgress,
+    output: options.waitReceiptPath,
+    input: options.waitInputPath,
+  });
   assertNoConflicts(held);
   if (held.classification !== "complete" || held.holding !== "complete") {
     throw new Error(
@@ -695,6 +717,18 @@ export async function runRegistryPublication(
     "all packages verified under the holding tag; running registry installation smoke",
   );
   const smoke = await options.smoke(candidate);
+  if (options.holdOnly) {
+    onProgress("registry installation smoke passed; owner promotion required");
+    return {
+      schema: PUBLICATION_SCHEMA,
+      candidate,
+      initial,
+      actions,
+      smoke,
+      final: held,
+      completedAt: (options.now ?? (() => new Date().toISOString()))(),
+    };
+  }
   onProgress("registry installation smoke passed; promoting public tags");
 
   for (const item of candidate.packages) {
@@ -709,17 +743,15 @@ export async function runRegistryPublication(
     }
     await registry.setTag(item.name, item.version, candidate.publicTag);
     recordAction(`set ${item.name}@${item.version} ${candidate.publicTag}`);
-    await waitFor(
-      item,
-      registry,
-      (current) => current.distTags[candidate.publicTag] === candidate.version,
-      sleep,
-      monotonicNow,
-      onProgress,
-    );
   }
 
-  const final = await snapshot(candidate, registry);
+  const final = await waitForSet(candidate, registry, candidate.publicTag, {
+    sleep,
+    monotonicNow,
+    onProgress,
+    output: options.waitReceiptPath,
+    input: options.waitInputPath,
+  });
   assertNoConflicts(final);
   if (
     final.classification !== "complete" ||
@@ -749,6 +781,7 @@ export async function runRegistryOnlySmoke(
       candidate.packages.map((item) => [item.name, item.version]),
     ),
     version: candidate.version,
+    registryTag: candidate.holdingTag,
   });
 }
 

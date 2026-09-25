@@ -10,6 +10,10 @@ import type {
   GitWorktreeEvidence,
 } from "./cache";
 import { GitProcessPool } from "./git-process";
+import {
+  resolveTaskProgress,
+  TaskObservationReader,
+} from "./task-observations";
 
 interface History {
   rows: ActivityRow[];
@@ -25,6 +29,7 @@ export interface GitSnapshot {
 }
 
 export interface GitIndexOptions extends GitEvidenceOptions {
+  bundlePath?: string;
   /** Mutable refs, checkout status and markers are reobserved on demand after this TTL. */
   ttlMs?: number;
   historyLimit?: number;
@@ -111,6 +116,7 @@ function worktreeInventory(output: string): GitWorktreeEvidence[] {
  */
 export class GitEvidenceIndex {
   private readonly pool: GitProcessPool;
+  private readonly taskReader = new TaskObservationReader();
   private cached?: { value: GitSnapshot; at: number };
   private pending?: Promise<GitSnapshot>;
   private pendingEpoch = -1;
@@ -177,6 +183,7 @@ export class GitEvidenceIndex {
     this.closed = true;
     this.invalidate();
     this.pool.close();
+    this.taskReader.clear();
     this.headHistory = undefined;
     this.tips.clear();
     this.mergedTips.clear();
@@ -193,7 +200,7 @@ export class GitEvidenceIndex {
       if (!this.pending) {
         const epoch = this.epoch;
         this.pendingEpoch = epoch;
-        this.pending = this.capture()
+        this.pending = this.capture(byId)
           .then((value) => {
             if (
               !this.closed &&
@@ -251,6 +258,16 @@ export class GitEvidenceIndex {
       activity: rows(raw.activity),
       git: {
         ...raw.git,
+        ...(raw.git.taskProgress
+          ? {
+              taskProgress: resolveTaskProgress(
+                raw.git.taskProgress,
+                byId,
+                raw.git.worktrees.find((w) => w.current)?.activeTaskId,
+                raw.git.worktrees,
+              ),
+            }
+          : {}),
         activity: rows(raw.git.activity),
         unmergedActivity: unmergedActivity.slice(0, this.options.commitLimit),
         truncated:
@@ -302,7 +319,7 @@ export class GitEvidenceIndex {
     }
   }
 
-  private async capture(): Promise<GitSnapshot> {
+  private async capture(byId: Bundle["byId"]): Promise<GitSnapshot> {
     this.deadline = Date.now() + 30000;
     const run = (cwd: string, args: string[]) =>
       this.pool.run(cwd, args, this.deadline);
@@ -584,12 +601,34 @@ export class GitEvidenceIndex {
       );
       for (const worktree of worktrees)
         worktree.mergedIntoCurrentHead = ancestry.get(worktree.head) ?? null;
+      const taskProgress = await this.taskReader.capture(
+        this.root,
+        this.options.bundlePath ?? "docket",
+        revision,
+        worktrees,
+        refs,
+        byId,
+        run,
+        this.deadline,
+      );
+      if (
+        r.status === "rejected" ||
+        w.status === "rejected" ||
+        allRefs.length > refs.length ||
+        allWorktrees.length > worktrees.length
+      ) {
+        taskProgress.complete = false;
+        taskProgress.diagnostics.push(
+          "Git source inventory is incomplete; task observations cover only admitted sources",
+        );
+      }
       const unmergedActivity = [...observations.values()].sort(compareActivity);
       truncated ||= history.rows.length > this.options.commitLimit;
       return {
         activity: history.rows,
         git: {
           status: "available",
+          taskProgress: { ...taskProgress, tasks: [] },
           checkpoint,
           activity: history.rows.slice(0, this.options.commitLimit),
           unmergedActivity,

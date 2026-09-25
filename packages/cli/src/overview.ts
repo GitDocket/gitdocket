@@ -1,6 +1,7 @@
 import {
   REENTRY_CONTEXT_V1_FORMAT,
   type StateOfPlayView,
+  taskProgressLabel,
 } from "@gitdocket/core";
 import type { GitEvidence } from "@gitdocket/core/cache";
 import type { OverviewModel } from "@gitdocket/core/overview";
@@ -60,7 +61,7 @@ export function renderOverview(
   narrative?: StateOfPlayView,
   git?: GitEvidence,
 ): string {
-  const briefing = narrative
+  let briefing = narrative
     ? narrativeLines(narrative).join("\n").trimEnd()
     : "Project re-entry\nNo usable project re-entry note is available.";
   if (!git) return briefing;
@@ -68,6 +69,16 @@ export function renderOverview(
     return `${briefing}\n\nGit evidence unavailable — ${git.reason ?? "history could not be inspected"}.`;
   }
 
+  if (git.taskProgress) {
+    const progress = git.taskProgress;
+    const rows = progress.tasks
+      .slice(0, 5)
+      .map((p) => `- ${p.id} ${taskProgressLabel(p)}`);
+    if (rows.length || !progress.complete)
+      briefing += `\n\nTask progress across worktrees\n${rows.join("\n")}\nObserved ${progress.observedAt}${!progress.complete ? " · partial evidence" : ""}`;
+    if (progress.tasks.length > 5 || !progress.complete)
+      briefing += "\nUse docket task progress for more evidence.";
+  }
   const worktrees = git.worktrees.filter(
     (worktree) =>
       !worktree.current &&

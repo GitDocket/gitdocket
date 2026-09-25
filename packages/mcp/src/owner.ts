@@ -48,7 +48,7 @@ export class RepositoryOwner {
     };
   }
   private pageSources = new Map<string, string>();
-  private git?: { trailer: string; index: GitEvidenceIndex };
+  private git?: { trailer: string; bundle: string; index: GitEvidenceIndex };
 
   constructor(
     private readonly resolve: RepositoryResolver,
@@ -112,6 +112,12 @@ export class RepositoryOwner {
       })
       .catch(() => {});
     return next;
+  }
+
+  readDocument<T>(
+    operation: (input: RepositoryInput) => Promise<T>,
+  ): Promise<T> {
+    return this.consistent(operation);
   }
 
   source(path: string): Promise<string> {
@@ -200,11 +206,18 @@ export class RepositoryOwner {
   evidence(config: DocketConfig): GitEvidenceIndex | undefined {
     this.check();
     if (!this.root) return undefined;
-    if (!this.git || this.git.trailer !== config.git.trailer) {
+    if (
+      !this.git ||
+      this.git.trailer !== config.git.trailer ||
+      this.git.bundle !== config.bundle
+    ) {
       this.git?.index.close();
       this.git = {
         trailer: config.git.trailer,
-        index: new GitEvidenceIndex(this.root, config.git.trailer),
+        bundle: config.bundle,
+        index: new GitEvidenceIndex(this.root, config.git.trailer, {
+          bundlePath: config.bundle,
+        }),
       };
     }
     return this.git.index;

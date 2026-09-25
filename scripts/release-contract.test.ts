@@ -270,6 +270,21 @@ describe("version preparation", () => {
     ).toContain("replace this comment");
   });
 
+  test("versions an unpublished development head with an outgoing README and versionless guide", async () => {
+    const root = await fixture("0.2.0");
+    await writeFile(join(root, "README.md"), "GitDocket 0.1.0 is a preview.\n");
+    await writeFile(
+      join(root, "docs/getting-started.md"),
+      "# Complete one useful change\n",
+    );
+    await updateVersionSurfaces(root, "0.2.1");
+    expect(await readFile(join(root, "README.md"), "utf8")).toContain(
+      "GitDocket 0.2.1",
+    );
+    expect(await readFile(join(root, "docs/getting-started.md"), "utf8")).toBe(
+      "# Complete one useful change\n",
+    );
+  });
   test("rejects non-increasing or inconsistent versions before writing", async () => {
     const current = await fixture("0.2.0");
     await expect(updateVersionSurfaces(current, "0.1.9")).rejects.toThrow(

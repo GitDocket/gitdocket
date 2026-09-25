@@ -225,5 +225,6 @@ test("work help distinguishes local saves, commit failure, completion and follow
   expect(html).toContain("docket serve --commit");
   expect(html).toContain("source is still saved locally");
   expect(html).toContain("does not unblock dependencies");
-  expect(html).toContain("new follow-up task linked to the original");
+  expect(html).toContain("may allow closed tasks or epics to return to");
+  expect(html).toContain("create a linked follow-up task");
 });

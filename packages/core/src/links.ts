@@ -24,3 +24,16 @@ export function resolveLink(
   }
   return out.join("/");
 }
+
+/** Encode a filesystem path for a Markdown destination while retaining separators. */
+export function markdownPath(path: string): string {
+  return path
+    .split("/")
+    .map((part) =>
+      encodeURIComponent(part).replace(
+        /[()]/g,
+        (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`,
+      ),
+    )
+    .join("/");
+}

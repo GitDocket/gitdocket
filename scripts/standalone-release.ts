@@ -7,12 +7,13 @@ import {
   mkdtemp,
   readdir,
   readFile,
+  realpath,
   rm,
   utimes,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { DOCKET_VERSION } from "../packages/core/src/version";
 import {
@@ -103,18 +104,45 @@ async function sourceIdentity(
   };
 }
 
-async function dependencyNotices(root: string): Promise<string> {
-  const modules = join(root, "node_modules");
-  const paths: string[] = [];
-  for (const name of (await readdir(modules)).sort()) {
-    if (name.startsWith(".")) continue;
-    if (name.startsWith("@")) {
-      for (const child of (await readdir(join(modules, name))).sort())
-        paths.push(join(modules, name, child));
-    } else paths.push(join(modules, name));
+export async function dependencyNotices(root: string): Promise<string> {
+  const paths = new Set<string>();
+  const directories = new Set<string>();
+  const collect = async (modules: string): Promise<void> => {
+    if (directories.has(modules)) return;
+    directories.add(modules);
+    const names = await readdir(modules).catch((error) => {
+      if (error.code === "ENOENT") return [];
+      throw error;
+    });
+    for (const name of names.sort()) {
+      if (name.startsWith(".")) continue;
+      if (name.startsWith("@")) {
+        await collect(join(modules, name));
+        continue;
+      }
+      const path = await realpath(join(modules, name));
+      if (
+        paths.has(path) ||
+        !(await Bun.file(join(path, "package.json")).exists())
+      )
+        continue;
+      paths.add(path);
+      await collect(join(path, "node_modules"));
+      // Bun's isolated store puts a package's dependencies beside its real
+      // directory. Follow only reachable stores, not stale cache versions.
+      const parent = dirname(path);
+      const siblings = basename(parent).startsWith("@")
+        ? dirname(parent)
+        : parent;
+      if (basename(siblings) === "node_modules") await collect(siblings);
+    }
+  };
+  await collect(join(root, "node_modules"));
+  for (const workspace of await readdir(join(root, "packages"))) {
+    await collect(join(root, "packages", workspace, "node_modules"));
   }
   const notices: string[] = [];
-  for (const path of paths) {
+  for (const path of [...paths].sort()) {
     const manifestPath = join(path, "package.json");
     if (!(await Bun.file(manifestPath).exists())) continue;
     const pkg = JSON.parse(await readFile(manifestPath, "utf8"));

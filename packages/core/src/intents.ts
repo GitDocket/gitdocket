@@ -13,6 +13,7 @@ export const DOCKET_INTENT_IDS = [
   "epic-supervision",
   "task-management",
   "project-maintenance",
+  "wiki-authoring",
   "project-guidance",
 ] as const;
 
@@ -185,10 +186,10 @@ export const DOCKET_INTENTS = {
     id: "task-management",
     title: "Manage a named work item",
     discovery:
-      "Perform an explicit task operation — create, inspect, edit, move, log, stop, or close only the work item and derived surfaces in scope.",
+      "Perform an explicit task operation or record an accepted decision — create, inspect, edit, move, log, stop, or close only the named concept and derived surfaces in scope.",
     defaultEntrypoint: {
       kind: "named-operation",
-      value: "the corresponding docket task command or workflow",
+      value: "the corresponding docket task or decision command or workflow",
     },
     mode: "operation-scoped",
     authority:
@@ -197,6 +198,7 @@ export const DOCKET_INTENTS = {
       "Inspect the named item and the linked concepts or derived surfaces required by that operation; do not broaden into backlog grooming.",
     positiveExamples: [
       "create an epic with these tickets",
+      "record our decision to use local Markdown, including alternatives and consequences",
       "move DKT-12 to blocked",
       "close DKT-12",
       "show me DKT-12",
@@ -232,6 +234,29 @@ export const DOCKET_INTENTS = {
       "task implementation or tracker mutation outside the named procedure",
     ],
   },
+  "wiki-authoring": {
+    id: "wiki-authoring",
+    title: "Author wiki knowledge",
+    discovery:
+      "Create or revise ordinary wiki pages, or move and rename them — Reference, Spec and Playbook knowledge with duplicate checks, useful links and validation, without tracking work or selecting project guidance.",
+    defaultEntrypoint: { kind: "workflow", value: "docket-wiki" },
+    mode: "operation-scoped",
+    authority:
+      "Write only the requested knowledge sources, relevant discovery links and derived index. Never create, start, stop or adopt tracked work, execute a procedure or activate guidance implicitly.",
+    inspectionScope:
+      "Read project guidance and focused search/source results to resolve the requested knowledge, existing authority, duplicates and useful links.",
+    positiveExamples: [
+      "create a wiki page about our cache architecture",
+      "move the import reference to a new path and repair its links",
+      "revise this reference page",
+      "document the incident response procedure without running it",
+    ],
+    exclusions: [
+      "tracked work items and decisions",
+      "selecting project standards",
+      "executing procedures",
+    ],
+  },
   "project-guidance": {
     id: "project-guidance",
     title: "Manage project guidance",
@@ -263,6 +288,7 @@ export const AGENT_INTENTS = {
 } as const satisfies Record<AgentIntentId, AgentIntentContract>;
 
 export const AGENT_INTENT_DISAMBIGUATION = [
+  "Creating or revising an ordinary wiki Reference, Spec or Playbook selects wiki-authoring. Resolve existing knowledge first. Recording a procedure does not execute it, and descriptive knowledge does not activate project guidance.",
   "A concrete product or repository request is direct work unless positive tracked-work evidence is present. Generic words such as work, task, fix, implement, or UX never supply pickup authority.",
   "Pickup is authorized only by a Docket ID, an unambiguous reference to an existing tracked item, or an explicit request for Docket or backlog selection.",
   "If a tracked-item reference cannot be resolved unambiguously, resolve or clarify that reference; never degrade to bare pickup or top-ready selection.",

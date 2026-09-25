@@ -17,6 +17,7 @@ import {
   STATE_OF_PLAY_PATH,
   type StateOfPlayView,
 } from "./state-of-play";
+import { previewTaskProgress, withTaskProgress } from "./task-progress-view";
 
 export type RepositoryOverview = OverviewModel & {
   narrative?: StateOfPlayView;
@@ -43,7 +44,11 @@ export async function deriveRepositoryOverview({
   const db = new Database(":memory:");
   const evidence =
     borrowedEvidence ??
-    (root ? new GitEvidenceIndex(root, config.git.trailer) : undefined);
+    (root
+      ? new GitEvidenceIndex(root, config.git.trailer, {
+          bundlePath: config.bundle,
+        })
+      : undefined);
   try {
     const snapshot = await evidence?.snapshot(bundle.byId);
     const git = snapshot
@@ -71,13 +76,22 @@ export async function deriveRepositoryOverview({
             ? note.assessment.decisionLinks
             : undefined,
     });
+    if (git.taskProgress)
+      git.taskProgress = previewTaskProgress(git.taskProgress);
     const narrative = note
       ? presentStateOfPlay(
           note,
           await evidence?.countSince(note.asOf, git.checkpoint),
         )
       : undefined;
-    return narrative ? { narrative, ...model, git } : { ...model, git };
+    const view = {
+      ...model,
+      ...(model.upNext
+        ? { upNext: withTaskProgress(model.upNext, git.taskProgress) }
+        : {}),
+      git,
+    };
+    return narrative ? { narrative, ...view } : view;
   } finally {
     if (!borrowedEvidence) evidence?.close();
     db.close();

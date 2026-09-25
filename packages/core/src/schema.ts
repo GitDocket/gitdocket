@@ -3,6 +3,7 @@
 // are tolerated, never rejected (catchall + generic Concept fallback).
 
 import { z } from "zod";
+import { numberedIdPattern } from "./concept-ids";
 import type { DocketConfig } from "./config";
 import { DECISION_STATES, PRIORITIES, STATES, WORK_ITEM_TYPES } from "./states";
 
@@ -15,8 +16,8 @@ const base = {
 };
 
 export function buildSchemas(config: DocketConfig) {
-  const workItemId = new RegExp(`^${config.project}-\\d+$`);
-  const decisionId = new RegExp(`^${config.ids.decision_prefix}-\\d+$`);
+  const workItemId = numberedIdPattern(config.project);
+  const decisionId = numberedIdPattern(config.ids.decision_prefix);
 
   const workItem = z
     .object({

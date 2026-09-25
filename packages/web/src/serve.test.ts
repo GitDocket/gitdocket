@@ -5,7 +5,6 @@ import { afterEach, beforeAll, describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { runInNewContext } from "node:vm";
 import { parseConfig } from "@gitdocket/core";
 import type { Assets } from "./app";
 import { buildAssets, startServe } from "./serve";
@@ -77,6 +76,22 @@ const readEvent = async (reader: EventReader): Promise<string> => {
 };
 
 describe("serve", () => {
+  test("split diagram assets are served locally and missing modules return 404", async () => {
+    const server = await start();
+    const chunks = Object.entries(assets.chunks ?? {});
+    expect(chunks.length).toBeGreaterThan(1);
+    expect(assets.js).not.toContain("mermaid version");
+    for (const [name, source] of chunks) {
+      const response = await fetch(new URL(`/assets/${name}`, server.url));
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toContain("text/javascript");
+      expect(await response.text()).toBe(source);
+    }
+    for (const name of ["missing.js", "constructor", "__proto__"]) {
+      const response = await fetch(new URL(`/assets/${name}`, server.url));
+      expect(response.status).toBe(404);
+    }
+  });
   test("reconciliation recovers a missing watched bundle and exposes stale data during failure", async () => {
     const server = await start();
     await fetch(new URL("/api/tasks", server.url));
@@ -165,20 +180,40 @@ describe("serve", () => {
     ).text();
     expect(js).toContain("/api/events");
     expect(js).not.toContain("/dev/reload");
-    // Execute the shipped bundle without Node globals. Server-side rendering
-    // tests cannot catch server-only imports that crash browser startup.
-    let reachedMount = false;
-    runInNewContext(js, {
-      document: {
+    // Split ESM cannot execute in vm.runInNewContext. Load the exact module
+    // graph in a disposable process with Node globals removed instead.
+    const browserRoot = join(root, "browser-assets");
+    await mkdir(browserRoot);
+    await Promise.all(
+      Object.entries({ "app.js": js, ...assets.chunks }).map(([name, source]) =>
+        writeFile(join(browserRoot, name), source),
+      ),
+    );
+    await writeFile(
+      join(browserRoot, "check.mjs"),
+      `globalThis.document = {
         createElement: () => ({}),
-        getElementById: (id: string) => {
-          expect(id).toBe("root");
-          reachedMount = true;
+        getElementById: (id) => {
+          if (id !== "root") throw new Error("unexpected mount");
+          console.log("reached browser mount");
           return null;
-        },
+        }
+      };
+      delete globalThis.process;
+      delete globalThis.Buffer;
+      await import("./app.js");`,
+    );
+    const child = Bun.spawn(
+      [process.execPath, join(browserRoot, "check.mjs")],
+      {
+        stdout: "pipe",
+        stderr: "pipe",
       },
-    });
-    expect(reachedMount).toBe(true);
+    );
+    const output = await new Response(child.stdout).text();
+    const error = await new Response(child.stderr).text();
+    expect(await child.exited, error).toBe(0);
+    expect(output).toContain("reached browser mount");
     // /dev/reload falls through to the SPA catch-all, not an event stream
     const res = await fetch(new URL("/dev/reload", server.url));
     expect(res.headers.get("content-type")).not.toContain("event-stream");
@@ -255,3 +290,76 @@ describe("serve", () => {
     await reader.cancel();
   });
 });
+
+test("periodic reconciliation publishes saved foreign progress and later integration over SSE", async () => {
+  const running = await start();
+  const git = (cwd: string, ...args: string[]) => {
+    const result = Bun.spawnSync(["git", ...args], {
+      cwd,
+      env: {
+        ...process.env,
+        GIT_AUTHOR_NAME: "Test",
+        GIT_COMMITTER_NAME: "Test",
+        GIT_AUTHOR_EMAIL: "test@example.test",
+        GIT_COMMITTER_EMAIL: "test@example.test",
+      },
+    });
+    if (result.exitCode) throw new Error(result.stderr.toString());
+  };
+  git(root, "init", "-q");
+  git(root, "add", "docs");
+  git(root, "commit", "-qm", "baseline");
+  const worker = `${root}-worker`;
+  git(root, "worktree", "add", "-qb", "feature", worker);
+  const events = await eventReader(running);
+  const firstEvent = await readEvent(events);
+  const progress = async () =>
+    (await (
+      await fetch(new URL("/api/task-progress", running.url))
+    ).json()) as {
+      tasks: { id: string; observations: { task: { status: string } }[] }[];
+    };
+  const waitForProgress = async (status: string | null) => {
+    const end = Date.now() + 10000;
+    while (Date.now() < end) {
+      const p = await progress();
+      if (
+        status === null
+          ? p.tasks.length === 0
+          : p.tasks[0]?.observations[0]?.task.status === status
+      )
+        return;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    throw new Error(`Progress did not converge to ${status}`);
+  };
+  try {
+    await progress();
+    await writeFile(
+      join(worker, "docs/work/tasks/DKT-1-live.md"),
+      "---\ntype: Task\nid: DKT-1\ntitle: Live task\nstatus: in-progress\n---\n",
+    );
+    await waitForProgress("in-progress");
+    expect(await readEvent(events)).not.toBe(firstEvent);
+    const local = await (
+      await fetch(new URL("/api/tasks", running.url))
+    ).json();
+    expect(local.items[0].status).toBe("todo");
+    await writeFile(
+      join(worker, "docs/work/tasks/DKT-1-live.md"),
+      "---\ntype: Task\nid: DKT-1\ntitle: Live task\nstatus: done\n---\n",
+    );
+    await waitForProgress("done");
+    git(worker, "add", "docs");
+    git(worker, "commit", "-qm", "done");
+    git(root, "merge", "--ff-only", "feature");
+    await waitForProgress(null);
+    expect(
+      (await (await fetch(new URL("/api/tasks", running.url))).json()).items[0]
+        .status,
+    ).toBe("done");
+  } finally {
+    await events.cancel();
+    await rm(worker, { recursive: true, force: true });
+  }
+}, 20000);

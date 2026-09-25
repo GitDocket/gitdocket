@@ -1,3 +1,5 @@
+import type { TaskProgress } from "@gitdocket/core";
+import { taskProgressLabel } from "@gitdocket/core/task-progress";
 // The whole SPA: hash routing, wiki pages, board with drag-to-move, epic
 // rollups. Read-mostly by design — the writes are the status drag and the
 // Inline field edits round-trip through the server's
@@ -31,7 +33,7 @@ import {
   isDocPath,
   sidebarSections,
 } from "./docs";
-import { allowEditorNavigation } from "./document-draft";
+import { allowEditorNavigation, type EditorSource } from "./document-draft";
 import { DocumentEditor } from "./document-editor";
 import {
   DEFAULT_EPICS,
@@ -44,6 +46,7 @@ import {
 } from "./epiclist";
 import { GuidanceTools } from "./guidance-tools";
 import { createRequestGate } from "./live";
+import { Markdown } from "./markdown";
 import { createJsonRequests } from "./requests";
 
 import {
@@ -76,6 +79,7 @@ import {
 export type Route =
   | { view: "home" }
   | { view: "wiki" }
+  | { view: "new-page" }
   | { view: "guidance" }
   | { view: "board"; query: string }
   | { view: "epics"; query: string }
@@ -108,6 +112,7 @@ export function parseHashValue(hash: string): Route {
     return { view: "concept", path: h, ticket: h.slice(5), ...anchor };
   if (h === "guidance") return { view: "guidance" };
   if (h === "wiki") return { view: "wiki" };
+  if (h === "wiki/new") return { view: "new-page" };
   if (h === "activity") return { view: "activity" };
   // Bare #/docs is the Docs tab; #/docs/<dir> renders into the same view with
   // that section's articles up.
@@ -582,6 +587,7 @@ interface Concept {
   path: string;
   fm: Frontmatter | null;
   states: string[];
+  reopenClosed: string[];
   ready: boolean;
   html: string;
   backlinks: {
@@ -612,6 +618,7 @@ export interface VerificationCardData {
 
 // The slim shape the home strips get; board cards add filter facets.
 interface WorkCard {
+  progress?: TaskProgress;
   status: string;
   priority: string | null;
   rank: number | null;
@@ -688,20 +695,40 @@ const PRIORITIES = ["p0", "p1", "p2", "p3"];
 
 type EditField = "status" | "priority" | "epic";
 
+function statusChoices(
+  states: string[],
+  current: string | null | undefined,
+  type: string | null | undefined,
+  reopenClosed: string[],
+): string[] {
+  if (current !== "closed") return states;
+  return states.filter(
+    (state) =>
+      state === "closed" ||
+      (state === "todo" && !!type && reopenClosed.includes(type)),
+  );
+}
+
 // One POST per field edit, against the same core-ops endpoints the
 // board drag uses. Resolves to an error message, or undefined on success.
 async function postEdit(
   id: string,
   field: EditField,
   to: string | null,
+  from?: string,
 ): Promise<string | undefined> {
   try {
+    const reopening = field === "status" && from === "closed" && to === "todo";
     const note =
       field === "status" && to === "closed"
         ? window.prompt("Why is this work being closed without completion?")
-        : undefined;
+        : reopening
+          ? window.prompt("Why is this work being reopened?")
+          : undefined;
     if (field === "status" && to === "closed" && !note?.trim())
       return "Closing without completion requires a disposition note.";
+    if (reopening && !note?.trim())
+      return "Reopening closed work requires a reason note.";
     const res = await fetch(`/api/tasks/${id}/${field}`, {
       method: "POST",
       headers: {
@@ -734,8 +761,8 @@ export function WorkHelp() {
         it does not unblock dependencies.
       </p>
       <p>
-        Done and closed are terminal. Ask your agent to create a new follow-up
-        task linked to the original when more work is needed.
+        Done is terminal. A project may allow closed tasks or epics to return to
+        todo with a recorded reason; otherwise, create a linked follow-up task.
       </p>
     </details>
   );
@@ -862,12 +889,6 @@ function GuidanceView({ revision }: { revision: string }) {
   );
 }
 
-function Markdown({ html }: { html: string }) {
-  // Server-rendered through the same unified pipeline core parses with.
-  // biome-ignore lint/security/noDangerouslySetInnerHtml: trusted local render
-  return <article className="md" dangerouslySetInnerHTML={{ __html: html }} />;
-}
-
 export interface HomeData {
   preambleSourcePath?: string;
   narrativeSourcePath?: string;
@@ -966,6 +987,103 @@ interface GitEvidence {
   worktrees: GitWorktreeEvidence[];
   truncated: boolean;
   reason?: string;
+}
+
+export function ProgressBadge({ progress }: { progress?: TaskProgress }) {
+  return progress ? (
+    <span className="worktree-progress">{taskProgressLabel(progress)}</span>
+  ) : null;
+}
+
+function WorktreeProgress({
+  revision,
+  id,
+  epic,
+}: {
+  revision: string;
+  id?: string;
+  epic?: string;
+}) {
+  const [page, setPage] = useState(1);
+  const params = new URLSearchParams({
+    page: String(page),
+    limit: "10",
+    ...(id ? { id } : {}),
+    ...(epic ? { epic } : {}),
+  });
+  const { data, error } = useLiveJson<{
+    tasks: TaskProgress[];
+    complete: boolean;
+    observedAt: string | null;
+    diagnostics: string[];
+    page: PageInfo;
+  }>(`/api/task-progress?${params}`, revision);
+  if (error)
+    return <p className="muted">Worktree progress unavailable: {error}</p>;
+  if (!data) return null;
+  if (!data.tasks.length && data.complete) return null;
+  return (
+    <section
+      className="worktree-progress-panel"
+      aria-label="Task progress across worktrees"
+    >
+      <details open={!!id || !!epic}>
+        <summary>
+          <strong>
+            {data.page.total} task(s) with progress in other worktrees/branches
+          </strong>
+          {!data.complete ? " · partial evidence" : ""}
+        </summary>
+        <p className="muted">
+          Recorded status and edits belong to this checkout.{" "}
+          {data.observedAt
+            ? `Observed ${new Date(data.observedAt).toLocaleString()}.`
+            : ""}
+        </p>
+        {!data.complete && (
+          <details>
+            <summary>
+              Partial evidence — some sources could not be inspected
+            </summary>
+            <ul>
+              {data.diagnostics.map((d) => (
+                <li key={d}>{d}</li>
+              ))}
+            </ul>
+          </details>
+        )}
+        <ul>
+          {data.tasks.map((p) => (
+            <li key={p.id}>
+              <strong>
+                {p.id} · {p.title}
+              </strong>
+              {p.localStatus === null && (
+                <span className="muted"> · only in another checkout/ref</span>
+              )}
+              <ProgressBadge progress={p} />
+              <details>
+                <summary>Sources</summary>
+                <ul>
+                  {p.observations.map((o) => (
+                    <li key={`${o.head}-${o.worktree}-${o.task.path}`}>
+                      <code>{o.worktree ?? o.refs.join(", ")}</code> ·{" "}
+                      {o.head.slice(0, 7)} · {o.task.path}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            </li>
+          ))}
+        </ul>
+        <Pager
+          page={data.page}
+          onPage={setPage}
+          label="Worktree progress pages"
+        />
+      </details>
+    </section>
+  );
 }
 
 function DocList({ items }: { items: DocItem[] }) {
@@ -1203,6 +1321,7 @@ function HomeView({ revision }: { revision: string }) {
   return (
     <>
       {error && <ErrorNote message={error} />}
+      <WorktreeProgress revision={revision} />
       <HomeBriefing
         data={data}
         boardPreview={<BoardAtGlance revision={revision} />}
@@ -1276,6 +1395,7 @@ export function BoardPreview({
               {cards.map((card) => (
                 <a key={card.id} href={workHref(card)}>
                   <span>{card.title}</span>
+                  <ProgressBadge progress={card.progress} />
                   <code>{card.id}</code>
                 </a>
               ))}
@@ -1334,12 +1454,27 @@ function BoardAtGlance({ revision }: { revision: string }) {
   );
 }
 
-export function WikiLanding({ sections }: { sections: DocSection[] }) {
+export function WikiLanding({
+  sections,
+  focusNewPage = false,
+}: {
+  sections: DocSection[];
+  focusNewPage?: boolean;
+}) {
+  const newPageLink = useRef<HTMLAnchorElement>(null);
+  useEffect(() => {
+    if (focusNewPage) newPageLink.current?.focus();
+  }, [focusNewPage]);
   const previewLimit = 3;
   return (
     <div className="wiki-home">
       <header className="wiki-head">
-        <h1>Wiki</h1>
+        <div className="wiki-title-row">
+          <h1>Wiki</h1>
+          <a ref={newPageLink} className="new-page-action" href="#/wiki/new">
+            New page
+          </a>
+        </div>
         <p>
           Browse the project&apos;s linked knowledge, then follow concepts into
           their specs, decisions, workflows, references, and work context.
@@ -1392,7 +1527,13 @@ export function WikiLanding({ sections }: { sections: DocSection[] }) {
   );
 }
 
-function WikiView({ revision }: { revision: string }) {
+function WikiView({
+  revision,
+  focusNewPage,
+}: {
+  revision: string;
+  focusNewPage?: boolean;
+}) {
   const [page, setPage] = usePage(hashQuery(location.hash));
   const { data, error } = useLiveJson<{
     sections: DocSection[];
@@ -1403,9 +1544,58 @@ function WikiView({ revision }: { revision: string }) {
   return (
     <>
       {error && <ErrorNote message={error} />}
-      <WikiLanding sections={data.sections} />
+      <WikiLanding sections={data.sections} focusNewPage={focusNewPage} />
       <Pager page={data.page} onPage={setPage} label="Wiki sections pages" />
     </>
+  );
+}
+
+function NewPageView({
+  revision,
+  onCreated,
+  onCancel,
+}: {
+  revision: string;
+  onCreated: (saved: { path: string; notice: string }) => void;
+  onCancel: () => void;
+}) {
+  const { data, error } = useLiveJson<EditorSource>(
+    "/api/document-create",
+    revision,
+  );
+  const [draftSource, setDraftSource] = useState<EditorSource>();
+  useEffect(() => {
+    if (data && !draftSource) setDraftSource(data);
+  }, [data, draftSource]);
+  const source = draftSource ?? data;
+  if (error && !source) return <ErrorNote message={error} />;
+  if (!source) return <p className="muted">Loading page editor…</p>;
+  return (
+    <section className="new-wiki-page">
+      <header className="wiki-head">
+        <h1>New page</h1>
+        <p>
+          Capture project knowledge as a reference, specification or playbook.
+        </p>
+      </header>
+      {error && <ErrorNote message={error} />}
+      {data && data.sourceScope !== source.sourceScope && (
+        <p role="alert">
+          The project source changed. Your draft remains here. Copy it before
+          reopening New page in the current project.
+        </p>
+      )}
+      <DocumentEditor
+        key={source.sourceScope}
+        path={source.path}
+        sourceScope={source.sourceScope}
+        creationSource={source}
+        onCancel={onCancel}
+        onSaved={(saved) => {
+          if (saved) onCreated(saved);
+        }}
+      />
+    </section>
   );
 }
 
@@ -1746,7 +1936,7 @@ function ConceptView({
   const editable = graph !== null && !!fm?.id && !!fm.status;
   const edit = async (field: EditField, to: string | null) => {
     if (!fm?.id) return;
-    setEditError(await postEdit(fm.id, field, to));
+    setEditError(await postEdit(fm.id, field, to, fm.status));
     load();
   };
   return (
@@ -1777,7 +1967,12 @@ function ConceptView({
                   value={fm.status}
                   onChange={(e) => void edit("status", e.target.value)}
                 >
-                  {concept.states.map((s) => (
+                  {statusChoices(
+                    concept.states,
+                    fm.status,
+                    fm.type,
+                    concept.reopenClosed ?? [],
+                  ).map((s) => (
                     <option key={s} value={s}>
                       {s}
                     </option>
@@ -1823,6 +2018,14 @@ function ConceptView({
         </header>
       )}
       {error && <ErrorNote message={error} />}
+      {fm?.id && (
+        <WorktreeProgress
+          key={fm.id}
+          revision={revision}
+          id={fm.type === "Epic" ? undefined : fm.id}
+          epic={fm.type === "Epic" ? fm.id : undefined}
+        />
+      )}
       {fm?.type === "Epic" && graph && (
         <section className="epic-current-work">
           <ChildTasks
@@ -2332,6 +2535,7 @@ function Column({
               }}
             >
               <span className="card-title">{card.title}</span>
+              <ProgressBadge progress={card.progress} />
               <span className="card-id">
                 {card.id}
                 {card.priority && <Chip kind="priority">{card.priority}</Chip>}
@@ -2409,16 +2613,24 @@ function BoardView({ query, revision }: { query: string; revision: string }) {
     history.replaceState(null, "", qs ? `#/board?${qs}` : "#/board");
   };
 
-  const post = async (url: string, to: unknown) => {
+  const post = async (url: string, to: unknown, from?: string) => {
     try {
+      const reopening =
+        url.endsWith("/status") && from === "closed" && to === "todo";
       const note =
         url.endsWith("/status") && to === "closed"
           ? window.prompt("Why is this work being closed without completion?")
-          : undefined;
+          : reopening
+            ? window.prompt("Why is this work being reopened?")
+            : undefined;
       if (url.endsWith("/status") && to === "closed" && !note?.trim()) {
         setWriteError(
           "Closing without completion requires a disposition note.",
         );
+        return;
+      }
+      if (reopening && !note?.trim()) {
+        setWriteError("Reopening closed work requires a reason note.");
         return;
       }
       const res = await fetch(url, {
@@ -2440,7 +2652,11 @@ function BoardView({ query, revision }: { query: string; revision: string }) {
   const move = async (id: string, to: string) => {
     // A drop on the same status in another swimlane has nothing to change.
     if (data?.cards.find((c) => c.id === id)?.status === to) return;
-    await post(`/api/tasks/${id}/status`, to);
+    await post(
+      `/api/tasks/${id}/status`,
+      to,
+      data?.cards.find((c) => c.id === id)?.status,
+    );
   };
 
   // Same-column drop: persist the neighbor-midpoint rank. Only the
@@ -2745,6 +2961,12 @@ export function EpicList({
               {epic.closed > 0 ? `, ${epic.closed} closed` : ""}
             </span>
           </div>
+          {!!epic.observedChildren && (
+            <p className="worktree-progress">
+              {epic.observedChildren} child task(s) have progress in other
+              worktrees/branches · recorded totals unchanged
+            </p>
+          )}
           <div className="bar" aria-hidden="true">
             <div
               className="bar-fill"
@@ -2815,7 +3037,14 @@ function EpicsView({ query, revision }: { query: string; revision: string }) {
   };
 
   const editStatus = async (id: string, status: string) => {
-    setEditError(await postEdit(id, "status", status));
+    setEditError(
+      await postEdit(
+        id,
+        "status",
+        status,
+        data?.epics.find((epic) => epic.id === id)?.status ?? undefined,
+      ),
+    );
     load();
   };
 
@@ -2836,6 +3065,7 @@ function EpicsView({ query, revision }: { query: string; revision: string }) {
       {(editError || error) && (
         <ErrorNote message={editError ?? error ?? "Refresh failed"} />
       )}
+      <WorktreeProgress revision={revision} />
       <div className="filters">
         <select
           value={state.status}
@@ -2914,6 +3144,7 @@ interface TasksData {
   page?: PageInfo;
   total?: number;
   states: string[];
+  reopenClosed: string[];
   items: TaskRow[];
 }
 
@@ -2973,7 +3204,14 @@ function TasksView({ query, revision }: { query: string; revision: string }) {
   const edit = async (id: string, field: EditField, to: string | null) => {
     if (pendingEdits.includes(id)) return;
     setPendingEdits((ids) => [...ids, id]);
-    setEditError(await postEdit(id, field, to));
+    setEditError(
+      await postEdit(
+        id,
+        field,
+        to,
+        data?.items.find((item) => item.id === id)?.status,
+      ),
+    );
     setPendingEdits((ids) => ids.filter((value) => value !== id));
     load();
   };
@@ -3003,6 +3241,7 @@ function TasksView({ query, revision }: { query: string; revision: string }) {
       {(editError || error) && (
         <ErrorNote message={editError ?? error ?? "Refresh failed"} />
       )}
+      <WorktreeProgress revision={revision} />
       <div className="filters">
         <input
           value={state.q}
@@ -3120,13 +3359,19 @@ function TasksView({ query, revision }: { query: string; revision: string }) {
                     value={r.status}
                     onChange={(e) => void edit(r.id, "status", e.target.value)}
                   >
-                    {data.states.map((s) => (
+                    {statusChoices(
+                      data.states,
+                      r.status,
+                      r.type,
+                      data.reopenClosed ?? [],
+                    ).map((s) => (
                       <option key={s} value={s}>
                         {s}
                       </option>
                     ))}
                   </select>
                   {r.ready && <Chip kind="ready">ready</Chip>}
+                  <ProgressBadge progress={r.progress} />
                 </td>
                 <td>
                   <select
@@ -3173,6 +3418,11 @@ function TasksView({ query, revision }: { query: string; revision: string }) {
 
 export function App() {
   const route = useRoute();
+  const [createdPage, setCreatedPage] = useState<{
+    path: string;
+    notice: string;
+  }>();
+  const [focusNewPage, setFocusNewPage] = useState(false);
   const revision = useBundleRevision();
   const [collapsed, setCollapsed] = useState(
     () => readPreference("docket.sidebar.collapsed") === "true",
@@ -3213,6 +3463,7 @@ export function App() {
     else if (route.view === "guidance")
       document.title = "Project guidance · docket";
     else if (route.view === "wiki") document.title = "Wiki · docket";
+    else if (route.view === "new-page") document.title = "New page · docket";
     else if (route.view === "docs")
       document.title = route.dir ? `${route.dir} · docket` : "Docs · docket";
     else if (route.view === "home") document.title = `docket · ${project}`;
@@ -3232,7 +3483,7 @@ export function App() {
     {
       hash: "#/wiki",
       label: "Wiki",
-      active: ["wiki", "docs", "concept"].includes(route.view),
+      active: ["wiki", "new-page", "docs", "concept"].includes(route.view),
     },
     {
       hash: "#/guidance",
@@ -3307,7 +3558,9 @@ export function App() {
         <nav className="breadcrumbs" aria-label="Breadcrumb">
           <span>{project}</span>
           <span aria-hidden="true">/</span>
-          {route.view === "concept" || route.view === "docs" ? (
+          {route.view === "concept" ||
+          route.view === "docs" ||
+          route.view === "new-page" ? (
             <a href="#/wiki">Wiki</a>
           ) : (
             <span>{nav.find((item) => item.active)?.label}</span>
@@ -3331,7 +3584,30 @@ export function App() {
           )}
         </nav>
         {route.view === "home" && <HomeView revision={revision} />}
-        {route.view === "wiki" && <WikiView revision={revision} />}
+        {createdPage &&
+          route.view === "concept" &&
+          route.path === createdPage.path && (
+            <p className="document-save-receipt" role="status">
+              {createdPage.notice}
+            </p>
+          )}
+        {route.view === "wiki" && (
+          <WikiView revision={revision} focusNewPage={focusNewPage} />
+        )}
+        {route.view === "new-page" && (
+          <NewPageView
+            revision={revision}
+            onCreated={(saved) => {
+              setCreatedPage(saved);
+              setFocusNewPage(false);
+              location.hash = conceptHref({ path: saved.path });
+            }}
+            onCancel={() => {
+              setFocusNewPage(true);
+              location.hash = "#/wiki";
+            }}
+          />
+        )}
         {route.view === "guidance" && <GuidanceView revision={revision} />}
         {route.view === "concept" &&
           (docConcept ? (

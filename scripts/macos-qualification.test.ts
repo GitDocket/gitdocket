@@ -1,6 +1,10 @@
 import { expect, test } from "bun:test";
 import { join, resolve } from "node:path";
-import { validateMacosReceipts } from "./macos-qualification";
+import {
+  validateChannelReceipts,
+  validateDockerReceipt,
+  validateMacosReceipts,
+} from "./macos-qualification";
 
 function fixture(arch: "arm64" | "x64" = "arm64") {
   const version = "0.4.0";
@@ -43,6 +47,7 @@ function fixture(arch: "arm64" | "x64" = "arm64") {
       platform: "darwin" as const,
       arch: arch as "arm64" | "x64",
       osRelease: "26.0.0",
+      distribution: "Ubuntu 24.04.3 LTS",
       osVersion: "27.0",
       hardwareArch: "arm64" as const,
       execution: arch === "x64" ? "rosetta" : "native",
@@ -160,11 +165,11 @@ test("draft import has push access without checking out code, while qualificatio
   expect(standalone.permissions).toEqual({ contents: "read" });
   for (const [name, job] of Object.entries(standalone.jobs)) {
     expect(job.permissions ?? standalone.permissions).toEqual({
-      contents: name === "macos-assets" ? "write" : "read",
+      contents: name === "qualified-assets" ? "write" : "read",
     });
   }
   expect(
-    standalone.jobs["macos-assets"]?.steps?.some((step) =>
+    standalone.jobs["qualified-assets"]?.steps?.some((step) =>
       step.uses?.startsWith("actions/checkout@"),
     ),
   ).toBe(false);
@@ -226,4 +231,69 @@ test("all hosted workflows, including the generated tap, resolve to Linux runner
         expect(label, `${path}: ${name}`).toMatch(/^ubuntu-/);
     }
   }
+});
+
+test("Linux receipts disclose Docker emulation and preserve installed-channel requirements", () => {
+  const { native, npm, brew } = fixture("x64");
+  native.target = "linux-x64";
+  native.smoke.platform = "linux" as typeof native.smoke.platform;
+  brew.target = native.target;
+  brew.smoke = structuredClone(native.smoke) as typeof brew.smoke;
+  npm.platform = "linux" as typeof npm.platform;
+  npm.smoke.packageVersions["@gitdocket/bin-linux-x64"] = native.version;
+  for (const receipt of [npm, brew]) {
+    receipt.qualificationHost.platform =
+      "linux" as typeof receipt.qualificationHost.platform;
+    receipt.qualificationHost.execution = "docker-emulated";
+  }
+  expect(() => validateChannelReceipts(native, npm, brew)).not.toThrow();
+  npm.qualificationHost.execution = "native";
+  expect(() => validateChannelReceipts(native, npm, brew)).toThrow(
+    "translation assistance",
+  );
+  npm.qualificationHost.execution = "docker-emulated";
+  npm.node = "v24.2.0";
+  expect(() => validateChannelReceipts(native, npm, brew, 24)).not.toThrow();
+  brew.archiveSha256 = "e".repeat(64);
+  expect(() => validateChannelReceipts(native, npm, brew, 24)).toThrow(
+    "archive differs",
+  );
+});
+
+test("Docker summaries reject incomplete runs, wrong source and hidden emulation", () => {
+  const native = fixture().native;
+  const receipt = {
+    schema: 1,
+    mode: "build",
+    status: "READY",
+    sourceCommit: native.source.commit,
+    exportSha256: native.source.exportSha256 as string,
+    engine: { architecture: "arm64", version: "29.3.1", os: "Docker Desktop" },
+    completed: ["arm64", "x64"].map((arch) => ({
+      target: `linux-${arch}`,
+      platform: `linux/${arch === "x64" ? "amd64" : arch}`,
+      execution: arch === "arm64" ? "docker-native" : "docker-emulated",
+      imageId: `sha256:${"a".repeat(64)}`,
+      artifacts: { [`linux-${arch}.json`]: "b".repeat(64) },
+    })),
+  };
+  expect(() =>
+    validateDockerReceipt(receipt, "build", native.source),
+  ).not.toThrow();
+  receipt.status = "FAILED";
+  expect(() => validateDockerReceipt(receipt, "build", native.source)).toThrow(
+    "not complete",
+  );
+  receipt.status = "READY";
+  receipt.sourceCommit = "b".repeat(40);
+  expect(() =>
+    validateDockerReceipt(receipt, "build", native.source),
+  ).toThrow();
+  receipt.sourceCommit = native.source.commit;
+  const x64 = receipt.completed[1];
+  if (!x64) throw new Error("missing x64 fixture");
+  x64.execution = "docker-native";
+  expect(() =>
+    validateDockerReceipt(receipt, "build", native.source),
+  ).toThrow();
 });

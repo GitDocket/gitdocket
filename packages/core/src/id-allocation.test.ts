@@ -73,9 +73,20 @@ function addWorktree(root: string, name: string, detached = false): string {
 async function runCreate(
   cwd: string,
   title: string,
+  kind = "task",
+  extra: string[] = [],
 ): Promise<{ code: number; stdout: string; stderr: string }> {
   const child = Bun.spawn(
-    [process.execPath, CLI, "task", "create", "--title", title, "--json"],
+    [
+      process.execPath,
+      CLI,
+      kind,
+      "create",
+      "--title",
+      title,
+      "--json",
+      ...extra,
+    ],
     { cwd, stdout: "pipe", stderr: "pipe" },
   );
   const [code, stdout, stderr] = await Promise.all([
@@ -270,4 +281,73 @@ describe("GitWorktreeIdCoordinator", () => {
     );
     expect(result.id).toBe("FS-8");
   });
+});
+
+test("Decision CLI processes coordinate historical and quoted aliases across custom detached worktrees", async () => {
+  const { root } = await repository("TST", "knowledge/");
+  const sibling = addWorktree(root, "decision-sibling", true);
+  await mkdir(join(sibling, "knowledge/reference"), { recursive: true });
+  await writeFile(
+    join(sibling, "knowledge/reference/choice.md"),
+    `---
+"type": Decision
+"id": DEC-3
+"aliases":
+  - DEC-9
+---
+
+Historical accepted choice.
+`,
+  );
+  await writeFile(
+    join(sibling, "knowledge/reference/generic.md"),
+    `---
+type: Reference
+broken: [
+---
+`,
+  );
+  await mkdir(join(root, ".docket"), { recursive: true });
+  await writeFile(join(root, ".docket/active-task"), "TST-1\n");
+  const results = await Promise.all([
+    runCreate(root, "First choice", "decision"),
+    runCreate(sibling, "Second choice", "decision"),
+  ]);
+  for (const result of results) expect(result.code).toBe(0);
+  expect(results.map((r) => JSON.parse(r.stdout).id).sort()).toEqual([
+    "DEC-10",
+    "DEC-11",
+  ]);
+  expect((await runCreate(root, "Work")).code).toBe(0);
+  expect(JSON.parse((await runCreate(root, "Next work")).stdout).id).toBe(
+    "TST-3",
+  );
+  const before = await readFile(join(root, ".docket/active-task"), "utf8");
+  const invalid = await runCreate(root, "Not a work type", "task", [
+    "--type",
+    "Decision",
+  ]);
+  expect(invalid.code).not.toBe(0);
+  expect(invalid.stderr).toContain("unsupported work type");
+  expect(await readFile(join(root, ".docket/active-task"), "utf8")).toBe(
+    before,
+  );
+  const store = new LocalFileStore(join(root, "knowledge"));
+  expect((await store.list()).some((p) => p.includes("project-guidance"))).toBe(
+    false,
+  );
+});
+
+test("same-prefix concurrent CLI Decision and Task creation share reservations", async () => {
+  const { root } = await repository("DEC");
+  const sibling = addWorktree(root, "same-prefix");
+  const results = await Promise.all([
+    runCreate(root, "Choice", "decision"),
+    runCreate(sibling, "Work"),
+  ]);
+  for (const result of results) expect(result.code).toBe(0);
+  expect(results.map((r) => JSON.parse(r.stdout).id).sort()).toEqual([
+    "DEC-2",
+    "DEC-3",
+  ]);
 });

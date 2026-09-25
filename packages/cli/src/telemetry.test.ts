@@ -298,6 +298,8 @@ test("CLI commands are inventoried so new commands cannot skip coverage review",
   const top = helpCommands(await help([]));
   const nested = {
     task: helpCommands(await help(["task"])),
+    decision: helpCommands(await help(["decision"])),
+    document: helpCommands(await help(["document"])),
     extension: helpCommands(await help(["extension"])),
     telemetry: helpCommands(await help(["telemetry"])),
     verify: helpCommands(await help(["verify"])),
@@ -305,6 +307,8 @@ test("CLI commands are inventoried so new commands cannot skip coverage review",
   const discovered = [
     ...top,
     ...nested.task.map((name) => `task ${name}`),
+    ...nested.decision.map((name) => `decision ${name}`),
+    ...nested.document.map((name) => `document ${name}`),
     ...nested.extension.map((name) => `extension ${name}`),
     ...nested.telemetry.map((name) => `telemetry ${name}`),
     ...nested.verify.map((name) => `verify ${name}`),

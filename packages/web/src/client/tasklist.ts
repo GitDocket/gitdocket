@@ -3,6 +3,9 @@
 // the single translation between that query string and a rendered row set.
 
 export interface TaskRow {
+  progress?: import("@gitdocket/core").TaskProgress;
+  progressObservedAt?: string;
+  progressIncomplete?: boolean;
   path: string;
   id: string;
   type: string;

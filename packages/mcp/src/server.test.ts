@@ -35,11 +35,11 @@ afterEach(async () => {
   );
 });
 
-async function connect(store = seed()) {
+async function connect(store = seed(), projectConfig = config) {
   const client = new Client({ name: "test", version: "0.0.0" });
   const [clientTransport, serverTransport] =
     InMemoryTransport.createLinkedPair();
-  const server = createDocketServer(store, config);
+  const server = createDocketServer(store, projectConfig);
   connections.push({
     close: async () => {
       await client.close();
@@ -108,11 +108,20 @@ describe("tool surface", () => {
       ready: true,
       task_list: true,
       task_get: true,
+      task_progress: true,
       lint: true,
       search: true,
       source_page: true,
       project_guidance: true,
+      document_read: true,
+      document_create: false,
+      document_move_plan: true,
+      document_move_apply: false,
+      document_move_recover: false,
+      document_edit: false,
+      index: false,
       task_create: false,
+      decision_create: false,
       set_status: false,
       append_log: false,
     });
@@ -308,9 +317,173 @@ describe("write tools", () => {
     ).toBe(true);
   });
 
+  test("set_status reopens configured closed work only with a reason", async () => {
+    const configured = parseConfig("workflow:\n  reopen_closed: [Task]\n");
+    const { client, store } = await connect(seed(), configured);
+    await call(client, "set_status", {
+      id: "DKT-3",
+      to: "closed",
+      note: "Earlier scope retired.",
+    });
+    const missing = await call(client, "set_status", {
+      id: "DKT-3",
+      to: "todo",
+    });
+    expect(missing.isError).toBe(true);
+    expect(missing.data).toContain("reason note");
+    const reopened = await call(client, "set_status", {
+      id: "DKT-3",
+      to: "todo",
+      note: "Scope is actionable again.",
+    });
+    expect(reopened.data).toMatchObject({ from: "closed", to: "todo" });
+    expect(store.files.get("work/tasks/DKT-3-c.md")).toContain(
+      "Earlier scope retired.",
+    );
+    expect(store.files.get("work/tasks/DKT-3-c.md")).toContain(
+      "Scope is actionable again.",
+    );
+  });
+
   test("append_log inserts a dated entry", async () => {
     const { client, store } = await connect();
     await call(client, "append_log", { id: "DKT-3", entry: "hello" });
     expect(store.files.get("work/tasks/DKT-3-c.md")).toContain("# Log\n\n**");
   });
+});
+
+test("MCP-only wiki authoring supports create, duplicate, revision and discovery without tracking", async () => {
+  const { client, store } = await connect();
+  const before = await store.read("work/tasks/DKT-2-b.md");
+  const args = {
+    path: "reference/cache.md",
+    type: "Reference",
+    title: "Cache",
+    description: "Cache architecture.",
+    body: "# Cache\n\nKeys expire.\n",
+  };
+  const created = await call(client, "document_create", args);
+  expect(created.isError).toBe(false);
+  expect((await call(client, "document_create", args)).isError).toBe(true);
+  const read = await call(client, "document_read", { path: args.path });
+  const edit = {
+    path: args.path,
+    expectedVersion: read.data.version,
+    patch: { body: "# Cache\n\nKeys expire after five minutes.\n" },
+  };
+  expect((await call(client, "document_edit", edit)).isError).toBe(false);
+  expect((await call(client, "document_edit", edit)).isError).toBe(true);
+  expect((await call(client, "index")).isError).toBe(false);
+  expect(await store.read("index.md")).toContain("reference/cache.md");
+  expect(
+    (await call(client, "search", { query: "cache" })).data.length,
+  ).toBeGreaterThan(0);
+  expect((await call(client, "lint")).data).toEqual([]);
+  expect(await store.read("work/tasks/DKT-2-b.md")).toBe(before);
+});
+
+test("MCP index takes the store mutation lock and preserves unreadable authored sources", async () => {
+  let locks = 0;
+  class LockedStore extends InMemoryFileStore {
+    async withMutation<T>(operation: () => Promise<T>): Promise<T> {
+      locks++;
+      return operation();
+    }
+    override async read(path: string) {
+      if (path === "index.md") throw new Error("index unreadable");
+      return super.read(path);
+    }
+  }
+  const store = new LockedStore(
+    new Map([["index.md", "# Authored introduction\n"]]),
+  );
+  const { client } = await connect(store);
+  expect((await call(client, "index")).isError).toBe(true);
+  expect(locks).toBe(1);
+  expect(store.files.get("index.md")).toBe("# Authored introduction\n");
+});
+
+test("MCP Decision creation records a choice and refreshes discovery without tracking or guidance", async () => {
+  const store = seed();
+  const initial = new Map(
+    await Promise.all(
+      (await store.list()).map(
+        async (path) => [path, await store.read(path)] as const,
+      ),
+    ),
+  );
+  const { client } = await connect(store);
+  const { data, isError } = await call(client, "decision_create", {
+    title: "Use Markdown",
+    context: "Considered files and SQL.",
+    decision: "Use Markdown for Git reviews.",
+    consequences: "Resolve concurrent edits.",
+  });
+  expect(isError).toBeFalsy();
+  expect(data.id).toBe("DEC-1");
+  expect(data.path).toBe("decisions/DEC-1-use-markdown.md");
+  expect(
+    (await call(client, "task_get", { id: "DEC-1" })).data.frontmatter.status,
+  ).toBe("accepted");
+  expect(
+    (await call(client, "task_create", { title: "Wrong", type: "Decision" }))
+      .isError,
+  ).toBe(true);
+  expect((await call(client, "index", {})).isError).toBeFalsy();
+  expect(await store.read("index.md")).toContain("Use Markdown");
+  expect(
+    (await call(client, "search", { query: "Markdown" })).data.length,
+  ).toBeGreaterThan(0);
+  for (const [path, source] of initial)
+    expect(await store.read(path)).toBe(source);
+  expect(
+    (await store.list()).some((path) => path.includes("project-guidance")),
+  ).toBe(false);
+});
+
+test("MCP plans and applies wiki moves with immediate source/search discovery", async () => {
+  const store = seed();
+  await store.write(
+    "reference/old.md",
+    "---\ntype: Reference\ntitle: Move me\n---\n\nMoveable knowledge.\n",
+  );
+  await store.write(
+    "reference/incoming.md",
+    "---\ntype: Reference\ntitle: Incoming\n---\n\n[read](old.md#section)\n",
+  );
+  const { client } = await connect(store);
+  const plan = (
+    await call(client, "document_move_plan", {
+      from: "reference/old.md",
+      to: "reference/new.md",
+    })
+  ).data;
+  expect(plan.applicable).toBe(true);
+  expect(store.files.has("reference/old.md")).toBe(true);
+  const moved = await call(client, "document_move_apply", {
+    from: plan.from,
+    to: plan.to,
+    expectedVersion: plan.version,
+  });
+  expect(moved.isError).toBe(false);
+  expect(moved.data.state).toBe("complete");
+  expect(
+    (await call(client, "document_read", { path: plan.to })).data.body,
+  ).toContain("Moveable knowledge");
+  expect(
+    (await call(client, "document_read", { path: plan.from })).isError,
+  ).toBe(true);
+  const hits = (await call(client, "search", { query: "Moveable" })).data;
+  expect(hits.some((hit: { path: string }) => hit.path === plan.to)).toBe(true);
+  expect(hits.some((hit: { path: string }) => hit.path === plan.from)).toBe(
+    false,
+  );
+  expect(
+    (
+      await call(client, "document_move_recover", {
+        token: moved.data.recoveryToken,
+      })
+    ).data.state,
+  ).toBe("complete");
+  expect(await store.read("work/tasks/DKT-1-a.md")).toBe(task("DKT-1", "done"));
 });

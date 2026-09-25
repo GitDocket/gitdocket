@@ -3,6 +3,7 @@ import { dirname, join, resolve } from "node:path";
 import {
   assertTrustedPublishingRuntime,
   buildPublicationCandidate,
+  classifyRegistry,
   completeGitHubRelease,
   type GitHubBoundary,
   type GitHubReleaseView,
@@ -10,6 +11,7 @@ import {
   type PackageCandidate,
   PUBLICATION_SCHEMA,
   type PublicationPreflight,
+  RELEASE_REGISTRY,
   RELEASE_REPOSITORY,
   type RegistryBoundary,
   type RegistryReceipt,
@@ -32,7 +34,11 @@ interface CommandResult {
 function command(args: string[], cwd = ROOT, timeout?: number): CommandResult {
   const result = Bun.spawnSync(args, {
     cwd,
-    env: process.env,
+    env: {
+      ...process.env,
+      npm_config_registry: RELEASE_REGISTRY,
+      "npm_config_@gitdocket:registry": RELEASE_REGISTRY,
+    },
     stdout: "pipe",
     stderr: "pipe",
     timeout,
@@ -172,6 +178,7 @@ export class GhReleaseBoundary implements GitHubBoundary {
       tag,
       "--repo",
       RELEASE_REPOSITORY,
+      RELEASE_REGISTRY,
       "--json",
       "tagName,name,body,isDraft,isPrerelease,url,assets",
     ]);
@@ -233,6 +240,7 @@ export class GhReleaseBoundary implements GitHubBoundary {
       ...(options.assets ?? []),
       "--repo",
       RELEASE_REPOSITORY,
+      RELEASE_REGISTRY,
       "--verify-tag",
       "--title",
       options.title,
@@ -244,23 +252,31 @@ export class GhReleaseBoundary implements GitHubBoundary {
 }
 
 function parseArgs(args: string[]): {
-  command: "preflight" | "registry" | "github";
+  command: "preflight" | "registry" | "finalize" | "github";
+  holdOnly: boolean;
   input?: string;
   output: string;
   notes?: string;
 } {
   const name = args.shift();
-  if (name !== "preflight" && name !== "registry" && name !== "github") {
+  if (
+    name !== "preflight" &&
+    name !== "registry" &&
+    name !== "finalize" &&
+    name !== "github"
+  ) {
     throw new Error(
       "usage: bun run release:publish -- <preflight|registry|github> --output <path> [--input <path>] [--notes <path>]",
     );
   }
+  let holdOnly = false;
   let input: string | undefined;
   let output = "";
   let notes: string | undefined;
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
-    if (arg === "--input") input = args[++index];
+    if (arg === "--hold") holdOnly = true;
+    else if (arg === "--input") input = args[++index];
     else if (arg === "--output") output = args[++index] ?? "";
     else if (arg === "--notes") notes = args[++index];
     else throw new Error(`unknown argument: ${arg}`);
@@ -272,7 +288,7 @@ function parseArgs(args: string[]): {
   if (name === "github" && !notes) {
     throw new Error("github requires --notes");
   }
-  return { command: name, input, output, notes };
+  return { command: name, input, output, notes, holdOnly };
 }
 
 async function writeJson(path: string, value: unknown): Promise<void> {
@@ -309,6 +325,9 @@ async function main(): Promise<void> {
     }
     const receipt = await runRegistryPublication(preflight, registry, {
       smoke: runRegistryOnlySmoke,
+      holdOnly: args.holdOnly,
+      waitReceiptPath: resolve(ROOT, "release/receipts/visibility.json"),
+      waitInputPath: resolve(ROOT, args.input as string),
       onProgress: (message) => console.error(`[release] ${message}`),
     });
     await writeJson(args.output, receipt);
@@ -318,6 +337,37 @@ async function main(): Promise<void> {
   const receipt = await readJson<RegistryReceipt>(args.input as string);
   if (receipt.schema !== PUBLICATION_SCHEMA) {
     throw new Error("unsupported registry receipt schema");
+  }
+  if (args.command === "finalize") {
+    const current = await buildPublicationCandidate(ROOT);
+    if (stableJson(current) !== stableJson(receipt.candidate))
+      throw new Error("staged receipt does not match this exact candidate");
+    const final = classifyRegistry(
+      current,
+      await Promise.all(
+        current.packages.map((item) =>
+          registry.inspect(item.name, item.version),
+        ),
+      ),
+    );
+    if (
+      final.classification !== "complete" ||
+      final.holding !== "complete" ||
+      final.public !== "complete"
+    )
+      throw new Error(
+        "owner promotion is not yet verified; rerun the waiter, never republish",
+      );
+    await writeJson(args.output, {
+      ...receipt,
+      final,
+      completedAt: new Date().toISOString(),
+      actions: [
+        ...receipt.actions,
+        "verified owner promotion without registry writes",
+      ],
+    });
+    return;
   }
   const result = await completeGitHubRelease(
     receipt,

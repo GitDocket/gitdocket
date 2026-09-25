@@ -18,8 +18,11 @@ export {
   parseConfig,
 } from "./config";
 export {
+  type CreateDocumentInput,
+  createDocument,
   DOCUMENT_EDIT_MAX_BYTES,
   DOCUMENT_PROPERTY_MAX_LENGTH,
+  DOCUMENT_TYPES,
   type DocumentEditCode,
   DocumentEditError,
   type DocumentPatch,
@@ -29,6 +32,13 @@ export {
   readEditableDocument,
   validateDocumentPath,
 } from "./document-edit";
+export {
+  applyDocumentMove,
+  type DocumentMovePlan,
+  type DocumentMoveResult,
+  planDocumentMove,
+  recoverDocumentMove,
+} from "./document-move";
 export {
   ENGINE_SEMANTICS,
   READY_QUEUE_DESCRIPTION,
@@ -118,8 +128,11 @@ export {
 export { lintMarkdownProse, MARKDOWN_AUTHORING_RULE } from "./markdown-prose";
 export {
   appendLog,
+  type CreateDecisionInput,
   type CreateInput,
+  createDecision,
   createWorkItem,
+  mutate,
   nextId,
   setEpic,
   setPriority,
@@ -212,6 +225,18 @@ export {
   WORK_ITEM_TYPES,
   type WorkItemType,
 } from "./states";
+export {
+  resolveTaskProgress,
+  type TaskObservation,
+  type TaskProgress,
+  type TaskProgressEvidence,
+} from "./task-observations";
+export {
+  foreignTaskSummaries,
+  previewTaskProgress,
+  taskProgressLabel,
+  withTaskProgress,
+} from "./task-progress-view";
 export {
   type Merge3,
   markerVersion,

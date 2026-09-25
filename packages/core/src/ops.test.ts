@@ -146,6 +146,56 @@ describe("setStatus", () => {
     ).resolves.toMatchObject({ from: "blocked", to: "closed" });
   });
 
+  test("configured closed tasks reopen to todo with a reason and retain their disposition", async () => {
+    const store = seed();
+    const configured = parseConfig("workflow:\n  reopen_closed: [Task]\n");
+    await setStatus(store, configured, "DKT-1", "closed", {
+      note: "Paused after requirements changed.",
+    });
+    await expect(setStatus(store, configured, "DKT-1", "todo")).rejects.toThrow(
+      "reopening closed work requires a reason note",
+    );
+    await expect(
+      setStatus(store, configured, "DKT-1", "in-progress", {
+        note: "Resume work",
+      }),
+    ).rejects.toThrow("invalid transition");
+    await setStatus(store, configured, "DKT-1", "todo", {
+      note: "Requirements are settled; resume this task.",
+    });
+    const source = await store.read("work/tasks/DKT-1-a.md");
+    expect(source).toContain("status: todo");
+    expect(source).toContain("Paused after requirements changed.");
+    expect(source).toContain("Requirements are settled; resume this task.");
+    expect(source.indexOf("Requirements are settled")).toBeLessThan(
+      source.indexOf("Paused after requirements"),
+    );
+    expect((await loadBundle(store, configured)).readyIds()).toContain("DKT-1");
+  });
+
+  test("closed epic reopening is independently configured and done stays terminal", async () => {
+    const epic =
+      "---\ntype: Epic\ntitle: Theme\nid: DKT-2\nstatus: closed\ntimestamp: 2026-07-21T00:00:00Z\n---\n\n# Disposition\n\nEarlier scope retired.\n";
+    const store = new InMemoryFileStore(
+      new Map([["work/epics/DKT-2-theme.md", epic]]),
+    );
+    const taskOnly = parseConfig("workflow:\n  reopen_closed: [Task]\n");
+    await expect(
+      setStatus(store, taskOnly, "DKT-2", "todo", { note: "Revive theme" }),
+    ).rejects.toThrow("invalid transition");
+    const epicOnly = parseConfig("workflow:\n  reopen_closed: [Epic]\n");
+    await setStatus(store, epicOnly, "DKT-2", "todo", {
+      note: "New evidence makes this theme actionable.",
+    });
+    expect(await store.read("work/epics/DKT-2-theme.md")).toContain(
+      "Earlier scope retired.",
+    );
+    await setStatus(store, epicOnly, "DKT-2", "done");
+    await expect(
+      setStatus(store, epicOnly, "DKT-2", "todo", { note: "Again" }),
+    ).rejects.toThrow("invalid transition");
+  });
+
   test("resolves aliases and rejects unknown ids", async () => {
     const store = new InMemoryFileStore(
       new Map([

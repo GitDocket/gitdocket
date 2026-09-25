@@ -4,6 +4,7 @@
 // that query string and the rendered rollup list.
 
 export interface EpicRow {
+  observedChildren?: number;
   path: string;
   id: string;
   title: string | null;

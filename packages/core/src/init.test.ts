@@ -42,6 +42,18 @@ describe("defaultConfigYaml", () => {
       "closed",
     ]);
   });
+
+  test("reopening closed work is opt-in by item type", () => {
+    expect(parseConfig().workflow.reopenClosed).toEqual([]);
+    expect(
+      parseConfig("workflow:\n  reopen_closed: [Epic, unknown, Epic]\n")
+        .workflow.reopenClosed,
+    ).toEqual(["Epic"]);
+    expect(
+      parseConfig("workflow:\n  reopen_closed: [Task, Epic]\n").workflow
+        .reopenClosed,
+    ).toEqual(["Epic", "Task"]);
+  });
 });
 
 describe("deriveProjectKey", () => {

@@ -384,6 +384,8 @@ describe("public gate runner", () => {
         { sourceRoot: source, planPath, destination: mismatched },
         { runCommand: noOp },
       ),
-    ).rejects.toThrow("differs from its prior export state");
+    ).rejects.toThrow(
+      "Two legal options: (1) stage in a fresh clone at the last explained export",
+    );
   });
 });

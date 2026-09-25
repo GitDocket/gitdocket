@@ -6,6 +6,7 @@ describe("Wiki routes", () => {
   test("keeps Home, Wiki, Docs, work views, and concepts distinct", () => {
     expect(parseHashValue("#/")).toEqual({ view: "home" });
     expect(parseHashValue("#/wiki")).toEqual({ view: "wiki" });
+    expect(parseHashValue("#/wiki/new")).toEqual({ view: "new-page" });
     expect(parseHashValue("#/docs")).toEqual({ view: "docs", dir: "" });
     expect(parseHashValue("#/docs/specs")).toEqual({
       view: "docs",
@@ -64,6 +65,8 @@ describe("WikiLanding", () => {
 
   test("has a truthful empty knowledge state while retaining work entry points", () => {
     const html = renderToStaticMarkup(<WikiLanding sections={[]} />);
+    expect(html).toContain('href="#/wiki/new"');
+    expect(html).toContain("New page");
     expect(html).toContain("No knowledge sections are available yet.");
     expect(html).toContain('href="#/tasks"');
   });

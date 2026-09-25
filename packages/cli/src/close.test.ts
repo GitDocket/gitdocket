@@ -1,7 +1,7 @@
 // End-to-end completion versus non-completion disposition at the CLI surface.
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -109,5 +109,63 @@ describe("docket task close dispositions", () => {
       id: string;
     }[];
     expect(ready.map((item) => item.id)).not.toContain(dependentId);
+  }, 15000);
+
+  test("project policy reopens closed tasks and epics through task move with a reason", async () => {
+    const configPath = join(repo, "docket.yaml");
+    const config = await readFile(configPath, "utf8");
+    await writeFile(
+      configPath,
+      config.replace(
+        "workflow:\n  states:",
+        "workflow:\n  reopen_closed: [Task, Epic]\n  states:",
+      ),
+    );
+    for (const type of ["Task", "Epic"]) {
+      const created = sh([
+        "bun",
+        CLI,
+        "task",
+        "create",
+        "--title",
+        `${type} candidate`,
+        "--type",
+        type,
+        "--json",
+      ]);
+      expect(created.code).toBe(0);
+      const id = JSON.parse(created.stdout).id as string;
+      expect(
+        sh([
+          "bun",
+          CLI,
+          "task",
+          "close",
+          id,
+          "--without-completion",
+          "--note",
+          "Paused.",
+        ]).code,
+      ).toBe(0);
+      const missing = sh(["bun", CLI, "task", "move", id, "todo"]);
+      expect(missing.code).toBe(1);
+      expect(missing.stderr).toContain("requires a reason note");
+      const reopened = sh([
+        "bun",
+        CLI,
+        "task",
+        "move",
+        id,
+        "todo",
+        "--note",
+        "Scope resumed.",
+        "--json",
+      ]);
+      expect(reopened.code).toBe(0);
+      expect(JSON.parse(reopened.stdout)).toMatchObject({
+        from: "closed",
+        to: "todo",
+      });
+    }
   }, 15000);
 });

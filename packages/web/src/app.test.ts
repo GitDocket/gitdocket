@@ -885,6 +885,7 @@ describe("board and epics", () => {
         priority: "p2",
         tags: [],
         total: 2,
+        observedChildren: 0,
         done: 0,
         closed: 0,
         needsCleanup: false,
@@ -992,6 +993,51 @@ describe("status writes", () => {
     }[];
     expect(tasks.find((item) => item.id === "DKT-3")?.ready).toBe(false);
     expect((await move("DKT-1", "todo", "reopen")).status).toBe(400);
+  });
+
+  test("configured task and epic reopening requires reasons and refreshes the visible state", async () => {
+    const configured = createApp(
+      createRepoContext(
+        root,
+        parseConfig(
+          "bundle: docs/\nworkflow:\n  reopen_closed: [Task, Epic]\n",
+        ),
+        { ttlMs: 0 },
+      ),
+      undefined,
+      { now: NOW },
+    );
+    const status = (id: string, to: string, note?: string) =>
+      configured.request(`/api/tasks/${id}/status`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ to, note }),
+      });
+    for (const id of ["DKT-1", "DKT-2"]) {
+      expect((await status(id, "closed", "Scope retired.")).status).toBe(200);
+      expect((await status(id, "todo")).status).toBe(400);
+      expect(
+        (await status(id, "todo", "New evidence revived the scope.")).status,
+      ).toBe(200);
+    }
+    const tasks = await configured.request("/api/tasks");
+    const taskBody = await tasks.json();
+    expect(taskBody.reopenClosed).toEqual(["Epic", "Task"]);
+    expect(
+      taskBody.items.find((item: { id: string }) => item.id === "DKT-1").status,
+    ).toBe("todo");
+    const epics = await configured.request("/api/epics");
+    expect(
+      (await epics.json()).epics.find(
+        (item: { id: string }) => item.id === "DKT-2",
+      ).status,
+    ).toBe("todo");
+    const source = await readFile(
+      join(root, "docs/work/epics/DKT-2-fixture-epic.md"),
+      "utf8",
+    );
+    expect(source).toContain("Scope retired.");
+    expect(source).toContain("New evidence revived the scope.");
   });
 
   test("with a committer wired, a write commits its own file", async () => {

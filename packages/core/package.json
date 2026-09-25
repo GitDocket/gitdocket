@@ -1,6 +1,6 @@
 {
   "name": "@gitdocket/core",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "type": "module",
   "description": "The typed file-and-graph engine behind GitDocket.",
   "license": "Apache-2.0",
@@ -20,7 +20,8 @@
     "./telemetry-report": "./src/telemetry-report.ts",
     "./orientation": "./src/orientation.ts",
     "./overview": "./src/overview.ts",
-    "./state-of-play": "./src/state-of-play.ts"
+    "./state-of-play": "./src/state-of-play.ts",
+    "./task-progress": "./src/task-progress-view.ts"
   },
   "files": [
     "src/**/*.ts",

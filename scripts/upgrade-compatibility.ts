@@ -118,6 +118,12 @@ export async function verifyUpgradeCompatibility(options: {
           `${previous.version}: ${slug} must receive the writing rule`,
         );
       }
+      if (current.bodies["docket-wiki"]) {
+        assert.equal(
+          bodyOf(await readFile(path("docket-wiki"), "utf8")),
+          current.bodies["docket-wiki"].trim(),
+        );
+      }
       const repeated = await upgrade(false);
       assert(repeated.items.every((item) => item.action === "up-to-date"));
       assert.deepEqual(repeated.reviewRequired, []);
@@ -137,6 +143,129 @@ export async function verifyUpgradeCompatibility(options: {
       await readFile(join(root, "AGENTS.md"), "utf8"),
       extension.handwritten,
     );
+
+    const pickupSlug = "docket-pickup";
+    const pickupCurrentBody = current.bodies[pickupSlug];
+    const pickupPrevious = historical.find(
+      (entry) =>
+        entry.bodies[pickupSlug] &&
+        entry.bodies[pickupSlug] !== pickupCurrentBody,
+    );
+    assert(pickupPrevious);
+    const pickupPreviousBody = pickupPrevious.bodies[pickupSlug];
+    assert(pickupPreviousBody);
+    assert(pickupCurrentBody);
+    const pickupLocal = "Project requirement: name the reviewer before pickup.";
+    await writeFile(
+      path(pickupSlug),
+      workflow(
+        pickupSlug,
+        pickupPrevious.version,
+        `${pickupLocal}\n\n${pickupPreviousBody}`,
+      ),
+    );
+    const pickupUpgrade = await upgrade(false);
+    assert.deepEqual(pickupUpgrade.conflicts, []);
+    assert(pickupUpgrade.reviewRequired.includes(relative(pickupSlug)));
+    const pickupBody = bodyOf(await readFile(path(pickupSlug), "utf8"));
+    assert(pickupBody.includes(pickupLocal));
+    assert(pickupBody.includes("active-task-conflict"));
+    assert(pickupBody.includes("May I create a linked Git worktree at <path>"));
+
+    const stalePickup = workflow(
+      pickupSlug,
+      options.version,
+      pickupPreviousBody,
+    );
+    await writeFile(path(pickupSlug), stalePickup);
+    const stalePickupUpgrade = await upgrade(false);
+    assert.deepEqual(stalePickupUpgrade.conflicts, []);
+    assert(stalePickupUpgrade.reviewRequired.includes(relative(pickupSlug)));
+    assert.equal(await readFile(path(pickupSlug), "utf8"), stalePickup);
+    await writeFile(
+      path(pickupSlug),
+      workflow(pickupSlug, options.version, pickupCurrentBody),
+    );
+
+    const wikiSlug = "docket-wiki";
+    const wikiCurrent = current.bodies[wikiSlug];
+    assert(wikiCurrent);
+    assert(wikiCurrent.includes("docket document move-plan"));
+    const wikiLocal =
+      "Project requirement: explain page reorganization in the review summary.";
+    const customizedWiki = workflow(
+      wikiSlug,
+      options.version,
+      `${wikiLocal}\n\n${wikiCurrent}`,
+    );
+    await writeFile(path(wikiSlug), customizedWiki);
+    assert((await upgrade(false)).reviewRequired.includes(relative(wikiSlug)));
+    assert.equal(await readFile(path(wikiSlug), "utf8"), customizedWiki);
+    const staleWiki = workflow(
+      wikiSlug,
+      options.version,
+      wikiCurrent
+        .split("\n")
+        .filter((line) => !line.includes("docket document move-plan"))
+        .join("\n"),
+    );
+    assert(!staleWiki.includes("docket document move-plan"));
+    await writeFile(path(wikiSlug), staleWiki);
+    assert((await upgrade(false)).reviewRequired.includes(relative(wikiSlug)));
+    assert.equal(await readFile(path(wikiSlug), "utf8"), staleWiki);
+    await writeFile(
+      path(wikiSlug),
+      workflow(wikiSlug, options.version, wikiCurrent),
+    );
+    assert(!(await upgrade(false)).reviewRequired.includes(relative(wikiSlug)));
+
+    const taskSlug = "docket-task";
+    const taskPrevious = historical.find(
+      (entry) =>
+        entry.bodies[taskSlug] &&
+        entry.bodies[taskSlug] !== current.bodies[taskSlug],
+    );
+    assert(taskPrevious);
+    const taskCurrent = current.bodies[taskSlug];
+    assert(taskCurrent);
+    assert(taskCurrent.includes("docket decision create"));
+    const taskLocal =
+      "Project requirement: include the review date in each decision record.";
+    await writeFile(
+      path(taskSlug),
+      workflow(
+        taskSlug,
+        taskPrevious.version,
+        `${taskLocal}\n\n${taskPrevious.bodies[taskSlug]}`,
+      ),
+    );
+    const taskUpgrade = await upgrade(false);
+    assert(
+      taskUpgrade.conflicts.includes(relative(taskSlug)) ||
+        taskUpgrade.reviewRequired.includes(relative(taskSlug)),
+    );
+    const taskCustomized = await readFile(path(taskSlug), "utf8");
+    assert(
+      taskCustomized.includes(taskLocal),
+      "local Decision instructions must survive upgrade",
+    );
+    assert(
+      taskCustomized.includes("docket decision create"),
+      "current Decision mechanics must arrive, including on reviewable merge sides",
+    );
+    const staleTask = workflow(
+      taskSlug,
+      options.version,
+      taskPrevious.bodies[taskSlug] ?? "",
+    );
+    await writeFile(path(taskSlug), staleTask);
+    assert((await upgrade(false)).reviewRequired.includes(relative(taskSlug)));
+    assert.equal(await readFile(path(taskSlug), "utf8"), staleTask);
+    await writeFile(
+      path(taskSlug),
+      workflow(taskSlug, options.version, taskCurrent),
+    );
+    assert(!(await upgrade(false)).reviewRequired.includes(relative(taskSlug)));
 
     const slug = "docket-close";
     const previous = historical.find((entry) => entry.bodies[slug]);

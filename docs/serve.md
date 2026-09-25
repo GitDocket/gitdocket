@@ -11,3 +11,10 @@ The server has no authentication, authorization, TLS, multi-user isolation, or n
 Serve refuses an automatic commit during a merge, rebase, cherry-pick, or revert. It publishes through a bounded compare-and-swap `HEAD` update: an unrelated concurrent commit becomes the new parent on retry, while a concurrent change to an operation-owned path fails closed. If commit construction fails, the UI write remains in the working tree, temporary state is removed, and Serve reports the Git condition without sweeping the live index.
 
 Neither flag changes the loopback boundary.
+
+
+## Create a wiki page
+
+Use **Wiki → New page** to create a Reference, Spec or Playbook in the configured bundle. The title suggests a conventional location; the location remains editable before Save. The shared Markdown editor provides preview and retains the title, description, type, location and content during validation, network and collision errors. Existing destinations are never overwritten. Cancel confirms discarding a modified draft and returns to Wiki.
+
+Save opens the page, refreshes Wiki/search and reports its Git state. With `--commit`, the shared committer commits only the created source and reports commit failures separately from a successful local save. Creation never starts tracked work or selects project guidance. New-page drafts use the same browser-session recovery limits as existing document edits.

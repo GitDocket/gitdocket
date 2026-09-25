@@ -212,6 +212,11 @@ export async function runUpgrade(
   // points at a missing canonical procedure.
   const additiveWorkflows = [
     {
+      slug: "docket-wiki",
+      workflowReason: "installed new canonical wiki-authoring workflow",
+      skillReason: "installed new wiki-authoring binding",
+    },
+    {
       slug: "docket-guidance",
       workflowReason: "installed new canonical guidance-management workflow",
       skillReason: "installed new guidance-management binding",

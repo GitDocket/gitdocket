@@ -79,7 +79,9 @@ export function createRepoContext(
   let config = initialConfig;
   let store = new LocalFileStore(join(root, config.bundle));
   let index = new BundleIndex(store);
-  let evidence = new GitEvidenceIndex(root, config.git.trailer);
+  let evidence = new GitEvidenceIndex(root, config.git.trailer, {
+    bundlePath: config.bundle,
+  });
   let published: Slot | undefined;
   let snapshot: BundleSnapshot | undefined;
   let gitKey: string | undefined;
@@ -137,7 +139,9 @@ export function createRepoContext(
     }
     if (config.git.trailer !== next.git.trailer) {
       evidence.close();
-      evidence = new GitEvidenceIndex(root, next.git.trailer);
+      evidence = new GitEvidenceIndex(root, next.git.trailer, {
+        bundlePath: next.bundle,
+      });
     }
     config = next;
     full = true;

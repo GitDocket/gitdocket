@@ -7,6 +7,9 @@ import {
   validateReleaseIntent,
   writeReleasePlan,
 } from "./release-contract";
+import { linuxCommand } from "./release-linux";
+import { operatorCommand } from "./release-operator";
+import { preparationCommand } from "./release-preparation";
 import { stageRelease } from "./release-stage";
 
 const ROOT = join(import.meta.dir, "..");
@@ -27,7 +30,7 @@ function parseArgs(args: string[]): ParsedArgs {
   const command = args.shift();
   if (command !== "version" && command !== "prepare" && command !== "stage") {
     throw new Error(
-      "usage: bun run release -- <version|prepare|stage> [options]",
+      "usage: bun run release -- <version|prepare|stage|workspace|linux|qualify|packet|wait|login|promote> [options]",
     );
   }
   let version = "";
@@ -183,7 +186,19 @@ async function stageCommand(args: ParsedArgs): Promise<void> {
 
 if (import.meta.main) {
   try {
-    const args = parseArgs(Bun.argv.slice(2));
+    const raw = Bun.argv.slice(2);
+    if (["wait", "login", "promote"].includes(raw[0] ?? "")) {
+      process.exit(await operatorCommand(raw[0] as string, raw.slice(1)));
+    }
+    if (raw[0] === "linux") {
+      await linuxCommand(raw.slice(1), ROOT);
+      process.exit(0);
+    }
+    if (["workspace", "qualify", "packet"].includes(raw[0] ?? "")) {
+      await preparationCommand(raw[0] as string, raw.slice(1), ROOT);
+      process.exit(0);
+    }
+    const args = parseArgs(raw);
     if (args.command === "version") await versionCommand(args);
     else if (args.command === "prepare") await prepareCommand(args);
     else await stageCommand(args);

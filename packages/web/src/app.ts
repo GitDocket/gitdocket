@@ -7,6 +7,7 @@ import type { Database } from "bun:sqlite";
 import { createHash } from "node:crypto";
 import {
   type Bundle,
+  createDocument,
   DOCUMENT_EDIT_MAX_BYTES,
   type DocketConfig,
   DocumentEditError,
@@ -16,6 +17,7 @@ import {
   InMemoryFileStore,
   isStatus,
   isTerminalStatus,
+  type LocalFileStore,
   loadBundle,
   PROJECT_GUIDANCE_PATH,
   parseStateOfPlay,
@@ -36,6 +38,7 @@ import {
   sourcePage,
   validateDocumentPath,
   type WorkItem,
+  withTaskProgress,
 } from "@gitdocket/core";
 import { deriveOverview, epicNeedsCleanup } from "@gitdocket/core/overview";
 import {
@@ -96,6 +99,8 @@ export function localRequestBoundary(request: Request): string | undefined {
 export interface Assets {
   js: string;
   css: string;
+  /** Locally served split browser modules, also embedded in standalone builds. */
+  chunks?: Record<string, string>;
 }
 
 export interface AppOptions {
@@ -195,8 +200,8 @@ function taskRows(repo: RepoState) {
     const ready = new Set(repo.bundle.readyIds());
     return repo.bundle.workItems
       .map((w) => ({
+        ...withTaskProgress({ id: w.fm.id }, repo.git.taskProgress),
         path: w.path,
-        id: w.fm.id,
         type: w.fm.type,
         title: w.fm.title ?? null,
         status: w.fm.status,
@@ -216,6 +221,7 @@ function boardRows(repo: RepoState) {
       const w = conceptMap(repo.bundle).get(card.path);
       return {
         ...card,
+        ...withTaskProgress({ id: card.id }, repo.git.taskProgress),
         epic: w?.kind === "work" ? epicRefOf(repo.bundle, w) : null,
         tags: w?.fm.tags ?? [],
         assignee: typeof w?.fm.assignee === "string" ? w.fm.assignee : null,
@@ -918,6 +924,7 @@ export function createApp(
     const largeSource = bounded && source.length > 32768;
     return c.json({
       path,
+      ...(id ? withTaskProgress({ id }, git.taskProgress) : {}),
       editScope: sourceScope(repo.store.root),
       editing: memo(repo, `editing:${path}`, () =>
         documentEditingAvailability(path, source, repo.config),
@@ -936,6 +943,7 @@ export function createApp(
         : null,
       // Inline edits need the configured state list for the select.
       states: c.get("repo").config.workflow.states,
+      reopenClosed: c.get("repo").config.workflow.reopenClosed,
       ready: id ? bundle.readyIds().includes(id) : false,
       html: largeSource
         ? ""
@@ -1001,6 +1009,31 @@ export function createApp(
     });
   });
 
+  app.get("/api/task-progress", (c) => {
+    const repo = c.get("repo");
+    const evidence = repo.git.taskProgress;
+    const id = c.req.query("id");
+    const epicId = c.req.query("epic");
+    const epic = epicId ? repo.bundle.byId(epicId) : undefined;
+    const tasks = (evidence?.tasks ?? []).filter(
+      (p) =>
+        (!id || p.id === id) &&
+        (!epicId ||
+          p.observations.some((o) => o.task.epic === `/${epic?.path}`) ||
+          (epic && repo.bundle.byId(p.id)?.fm.epic === `/${epic.path}`)),
+    );
+    const result = pageRows(tasks, c.req.query(), repo.generation);
+    return c.json({
+      observedAt: evidence?.observedAt ?? null,
+      complete: evidence?.complete ?? false,
+      diagnostics: evidence?.diagnostics ?? [
+        repo.git.reason ?? "Git task progress unavailable",
+      ],
+      tasks: result.items,
+      page: result.page,
+    });
+  });
+
   app.get("/api/board", (c) => {
     const repo = c.get("repo");
     const all = boardRows(repo);
@@ -1057,9 +1090,19 @@ export function createApp(
 
   // Rollups with the facets the epics page filters and sorts on.
   app.get("/api/epics", async (c) => {
-    const { bundle, db } = c.get("repo");
+    const { bundle, db, git } = c.get("repo");
     const epics = memo(c.get("repo"), "epics", () =>
-      epicTags(bundle, db.query(EPICS_SQL).all() as RollupRow[]),
+      epicTags(bundle, db.query(EPICS_SQL).all() as RollupRow[]).map(
+        (epic) => ({
+          ...epic,
+          observedChildren:
+            git.taskProgress?.tasks.filter(
+              (p) =>
+                p.observations.some((o) => o.task.epic === `/${epic.path}`) ||
+                bundle.byId(p.id)?.fm.epic === `/${epic.path}`,
+            ).length ?? 0,
+        }),
+      ),
     );
     if (c.req.query("page")) {
       const result = pageRows(
@@ -1097,12 +1140,17 @@ export function createApp(
       );
       return c.json({
         states: repo.config.workflow.states,
+        reopenClosed: repo.config.workflow.reopenClosed,
         items: result.items,
         page: result.page,
         total: items.length,
       });
     }
-    return c.json({ states: repo.config.workflow.states, items });
+    return c.json({
+      states: repo.config.workflow.states,
+      reopenClosed: repo.config.workflow.reopenClosed,
+      items,
+    });
   });
 
   // Facets search the complete summary inventory; only a small option page is
@@ -1183,6 +1231,46 @@ export function createApp(
               : 400
       : 503;
 
+  const finishDocumentSave = async (
+    store: LocalFileStore,
+    config: DocketConfig,
+    result: Awaited<ReturnType<typeof editDocument>>,
+    verb: "create" | "edit",
+  ) => {
+    let saveState:
+      | "saved_locally"
+      | "committed"
+      | "commit_failed"
+      | "unchanged" = result.changed ? "saved_locally" : "unchanged";
+    let commitError: string | undefined;
+    const commit = appOpts.commit ?? appOpts.committerFor?.(config.bundle);
+    if (commit && result.changed) {
+      try {
+        const subject = result.taskId ?? result.document.path;
+        await commit({
+          paths: result.paths,
+          message: `chore(docket): ${verb} ${subject} content (serve)\n`,
+          taskTrailer: { key: config.git.trailer, id: result.taskId },
+        });
+        saveState = "committed";
+      } catch (error) {
+        saveState = "commit_failed";
+        commitError = asError(error);
+      } finally {
+        ctx.invalidateGit();
+      }
+    }
+    return {
+      ...result,
+      document: {
+        ...result.document,
+        sourceScope: sourceScope(store.root),
+      },
+      saveState,
+      ...(commitError ? { commitError } : {}),
+    };
+  };
+
   app.use(
     "/api/edit-source/*",
     bodyLimit({
@@ -1197,6 +1285,61 @@ export function createApp(
         ),
     }),
   );
+  app.use(
+    "/api/document-create",
+    bodyLimit({
+      maxSize: DOCUMENT_EDIT_MAX_BYTES * 6 + 65536,
+      onError: (c) =>
+        c.json(
+          {
+            code: "too_large",
+            error: "Request is too large. Your draft has not been saved.",
+          },
+          413,
+        ),
+    }),
+  );
+  app.get("/api/document-create", (c) => {
+    c.header("Cache-Control", "no-store");
+    return c.json({
+      path: "@new-page",
+      version: "0".repeat(64),
+      title: null,
+      description: null,
+      body: "",
+      maxBytes: DOCUMENT_EDIT_MAX_BYTES,
+      sourceScope: sourceScope(c.get("repo").store.root),
+    });
+  });
+  app.post("/api/document-create", async (c) => {
+    try {
+      const input = await c.req.json();
+      if (!input || typeof input !== "object" || Array.isArray(input))
+        throw new DocumentEditError("invalid", "Provide a complete new page.");
+      const { sourceScope: expectedScope, ...request } = input;
+      const result = await ctx.mutate(async (store, config) => {
+        if (expectedScope !== sourceScope(store.root))
+          throw new DocumentEditError(
+            "conflict",
+            "The project source changed. Copy your draft and reopen New page in the current project before saving.",
+          );
+        return finishDocumentSave(
+          store,
+          config,
+          await createDocument(store, config, request),
+          "create",
+        );
+      });
+      recordOperationOutcome({ saveState: result.saveState });
+      return c.json(result);
+    } catch (error) {
+      return c.json(
+        editFailure(error),
+        error instanceof SyntaxError ? 400 : editStatus(error),
+      );
+    }
+  });
+
   app.get("/api/guidance", async (c) => {
     const repo = c.get("repo");
     const guidance = await readProjectGuidance(
@@ -1255,38 +1398,7 @@ export function createApp(
           path === PROJECT_GUIDANCE_PATH
             ? await editGuidance(store, config, request)
             : await editDocument(store, config, path, request);
-        let saveState:
-          | "saved_locally"
-          | "committed"
-          | "commit_failed"
-          | "unchanged" = result.changed ? "saved_locally" : "unchanged";
-        let commitError: string | undefined;
-        const commit = appOpts.commit ?? appOpts.committerFor?.(config.bundle);
-        if (commit && result.changed) {
-          try {
-            const subject = result.taskId ?? result.document.path;
-            await commit({
-              paths: result.paths,
-              message: `chore(docket): edit ${subject} content (serve)\n`,
-              taskTrailer: { key: config.git.trailer, id: result.taskId },
-            });
-            saveState = "committed";
-          } catch (error) {
-            saveState = "commit_failed";
-            commitError = asError(error);
-          } finally {
-            ctx.invalidateGit();
-          }
-        }
-        return {
-          ...result,
-          document: {
-            ...result.document,
-            sourceScope: sourceScope(store.root),
-          },
-          saveState,
-          ...(commitError ? { commitError } : {}),
-        };
+        return finishDocumentSave(store, config, result, "edit");
       });
       recordOperationOutcome({ saveState: result.saveState });
       return c.json(result);
@@ -1524,6 +1636,13 @@ export function createApp(
     app.get("/assets/app.js", (c) =>
       c.body(assets.js, 200, { "content-type": "text/javascript" }),
     );
+    app.get("/assets/:name", (c) => {
+      const name = c.req.param("name");
+      const chunks = assets.chunks ?? {};
+      const source = Object.hasOwn(chunks, name) ? chunks[name] : undefined;
+      if (source === undefined) return c.notFound();
+      return c.body(source, 200, { "content-type": "text/javascript" });
+    });
     app.get("*", (c) => c.html(page(assets)));
   }
 

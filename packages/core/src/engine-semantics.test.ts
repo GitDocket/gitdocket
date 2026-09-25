@@ -1,6 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { ENGINE_SEMANTICS } from "./engine-semantics";
-import { byManualOrder, canTransition, isReady } from "./states";
+import {
+  byManualOrder,
+  canTransition,
+  canTransitionWorkItem,
+  isReady,
+} from "./states";
 
 describe("canonical engine semantics", () => {
   test("readiness claim matches derived behavior, including unknown dependencies", () => {
@@ -37,16 +42,22 @@ describe("canonical engine semantics", () => {
     );
   });
 
-  test("transition claim matches guarded transitions and both terminal states", () => {
+  test("transition claim matches guarded transitions and configured reopening", () => {
     expect(canTransition("todo", "in-progress")).toBe(true);
     expect(canTransition("blocked", "done")).toBe(false);
     expect(canTransition("blocked", "closed")).toBe(true);
     expect(canTransition("done", "todo")).toBe(false);
     expect(canTransition("closed", "todo")).toBe(false);
-    expect(ENGINE_SEMANTICS.transitions).toContain("invalid transitions");
-    expect(ENGINE_SEMANTICS.transitions).toContain(
-      "`done` and `closed` are terminal",
+    expect(canTransitionWorkItem("closed", "todo", "Task", ["Epic"])).toBe(
+      false,
     );
+    expect(canTransitionWorkItem("closed", "todo", "Epic", ["Epic"])).toBe(
+      true,
+    );
+    expect(canTransitionWorkItem("done", "todo", "Epic", ["Epic"])).toBe(false);
+    expect(ENGINE_SEMANTICS.transitions).toContain("invalid transitions");
+    expect(ENGINE_SEMANTICS.transitions).toContain("`done` is terminal");
+    expect(ENGINE_SEMANTICS.transitions).toContain("`closed` → `todo`");
     expect(ENGINE_SEMANTICS.transitions).toContain(
       "Only `done` satisfies dependencies",
     );

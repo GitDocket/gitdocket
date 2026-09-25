@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { realpath } from "node:fs/promises";
 import { isAbsolute, relative, resolve } from "node:path";
 import { isDeepStrictEqual } from "node:util";
-import { isMap, isScalar, parseDocument } from "yaml";
+import { isMap, isScalar, parseDocument, stringify } from "yaml";
 import type { DocketConfig } from "./config";
 import { type FileStore, LocalFileStore } from "./filestore";
 import { mutate } from "./ops";
@@ -327,4 +327,96 @@ export function documentEditingAvailability(
       reason: error instanceof Error ? error.message : String(error),
     };
   }
+}
+
+export const DOCUMENT_TYPES = ["Reference", "Spec", "Playbook"] as const;
+export interface CreateDocumentInput {
+  path: string;
+  type: (typeof DOCUMENT_TYPES)[number];
+  title: string;
+  description?: string;
+  body: string;
+  tags?: string[];
+}
+
+/** Ordinary knowledge creation: no tracker or guidance activation side effects. */
+export async function createDocument(
+  store: FileStore,
+  config: DocketConfig,
+  request: unknown,
+) {
+  if (
+    !request ||
+    typeof request !== "object" ||
+    Array.isArray(request) ||
+    Object.keys(request).some(
+      (key) =>
+        !["path", "type", "title", "description", "body", "tags"].includes(key),
+    )
+  )
+    throw new DocumentEditError(
+      "invalid",
+      "Provide path, type, title, description, body and tags only.",
+    );
+  const input = request as CreateDocumentInput;
+  if (typeof input.path !== "string")
+    throw new DocumentEditError(
+      "invalid",
+      "A bundle-relative path is required.",
+    );
+  validateDocumentPath(input.path);
+  validateDocumentPath(input.path.toLowerCase());
+  if (
+    !DOCUMENT_TYPES.includes(input.type) ||
+    typeof input.title !== "string" ||
+    typeof input.body !== "string"
+  )
+    throw new DocumentEditError(
+      "invalid",
+      "Use Reference, Spec or Playbook with a title and complete body.",
+    );
+  if (
+    input.path.toLowerCase() === "reference/project-guidance.md" ||
+    /^(?:work|workflows|decisions|extensions)\//i.test(input.path)
+  )
+    throw new DocumentEditError(
+      "unsupported",
+      "Use the dedicated work, decision or guidance workflow for this location.",
+    );
+  validatePatch({
+    title: input.title,
+    body: input.body,
+    ...(input.description === undefined
+      ? {}
+      : { description: input.description }),
+  });
+  if (input.description !== undefined && typeof input.description !== "string")
+    throw new DocumentEditError("invalid", "Description must be a string.");
+  if (
+    input.tags !== undefined &&
+    (!Array.isArray(input.tags) ||
+      input.tags.some(
+        (tag) => typeof tag !== "string" || !tag.trim() || tag.includes("\0"),
+      ))
+  )
+    throw new DocumentEditError(
+      "invalid",
+      "Tags must be nonblank strings without NUL characters.",
+    );
+  const { path, body, ...metadata } = input;
+  const source = `---\n${stringify({ ...metadata, timestamp: new Date().toISOString() }, { lineWidth: 0 })}---\n${body}`;
+  const document = projection(path, source, config);
+  return mutate(store, async () => {
+    if (!store.createExclusive)
+      throw new DocumentEditError(
+        "unsupported",
+        "This store does not support exclusive document creation.",
+      );
+    if (!(await store.createExclusive(path, source)))
+      throw new DocumentEditError(
+        "conflict",
+        "A source already exists at this path. Read it and update explicitly, or choose another path.",
+      );
+    return { document, paths: [path], changed: true, taskId: null };
+  });
 }

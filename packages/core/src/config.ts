@@ -3,13 +3,16 @@
 // Unknown keys are preserved (OKF-style tolerance applies to config too).
 
 import { parse as parseYaml } from "yaml";
-import { STATES } from "./states";
+import { STATES, WORK_ITEM_TYPES, type WorkItemType } from "./states";
 
 export interface DocketConfig {
   project: string;
   bundle: string;
   ids: { scheme: string; decision_prefix: string };
-  workflow: { states: readonly string[] };
+  workflow: {
+    states: readonly string[];
+    reopenClosed: readonly WorkItemType[];
+  };
   git: { trailer: string; branch_prefix: string };
   /** Verification linkage. null = key absent = feature fully dormant. */
   verify: { tests: string[] } | null;
@@ -52,6 +55,12 @@ export function parseConfig(source?: string): DocketConfig {
     ...configuredStates,
     ...STATES.filter((state) => !configuredStates.includes(state)),
   ];
+  // Reopening is opt-in for each work-item type. Ignore unknown values so a
+  // typo cannot silently relax the terminal-state policy.
+  const configuredReopenClosed = workflow.reopen_closed;
+  const reopenClosed = Array.isArray(configuredReopenClosed)
+    ? WORK_ITEM_TYPES.filter((type) => configuredReopenClosed.includes(type))
+    : [];
 
   // verify: the whole feature's on/off switch is this key's presence.
   const verifySection = section("verify");
@@ -85,7 +94,7 @@ export function parseConfig(source?: string): DocketConfig {
       scheme: str(ids.scheme, "sequential"),
       decision_prefix: str(ids.decision_prefix, "DEC"),
     },
-    workflow: { states },
+    workflow: { states, reopenClosed },
     git: {
       trailer: str(git.trailer, "Task"),
       branch_prefix: str(git.branch_prefix, "task/"),

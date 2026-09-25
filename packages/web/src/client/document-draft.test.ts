@@ -8,9 +8,11 @@ import {
   draftPatch,
   type EditorSource,
   newDraft,
+  openCreationDraft,
   registerEditorNavigationGuard,
   restoreDraft,
   retainDraft,
+  wikiPagePath,
 } from "./document-draft";
 import { DocumentEditor } from "./document-editor";
 
@@ -93,4 +95,70 @@ test("invalid stored drafts are ignored; read mode exposes a quiet explicit acti
   );
   expect(html).toContain(">Edit</button>");
   expect(html).not.toContain("<textarea");
+});
+
+test("creation drafts retain destination, type and complete content through recovery and cancellation", () => {
+  const baseCreate = {
+    ...base,
+    path: "@new-page",
+    title: null,
+    description: null,
+    body: "",
+    version: "0".repeat(64),
+  };
+  const draft = {
+    ...newDraft(baseCreate),
+    creation: { type: "Reference" as const, path: "", autoPath: true },
+  };
+  expect(draftChanged(draft)).toBe(false);
+  const next = {
+    ...draft,
+    creation: {
+      type: "Playbook" as const,
+      path: "playbooks/a-long-manual-location.md",
+      autoPath: false,
+    },
+  };
+  next.fields.body = "Complete recovery content\n";
+  const store = storage();
+  const key = draftKey(baseCreate.sourceScope, baseCreate.path);
+  expect(draftChanged(next)).toBe(true);
+  expect(retainDraft(key, next, store)).toBe(true);
+  expect(
+    restoreDraft(key, baseCreate.sourceScope, baseCreate.path, store),
+  ).toEqual(next);
+  expect(
+    restoreDraft(key, "another-project", baseCreate.path, store),
+  ).toBeUndefined();
+  retainDraft(key, null, store);
+  expect(
+    restoreDraft(key, baseCreate.sourceScope, baseCreate.path, store),
+  ).toBeUndefined();
+  const reentered = openCreationDraft(baseCreate, store);
+  expect(reentered.recovered).toBe(false);
+  expect(reentered.draft.fields).toEqual({
+    title: "",
+    description: "",
+    body: "",
+  });
+  expect(reentered.draft.creation).toEqual({
+    type: "Reference",
+    path: "",
+    autoPath: true,
+  });
+  expect(draftChanged(reentered.draft)).toBe(false);
+  store.setItem(
+    key,
+    JSON.stringify({
+      ...next,
+      creation: { type: "Task", path: "work/a.md", autoPath: false },
+    }),
+  );
+  expect(
+    restoreDraft(key, baseCreate.sourceScope, baseCreate.path, store),
+  ).toBeUndefined();
+  expect(wikiPagePath("Spec", "Cache / API Requirements!")).toBe(
+    "specs/cache-api-requirements.md",
+  );
+  expect(wikiPagePath("Playbook", "")).toBe("");
 });

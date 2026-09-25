@@ -5,48 +5,21 @@ import {
   draftChanged,
   draftKey,
   draftPatch,
+  EditorRequestError,
   type EditorSource,
   newDraft,
+  openCreationDraft,
   registerEditorNavigationGuard,
+  requestDocument as request,
   restoreDraft,
   retainDraft,
+  type WikiPageType,
+  wikiPagePath,
 } from "./document-draft";
+import { Markdown } from "./markdown";
 
 const sourceUrl = (path: string) =>
   `/api/edit-source/${path.split("/").map(encodeURIComponent).join("/")}`;
-class EditorRequestError extends Error {
-  constructor(
-    message: string,
-    readonly code?: string,
-  ) {
-    super(message);
-  }
-}
-async function request<T>(url: string, body?: unknown): Promise<T> {
-  const response = await fetch(
-    url,
-    body === undefined
-      ? {
-          cache: "no-store",
-          headers: { "X-Docket-Trigger": "explicit" },
-        }
-      : {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Docket-Trigger": "explicit",
-          },
-          body: JSON.stringify(body),
-        },
-  );
-  const result = await response.json();
-  if (!response.ok)
-    throw new EditorRequestError(
-      result.error ?? "Request failed. Your draft is still here.",
-      result.code,
-    );
-  return result as T;
-}
 const storage = {
   getItem: (key: string) => sessionStorage.getItem(key),
   setItem: (key: string, value: string) => sessionStorage.setItem(key, value),
@@ -62,16 +35,21 @@ export function DocumentEditor({
   onEditingChange,
   editLabel = "Edit",
   draftTools,
+  creationSource,
+  onCancel,
 }: {
   path: string;
   sourceScope: string;
-  onSaved: () => void;
+  onSaved: (saved?: { path: string; notice: string }) => void;
+  creationSource?: EditorSource;
+  onCancel?: () => void;
   actionContainer?: HTMLElement | null;
   onEditingChange?: (editing: boolean) => void;
   editLabel?: string;
   draftTools?: (body: string, changeBody: (body: string) => void) => ReactNode;
 }) {
   const key = draftKey(sourceScope, path);
+  const initialCreation = useRef(creationSource);
   const [draft, setDraft] = useState<DocumentDraft>();
   const [recoverable, setRecoverable] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -83,9 +61,12 @@ export function DocumentEditor({
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();
   const [conflict, setConflict] = useState(false);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [latest, setLatest] = useState<EditorSource>();
   const [preview, setPreview] = useState<string>();
   const editButton = useRef<HTMLButtonElement>(null);
+  const cancelButton = useRef<HTMLButtonElement>(null);
+  const keepEditingButton = useRef<HTMLButtonElement>(null);
   const titleInput = useRef<HTMLInputElement>(null);
   const focusOnOpen = useRef(false);
   const id = useId();
@@ -139,6 +120,10 @@ export function DocumentEditor({
     }
   }, [editing, busy]);
 
+  useEffect(() => {
+    if (confirmDiscard) keepEditingButton.current?.focus();
+  }, [confirmDiscard]);
+
   const persist = (next: DocumentDraft | undefined) => {
     current.current = next;
     setDraft(next);
@@ -175,13 +160,26 @@ export function DocumentEditor({
         persist(restored);
         setNotice("Recovered your draft. It has not been saved to source.");
       }
-      const source = await request<EditorSource>(sourceUrl(path));
+      const source =
+        creationSource ?? (await request<EditorSource>(sourceUrl(path)));
       if (!mounted.current) return;
       if (source.sourceScope !== sourceScope)
         throw new Error(
           "Project source changed. Refresh this page before editing.",
         );
-      if (!restored) persist(newDraft(source));
+      if (!restored)
+        persist({
+          ...newDraft(source),
+          ...(creationSource
+            ? {
+                creation: {
+                  type: "Reference" as const,
+                  path: "",
+                  autoPath: true,
+                },
+              }
+            : {}),
+        });
       else if (restored.base.version !== source.version) {
         setConflict(true);
         setError(
@@ -189,22 +187,65 @@ export function DocumentEditor({
         );
       }
     });
+  useEffect(() => {
+    const source = initialCreation.current;
+    if (!source) return;
+    const { draft: next, recovered } = openCreationDraft(source, storage);
+    current.current = next;
+    setDraft(next);
+    stored.current = retainDraft(
+      key,
+      draftChanged(next) ? next : null,
+      storage,
+    );
+    setStorageFailed(!stored.current);
+    if (recovered)
+      setNotice("Recovered your new-page draft. It has not been saved.");
+    focusOnOpen.current = true;
+  }, [key]);
   const change = (field: keyof DocumentDraft["fields"], value: string) => {
     if (!current.current || busyRef.current) return;
     persist({
       ...current.current,
       fields: { ...current.current.fields, [field]: value },
+      ...(field === "title" && current.current.creation?.autoPath
+        ? {
+            creation: {
+              ...current.current.creation,
+              path: wikiPagePath(current.current.creation.type, value),
+            },
+          }
+        : {}),
     });
+    if (
+      creationSource &&
+      field === "title" &&
+      current.current.creation?.autoPath
+    )
+      setConflict(false);
     setPreview(undefined);
   };
-  const cancel = () => {
-    if (
-      busyRef.current ||
-      (current.current &&
-        draftChanged(current.current) &&
-        !window.confirm("Discard this unsaved draft?"))
-    )
-      return;
+  const changeLocation = (value: string, type?: WikiPageType) => {
+    if (!current.current?.creation || busyRef.current) return;
+    const creation = current.current.creation;
+    persist({
+      ...current.current,
+      creation: type
+        ? {
+            ...creation,
+            type,
+            path: creation.autoPath
+              ? wikiPagePath(type, current.current.fields.title)
+              : creation.path,
+          }
+        : { ...creation, path: value, autoPath: false },
+    });
+    setConflict(false);
+    setPreview(undefined);
+  };
+  const discard = () => {
+    if (busyRef.current) return;
+    setConfirmDiscard(false);
     persist(undefined);
     setRecoverable(false);
     setPreview(undefined);
@@ -212,7 +253,20 @@ export function DocumentEditor({
     setConflict(false);
     setError(undefined);
     setNotice("Draft discarded. Source was not changed.");
+    onCancel?.();
     requestAnimationFrame(() => editButton.current?.focus());
+  };
+  const cancel = () => {
+    if (busyRef.current) return;
+    if (current.current && draftChanged(current.current)) {
+      setConfirmDiscard(true);
+      return;
+    }
+    discard();
+  };
+  const keepEditing = () => {
+    setConfirmDiscard(false);
+    requestAnimationFrame(() => cancelButton.current?.focus());
   };
   const save = () =>
     run(async () => {
@@ -222,34 +276,55 @@ export function DocumentEditor({
         document: EditorSource;
         saveState: string;
         commitError?: string;
-      }>(sourceUrl(path), {
-        sourceScope: pending.base.sourceScope,
-        expectedVersion: pending.base.version,
-        patch: draftPatch(pending),
-      });
+      }>(
+        pending.creation ? "/api/document-create" : sourceUrl(path),
+        pending.creation
+          ? {
+              sourceScope: pending.base.sourceScope,
+              path: pending.creation.path,
+              type: pending.creation.type,
+              title: pending.fields.title,
+              description: pending.fields.description,
+              body: pending.fields.body,
+            }
+          : {
+              sourceScope: pending.base.sourceScope,
+              expectedVersion: pending.base.version,
+              patch: draftPatch(pending),
+            },
+      );
       if (!mounted.current) return;
       persist(undefined);
       setRecoverable(false);
       setPreview(undefined);
       setConflict(false);
       setLatest(undefined);
-      setNotice(
+      const savedNotice =
         result.saveState === "committed"
           ? "Saved and committed."
           : result.saveState === "commit_failed"
             ? `Saved locally; commit failed. Your source is saved. Check Git before committing manually. ${result.commitError ?? ""}`
             : result.saveState === "unchanged"
               ? "Source is unchanged. No commit was created."
-              : "Saved locally. Changes are not committed.",
-      );
-      onSaved();
-      requestAnimationFrame(() => editButton.current?.focus());
+              : "Saved locally. Changes are not committed.";
+      setConfirmDiscard(false);
+      setNotice(savedNotice);
+      setError(undefined);
+      // Navigation must happen after run() releases the busy navigation guard.
+      requestAnimationFrame(() => {
+        if (!mounted.current) return;
+        onSaved({ path: result.document.path, notice: savedNotice });
+        editButton.current?.focus();
+      });
     });
   const showPreview = () =>
     run(async () => {
       if (!current.current) return;
       const result = await request<{ html: string }>(
-        sourceUrl(path).replace("/edit-source/", "/edit-preview/"),
+        sourceUrl(
+          current.current.creation?.path ||
+            (creationSource ? "reference/new-page.md" : path),
+        ).replace("/edit-source/", "/edit-preview/"),
         { body: current.current.fields.body },
       );
       if (mounted.current) setPreview(result.html);
@@ -300,7 +375,10 @@ export function DocumentEditor({
       className={`document-editor${draft ? " is-editing" : ""}${latest ? " is-comparing" : ""}`}
       aria-label="Document editing"
     >
-      {actionContainer ? createPortal(editAction, actionContainer) : editAction}
+      {!creationSource &&
+        (actionContainer
+          ? createPortal(editAction, actionContainer)
+          : editAction)}
       {busy && <span role="status"> Working…</span>}
       {notice && <p role="status">{notice}</p>}
       {error && (
@@ -322,12 +400,14 @@ export function DocumentEditor({
           <p className="editor-draft-state">
             {draftChanged(draft)
               ? "Unsaved draft"
-              : "Editing complete source"}{" "}
+              : creationSource
+                ? "New page draft"
+                : "Editing complete source"}{" "}
           </p>
           <div className="editor-actions">
             <button
               type="button"
-              disabled={busy}
+              disabled={busy || confirmDiscard}
               aria-pressed={preview !== undefined}
               onClick={() =>
                 preview !== undefined
@@ -340,19 +420,43 @@ export function DocumentEditor({
             <button
               type="button"
               className="editor-save"
-              disabled={busy || conflict}
+              disabled={busy || conflict || confirmDiscard}
               onClick={() => void save()}
             >
               Save
             </button>
-            <button type="button" disabled={busy} onClick={cancel}>
+            <button
+              ref={cancelButton}
+              type="button"
+              disabled={busy || confirmDiscard}
+              onClick={cancel}
+            >
               Cancel
             </button>
             <button type="button" disabled={busy} onClick={() => void copy()}>
               Copy draft
             </button>
           </div>
-          {conflict && (
+          {confirmDiscard && (
+            <section
+              className="editor-discard"
+              aria-labelledby={`${id}-discard-question`}
+            >
+              <p id={`${id}-discard-question`}>Discard this unsaved draft?</p>
+              <button
+                ref={keepEditingButton}
+                type="button"
+                disabled={busy}
+                onClick={keepEditing}
+              >
+                Keep editing
+              </button>{" "}
+              <button type="button" disabled={busy} onClick={discard}>
+                Discard draft
+              </button>
+            </section>
+          )}
+          {conflict && !creationSource && (
             <div className="editor-conflict" role="alert">
               <p>
                 Newer source needs review. Reconcile your draft with the latest
@@ -367,17 +471,24 @@ export function DocumentEditor({
               </button>
             </div>
           )}
+          {conflict && creationSource && (
+            <p className="editor-conflict" role="alert">
+              Your page was not created. If the location is occupied, choose
+              another location; your content stays in this draft. To update an
+              existing page, open it separately and review its latest source.
+            </p>
+          )}
           <details className="editor-recovery">
             <summary>Draft recovery</summary>
             <p>
               Drafts are kept for this tab’s browser session when storage is
-              available. Reopen Edit after navigation or reload to recover them.
-              Closing the tab may lose your draft. Use Copy draft to keep a
-              separate recovery copy.
+              available. Reopen this editor after navigation or reload to
+              recover them. Closing the tab may lose your draft. Use Copy draft
+              to keep a separate recovery copy.
             </p>
           </details>
           <div className={latest ? "editor-comparison" : undefined}>
-            <fieldset disabled={busy}>
+            <fieldset disabled={busy || confirmDiscard}>
               <legend className="muted">Page content</legend>
               <label htmlFor={`${id}-title`}>Title</label>
               <input
@@ -395,13 +506,47 @@ export function DocumentEditor({
                 maxLength={4096}
                 onChange={(e) => change("description", e.target.value)}
               />
-              <p className="muted">Title and description are optional.</p>
+              <p className="muted">
+                {creationSource
+                  ? "A title is required. Description is optional."
+                  : "Title and description are optional."}
+              </p>
+              {draft.creation && (
+                <>
+                  <label htmlFor={`${id}-type`}>Page type</label>
+                  <select
+                    id={`${id}-type`}
+                    value={draft.creation.type}
+                    onChange={(e) =>
+                      changeLocation("", e.target.value as WikiPageType)
+                    }
+                  >
+                    <option value="Reference">
+                      Reference — explain project knowledge
+                    </option>
+                    <option value="Spec">
+                      Spec — describe desired behavior
+                    </option>
+                    <option value="Playbook">
+                      Playbook — record a repeatable procedure
+                    </option>
+                  </select>
+                  <label htmlFor={`${id}-location`}>Location</label>
+                  <input
+                    id={`${id}-location`}
+                    value={draft.creation.path}
+                    placeholder="reference/page-name.md"
+                    onChange={(e) => changeLocation(e.target.value)}
+                    aria-describedby={`${id}-location-help`}
+                  />
+                  <p className="muted" id={`${id}-location-help`}>
+                    A Markdown path inside this project’s wiki, ending in .md.
+                    Existing pages are never replaced.
+                  </p>
+                </>
+              )}
               {preview !== undefined ? (
-                <section
-                  className="md editor-preview"
-                  aria-label="Markdown preview" // biome-ignore lint/security/noDangerouslySetInnerHtml: server uses the shared safe Markdown renderer.
-                  dangerouslySetInnerHTML={{ __html: preview }}
-                />
+                <Markdown html={preview} preview />
               ) : (
                 <>
                   {draftTools?.(draft.fields.body, (body) =>

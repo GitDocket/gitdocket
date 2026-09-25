@@ -23,6 +23,7 @@ describe("Docket intent contract", () => {
       "epic-supervision",
       "task-management",
       "project-maintenance",
+      "wiki-authoring",
       "project-guidance",
     ]);
     expect(Object.keys(AGENT_INTENTS)).toEqual([...AGENT_INTENT_IDS]);
@@ -33,6 +34,7 @@ describe("Docket intent contract", () => {
       "epic-supervision",
       "task-management",
       "project-maintenance",
+      "wiki-authoring",
       "project-guidance",
     ]);
     expect(Object.keys(DOCKET_INTENTS)).toEqual([...DOCKET_INTENT_IDS]);

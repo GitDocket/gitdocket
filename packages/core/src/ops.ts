@@ -5,14 +5,16 @@
 
 import { stringify as stringifyYaml } from "yaml";
 import { type Bundle, loadMetadataBundle } from "./bundle";
+import { numberedIdPattern, reservedConceptIds } from "./concept-ids";
 import type { DocketConfig } from "./config";
+import { mapFiles } from "./file-batch";
 import type { FileStore } from "./filestore";
 import type { WorkItemIdCoordinator } from "./id-allocation";
 import { resolveLink } from "./lint";
 import { parseMetadataConcept } from "./parse";
 import { buildSchemas } from "./schema";
 import {
-  canTransition,
+  canTransitionWorkItem,
   isPriority,
   isStatus,
   type Priority,
@@ -44,22 +46,94 @@ export function slugify(title: string): string {
   );
 }
 
-/** Next work-item number: max over ids matching `<project>-<n>`, plus one. */
+/** Allocate within one prefix, reserving primary IDs and aliases of both kinds. */
 export function nextId(
   bundle: Bundle,
   knownIds: ReadonlySet<string> = new Set(),
+  prefix = bundle.config.project,
 ): string {
-  const pattern = new RegExp(`^${bundle.config.project}-(\\d+)$`);
+  if (
+    !prefix ||
+    prefix.startsWith(".") ||
+    /[\\/]/.test(prefix) ||
+    [...prefix].some(
+      (char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127,
+    )
+  )
+    throw new Error("invalid ID prefix");
+  const pattern = numberedIdPattern(prefix);
   let max = 0;
-  for (const id of [
-    ...bundle.workItems.map((item) => item.fm.id),
-    ...knownIds,
-  ]) {
+  for (const id of [...bundle.workItems, ...bundle.decisions]
+    .flatMap((item) => [item.fm.id, ...item.fm.aliases])
+    .concat([...knownIds])) {
     const match = id.match(pattern);
     if (match?.[1]) max = Math.max(max, Number(match[1]));
   }
-  return `${bundle.config.project}-${max + 1}`;
+  if (!Number.isSafeInteger(max + 1)) throw new Error("ID sequence exhausted");
+  return `${prefix}-${max + 1}`;
 }
+
+async function localIds(store: FileStore): Promise<Set<string>> {
+  const ids = await mapFiles(await store.list(), async (path) =>
+    reservedConceptIds(await store.read(path), path),
+  );
+  return new Set(ids.flat());
+}
+
+function creationSlug(title: string, slug?: string): string {
+  if (typeof title !== "string" || !title.trim())
+    throw new Error("title must not be empty");
+  const value = slug ?? slugify(title);
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value))
+    throw new Error(
+      "slug must contain lowercase letters, digits and single hyphens",
+    );
+  return value;
+}
+
+async function writeNew(
+  store: FileStore,
+  path: string,
+  source: string,
+): Promise<void> {
+  if (!store.createExclusive)
+    throw new Error("store does not support exclusive creation");
+  if (!(await store.createExclusive(path, source)))
+    throw new Error(`destination already exists: ${path}`);
+}
+
+export interface CreateDecisionInput {
+  title: string;
+  description?: string;
+  tags?: string[];
+  context?: string;
+  decision?: string;
+  consequences?: string;
+  slug?: string;
+}
+
+/** Record an accepted choice; this never starts work or changes project guidance. */
+export const createDecision = (
+  store: FileStore,
+  config: DocketConfig,
+  input: CreateDecisionInput,
+  coordinator?: WorkItemIdCoordinator,
+): Promise<{ id: string; path: string }> =>
+  mutate(store, async () => {
+    const slug = creationSlug(input.title, input.slug);
+    const create = async (knownIds: ReadonlySet<string>) => {
+      const bundle = await loadMetadataBundle(store, config);
+      const reserved = new Set([...knownIds, ...(await localIds(store))]);
+      const id = nextId(bundle, reserved, config.ids.decision_prefix);
+      const path = `decisions/${id}-${slug}.md`;
+      const source = `---\n${stringifyYaml({ type: "Decision", title: input.title, ...(input.description ? { description: input.description } : {}), id, status: "accepted", ...(input.tags?.length ? { tags: input.tags } : {}), timestamp: new Date().toISOString().replace(/\.\d{3}Z$/, "Z") }, { lineWidth: 0 }).trimEnd()}\n---\n\n# Context\n\n${input.context ?? "(context, relevant links and alternatives considered)"}\n\n# Decision\n\n${input.decision ?? "(the accepted choice and why)"}\n\n# Consequences\n\n${input.consequences ?? "(tradeoffs and follow-up effects)"}\n`;
+      await writeNew(store, path, source);
+      return { id, path };
+    };
+    return coordinator
+      ? coordinator.allocate(config.ids.decision_prefix, create)
+      : create(new Set());
+  });
 
 const yamlLine = (key: string, value: unknown): string =>
   stringifyYaml({ [key]: value }, { lineWidth: 0 }).trimEnd();
@@ -74,18 +148,29 @@ async function createWorkItemUnlocked(
   input: CreateInput,
   coordinator?: WorkItemIdCoordinator,
 ): Promise<{ id: string; path: string }> {
+  if (
+    input.type !== undefined &&
+    input.type !== "Task" &&
+    input.type !== "Epic"
+  )
+    throw new Error(
+      `unsupported work type "${input.type}"; use Task or Epic, or decision create for a Decision`,
+    );
+  const slug = creationSlug(input.title, input.slug);
   const create = async (
     knownIds: ReadonlySet<string>,
   ): Promise<{ id: string; path: string }> => {
     // Load inside the coordination boundary: another caller may have created
     // an item while this process waited for the shared lock.
     const bundle = await loadMetadataBundle(store, config);
-    const id = nextId(bundle, knownIds);
+    const id = nextId(
+      bundle,
+      new Set([...knownIds, ...(await localIds(store))]),
+    );
     if (bundle.byId(id) || knownIds.has(id))
       throw new Error(`id collision on ${id} — bundle has duplicate ids?`);
 
     const type = input.type ?? "Task";
-    const slug = input.slug ?? slugify(input.title);
     const dir = type === "Epic" ? "work/epics" : "work/tasks";
     const path = `${dir}/${id}-${slug}.md`;
 
@@ -113,7 +198,7 @@ async function createWorkItemUnlocked(
       : "(links to specs/docs here)";
     const body = `# Context\n\n${context}\n\n# Acceptance Criteria\n\n- [ ] …\n`;
 
-    await store.write(path, `---\n${lines.join("\n")}\n---\n\n${body}`);
+    await writeNew(store, path, `---\n${lines.join("\n")}\n---\n\n${body}`);
     return { id, path };
   };
 
@@ -171,8 +256,13 @@ async function setStatusUnlocked(
 
   const from = item.fm.status;
   if (from === to) throw new Error(`${item.fm.id} is already ${to}`);
-  if (!canTransition(from, to)) {
+  if (
+    !canTransitionWorkItem(from, to, item.fm.type, config.workflow.reopenClosed)
+  ) {
     throw new Error(`invalid transition ${from} → ${to} for ${item.fm.id}`);
+  }
+  if (from === "closed" && to === "todo" && !opts.note?.trim()) {
+    throw new Error("reopening closed work requires a reason note");
   }
 
   const { fm, rest } = splitFrontmatter(source);

@@ -36,7 +36,7 @@ priority: p1
 ---
 ```
 
-Canonical work states are `todo`, `in-progress`, `blocked`, `in-review`, `done`, and `closed`. `done` means the acceptance criteria were completed. `closed` is a terminal non-completion disposition and does not satisfy dependencies.
+Canonical work states are `todo`, `in-progress`, `blocked`, `in-review`, `done`, and `closed`. `done` means the acceptance criteria were completed and stays terminal. `closed` records a non-completion disposition and does not satisfy dependencies. It is terminal by default; projects can permit reopening Tasks or Epics with `workflow.reopen_closed: [Task, Epic]`. A permitted reopen returns work to `todo`, requires a reason and preserves the earlier disposition.
 
 Readiness is derived: a task is ready only when it is `todo` and every declared dependency is `done`.
 

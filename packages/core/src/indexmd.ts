@@ -4,6 +4,7 @@
 // bundle (lockfile pattern — committed, and CI fails on drift).
 
 import type { Bundle } from "./bundle";
+import { markdownPath } from "./links";
 import type { GenericConcept, WorkItem } from "./parse";
 import { isTerminalStatus } from "./states";
 
@@ -13,7 +14,8 @@ const idNum = (id: string): number => Number(id.match(/(\d+)$/)?.[1] ?? 0);
 const byId = (a: { fm: { id: string } }, b: { fm: { id: string } }): number =>
   idNum(a.fm.id) - idNum(b.fm.id);
 
-const link = (text: string, path: string): string => `[${text}](/${path})`;
+const link = (text: string, path: string): string =>
+  `[${text}](/${markdownPath(path)})`;
 
 const taskLine = (t: WorkItem, ready: ReadonlySet<string>): string => {
   const text = link(`${t.fm.id} — ${t.fm.title ?? t.fm.id}`, t.path);

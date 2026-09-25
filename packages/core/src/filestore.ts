@@ -2,7 +2,16 @@
 // a GitHub Git Data API implementation later lets the hosted App operate
 // without ever cloning a repo.
 
-import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import {
+  lstat,
+  mkdir,
+  readdir,
+  readFile,
+  realpath,
+  stat,
+  unlink,
+  writeFile,
+} from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { acquireFileLock } from "./file-lock";
 
@@ -10,7 +19,12 @@ export interface FileStore {
   /** Relative paths (posix separators) of every .md file under the root, sorted. */
   list(): Promise<string[]>;
   read(path: string): Promise<string>;
+  /** Explicit absence detection and removal for journaled source moves. */
+  readOptional?(path: string): Promise<string | undefined>;
+  remove?(path: string): Promise<void>;
   write(path: string, content: string): Promise<void>;
+  /** Create without replacing an existing source; false means collision. */
+  createExclusive?(path: string, content: string): Promise<boolean>;
   /** Optional cheap change token. Must change on replacement and rapid rewrites. */
   version?(path: string): Promise<string>;
   /** Serialize a complete engine read/validate/write operation, across clients. */
@@ -62,6 +76,45 @@ export class LocalFileStore implements FileStore {
     return readFile(join(this.root, path), "utf8");
   }
 
+  async readOptional(path: string): Promise<string | undefined> {
+    try {
+      return await this.read(path);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+      throw error;
+    }
+  }
+
+  async remove(path: string): Promise<void> {
+    await unlink(join(this.root, path));
+  }
+
+  async createExclusive(path: string, content: string): Promise<boolean> {
+    const root = await realpath(this.root);
+    let parent = root;
+    // Do not follow directory links, including links within the bundle. The
+    // caller validates the relative path; arbitrary external writers must still
+    // cooperate with Docket's mutation lock during directory traversal.
+    for (const part of path.split("/").slice(0, -1)) {
+      parent = join(parent, part);
+      await mkdir(parent).catch((error) => {
+        if (error.code !== "EEXIST") throw error;
+      });
+      if (!(await lstat(parent)).isDirectory())
+        throw new Error("Document parent must be a real bundle directory.");
+    }
+    try {
+      await writeFile(join(root, path), content, {
+        encoding: "utf8",
+        flag: "wx",
+      });
+      return true;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "EEXIST") return false;
+      throw error;
+    }
+  }
+
   async version(path: string): Promise<string> {
     const info = await stat(join(this.root, path), { bigint: true });
     return `${info.dev}:${info.ino}:${info.size}:${info.mtimeNs}:${info.ctimeNs}`;
@@ -86,6 +139,19 @@ export class InMemoryFileStore implements FileStore {
     const content = this.files.get(path);
     if (content === undefined) throw new Error(`not found: ${path}`);
     return content;
+  }
+
+  async readOptional(path: string): Promise<string | undefined> {
+    return this.files.get(path);
+  }
+  async remove(path: string): Promise<void> {
+    this.files.delete(path);
+  }
+
+  async createExclusive(path: string, content: string): Promise<boolean> {
+    if (this.files.has(path)) return false;
+    this.files.set(path, content);
+    return true;
   }
 
   async write(path: string, content: string): Promise<void> {

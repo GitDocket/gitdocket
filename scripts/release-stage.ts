@@ -123,6 +123,7 @@ export interface InstalledSmokeOptions {
   dependencies: Record<string, string>;
   version: string;
   localTarballs?: string[];
+  registryTag?: string;
 }
 
 export type CommandRunner = (
@@ -650,11 +651,34 @@ export async function stageRelease(
   }
 
   const baselineCommit = await runGit(destination, "rev-parse", "HEAD");
-  const report: ExportReport = await exportPublicSnapshot({
-    sourceRoot,
-    sourceCommit: plan.sourceCommit,
-    destination,
-  });
+  let report: ExportReport;
+  try {
+    report = await exportPublicSnapshot({
+      sourceRoot,
+      sourceCommit: plan.sourceCommit,
+      destination,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (
+      /destination (contains files not explained|file differs from its prior export)/.test(
+        message,
+      )
+    ) {
+      const explained = await runGit(
+        destination,
+        "log",
+        "-1",
+        "--format=%H",
+        "--",
+        ".gitdocket-source.json",
+      );
+      throw new Error(
+        `${message}\nPublic baseline drift. Two legal options: (1) stage in a fresh clone at the last explained export ${explained || "identified in public history"}; (2) review the intervening public changes, stage from that explained export, then parent the unpublished release commit on current main while preserving those reviewed changes. Recheck the diff before approval; never delete provenance or overwrite current main.`,
+      );
+    }
+    throw error;
+  }
   const artifacts = resolve(
     sourceRoot,
     options.standaloneDirectory ?? "release/standalone",

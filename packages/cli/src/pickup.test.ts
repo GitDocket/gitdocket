@@ -113,4 +113,90 @@ describe("docket task start pickup contract", () => {
     expect(human.stdout).toContain(`\n${id} — Top task\n`);
     expect(human.stdout).not.toContain("suggestedSessionTitle");
   });
+
+  test("refuses a different ID without changing its status, marker, or workflow token", async () => {
+    const firstId = JSON.parse(
+      sh(["bun", CLI, "task", "create", "--title", "First writer", "--json"])
+        .stdout,
+    ).id as string;
+    const secondId = JSON.parse(
+      sh(["bun", CLI, "task", "create", "--title", "Second writer", "--json"])
+        .stdout,
+    ).id as string;
+    expect(sh(["git", "init", "-q"]).code).toBe(0);
+    expect(sh(["git", "config", "user.name", "Pickup Test"]).code).toBe(0);
+    expect(
+      sh(["git", "config", "user.email", "pickup@example.test"]).code,
+    ).toBe(0);
+    expect(sh(["git", "add", "."]).code).toBe(0);
+    expect(sh(["git", "commit", "-qm", "Add tracked tasks"]).code).toBe(0);
+
+    const first = sh(["bun", CLI, "task", "start", firstId, "--json"]);
+    expect(first.code).toBe(0);
+    const token = await readFile(
+      join(repo, ".docket", "workflow-token"),
+      "utf8",
+    );
+    const marker = await readFile(join(repo, ".docket", "active-task"), "utf8");
+    const refused = sh(["bun", CLI, "task", "start", secondId, "--json"]);
+    expect(refused.code).toBe(1);
+    const error = JSON.parse(refused.stdout).error;
+    expect(error.code).toBe("active-task-conflict");
+    expect(error.activeTaskId).toBe(firstId);
+    expect(error.requestedTaskId).toBe(secondId);
+    expect(error.handoff).toEqual({
+      command: "docket task stop",
+      requiresExplicitAuthorization: true,
+      nextCommand: `docket task start ${secondId} --json`,
+    });
+    expect(error.isolation.command).toContain("git -C");
+    expect(error.isolation.command).toContain("worktree add -b");
+    expect(error.isolation.branch).toContain(secondId);
+    expect(error.isolation.requiresConfirmationByDefault).toBe(true);
+    expect(error.isolation.agentPrompt).toContain(
+      `May I create a linked Git worktree at <path> on branch <branch> from commit <commit>, then start ${secondId} there?`,
+    );
+    expect(error.isolation.agentPrompt).toContain(
+      "Do not run docket task stop",
+    );
+    expect(await readFile(join(repo, ".docket", "active-task"), "utf8")).toBe(
+      marker,
+    );
+    expect(
+      await readFile(join(repo, ".docket", "workflow-token"), "utf8"),
+    ).toBe(token);
+
+    const human = sh(["bun", CLI, "task", "start", secondId]);
+    expect(human.code).toBe(1);
+    expect(human.stdout).toContain(`cannot start ${secondId} here`);
+    expect(human.stdout).toContain("Git recipe: git -C");
+    expect(human.stdout).toContain("Agent prompt:");
+    const items = sh(["bun", CLI, "task", "list", "--all", "--json"]);
+    expect(
+      JSON.parse(items.stdout).find(
+        (item: { id: string }) => item.id === secondId,
+      ).status,
+    ).toBe("todo");
+
+    expect(sh(["bun", CLI, "task", "stop"]).code).toBe(0);
+    expect(sh(["bun", CLI, "task", "start", secondId, "--json"]).code).toBe(0);
+  });
+
+  test("does not present an executable worktree command when the task is absent from a starting commit", () => {
+    const firstId = JSON.parse(
+      sh(["bun", CLI, "task", "create", "--title", "First", "--json"]).stdout,
+    ).id as string;
+    const secondId = JSON.parse(
+      sh(["bun", CLI, "task", "create", "--title", "Second", "--json"]).stdout,
+    ).id as string;
+    expect(sh(["bun", CLI, "task", "start", firstId, "--json"]).code).toBe(0);
+    const refused = sh(["bun", CLI, "task", "start", secondId, "--json"]);
+    expect(refused.code).toBe(1);
+    const isolation = JSON.parse(refused.stdout).error.isolation;
+    expect(isolation.command).toBeNull();
+    expect(isolation.commandTemplate).toContain("git worktree add");
+    expect(isolation.issues).toContain(
+      "HEAD is not a usable starting commit; choose a committed starting point.",
+    );
+  });
 });

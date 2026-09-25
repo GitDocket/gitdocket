@@ -91,7 +91,7 @@ const REQUIRED_PUBLIC_PATHS = [
   "scripts/release.ts",
 ] as const;
 
-const VERSION_SURFACES = ["README.md", "docs/getting-started.md"] as const;
+const VERSION_SURFACES = ["README.md"] as const;
 const VERSION_SOURCE = "packages/core/src/version.ts";
 const SHIPPED_HISTORY = "packages/core/src/shipped-history.json";
 const EXPORT_MANIFEST = "release/public-export.json";
@@ -618,7 +618,20 @@ export async function updateVersionSurfaces(
     const body = await readFile(path, "utf8");
     writes.push({
       path: surface,
-      body: replaceAllExact(body, previousVersion, nextVersion),
+      body: (() => {
+        const matches = [...body.matchAll(/GitDocket (\d+\.\d+\.\d+)/g)];
+        if (
+          matches.length !== 1 ||
+          compareSemver(matches[0]?.[1] ?? "", previousVersion) > 0
+        )
+          throw new Error(
+            `${surface} must contain one current or outgoing GitDocket version banner`,
+          );
+        return body.replace(
+          matches[0]?.[0] as string,
+          `GitDocket ${nextVersion}`,
+        );
+      })(),
     });
   }
 

@@ -14,7 +14,10 @@
   },
   "overrides": [
     {
-      "includes": ["docket/assets/extensions/dkt199/setup.json"],
+      "includes": [
+        "docket/assets/extensions/dkt199/setup.json",
+        "docket/assets/website/dkt239/preview.json"
+      ],
       "formatter": {
         "enabled": false
       }

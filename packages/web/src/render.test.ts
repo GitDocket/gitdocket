@@ -17,3 +17,15 @@ test("reading and preview renderer leave long prose to browser wrapping and reta
   expect(intentional.match(/<br>/g)).toHaveLength(2);
   expect(intentional).toContain("line one\nline two\n");
 });
+
+test("Mermaid fences retain escaped source for reading and preview hydration", () => {
+  const source = 'flowchart LR\n A["<script>alert(1)</script>"] --> B';
+  const html = renderMarkdown(
+    "reference/diagrams.md",
+    `\`\`\`mermaid\n${source}\n\`\`\`\n\n\`\`\`js\nconst x = 1;\n\`\`\``,
+  );
+  expect(html).toContain('class="language-mermaid"');
+  expect(html).toContain("&#x3C;script>alert(1)&#x3C;/script>");
+  expect(html).not.toContain("<script>");
+  expect(html).toContain('class="language-js"');
+});

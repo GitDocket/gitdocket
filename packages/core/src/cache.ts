@@ -56,6 +56,7 @@ export interface GitActivityObservation extends ActivityRow {
 }
 
 export interface GitEvidence {
+  taskProgress?: import("./task-observations").TaskProgressEvidence;
   status: "available" | "history-unavailable";
   checkpoint: GitCheckpoint | null;
   /** Canonical activity reachable from the calling checkout's HEAD. */

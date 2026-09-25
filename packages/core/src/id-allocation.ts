@@ -7,6 +7,7 @@ import { execFile } from "node:child_process";
 import { readFile, stat } from "node:fs/promises";
 import { isAbsolute, join, resolve } from "node:path";
 import { promisify } from "node:util";
+import { reservedConceptIds } from "./concept-ids";
 import { parseConfig } from "./config";
 import { mapFiles } from "./file-batch";
 import { acquireFileLock } from "./file-lock";
@@ -74,13 +75,6 @@ async function linkedWorktrees(repoRoot: string): Promise<string[]> {
   return [...new Set(paths)];
 }
 
-function readableWorkItemId(source: string): string | null {
-  const frontmatter = source.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
-  if (!frontmatter?.[1]) return null;
-  const id = frontmatter[1].match(/^id:\s*['"]?([^\s'"#]+)['"]?\s*(?:#.*)?$/m);
-  return id?.[1] ?? null;
-}
-
 async function idsInWorktree(
   worktree: string,
   project: string,
@@ -121,24 +115,17 @@ async function idsInWorktree(
     throw error;
   }
 
-  const ids = await mapFiles(
-    paths.filter((path) => /^work\/(?:tasks|epics)\/.+\.md$/.test(path)),
-    async (path) => {
-      const source = await store.read(path).catch((error: unknown) => {
-        throw new Error(
-          `cannot read linked work item ${join(worktree, config.bundle, path)}: ${error instanceof Error ? error.message : String(error)}`,
-        );
-      });
-      const id = readableWorkItemId(source);
-      if (!id) {
-        throw new Error(
-          `cannot allocate an ID while linked work item ${join(worktree, config.bundle, path)} has no readable frontmatter id`,
-        );
-      }
-      return id.startsWith(`${project}-`) ? id : null;
-    },
-  );
-  return ids.filter((id): id is string => id !== null);
+  const ids = await mapFiles(paths, async (path) => {
+    const source = await store.read(path).catch((error: unknown) => {
+      throw new Error(
+        `cannot read linked work item ${join(worktree, config.bundle, path)}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    });
+    return reservedConceptIds(source, path).filter((id) =>
+      id.startsWith(`${project}-`),
+    );
+  });
+  return ids.flat();
 }
 
 async function repositoryIds(

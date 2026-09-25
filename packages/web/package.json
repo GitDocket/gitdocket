@@ -1,6 +1,6 @@
 {
   "name": "@gitdocket/web",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "type": "module",
   "license": "Apache-2.0",
   "repository": {
@@ -30,6 +30,7 @@
   "dependencies": {
     "@gitdocket/core": "workspace:*",
     "hono": "^4.13.5",
+    "mermaid": "12.0.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "rehype-stringify": "^10.0.1",

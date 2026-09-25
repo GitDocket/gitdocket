@@ -14,6 +14,20 @@ import { basename, dirname, join, resolve } from "node:path";
 import type { InstalledSmokeOptions, SmokeResult } from "./release-stage";
 import { smokeStandalone } from "./standalone-smoke";
 
+export function smokeRegistryConfig(
+  options: InstalledSmokeOptions,
+  localRegistry?: string,
+) {
+  const registry = localRegistry ?? "https://registry.npmjs.org/";
+  return {
+    npm_config_registry: registry,
+    "npm_config_@gitdocket:registry": registry,
+    npm_config_tag: localRegistry
+      ? "latest"
+      : (options.registryTag ?? "latest"),
+  };
+}
+
 async function command(args: string[], cwd: string, env = process.env) {
   const child = Bun.spawn(args, {
     cwd,
@@ -137,7 +151,7 @@ export async function runNpmInstalledSmoke(
       ...process.env,
       PATH: runtime,
       npm_config_cache: join(root, "cache"),
-      npm_config_registry: registry?.url ?? "https://registry.npmjs.org/",
+      ...smokeRegistryConfig(options, registry?.url),
       npm_config_userconfig: join(root, "empty.npmrc"),
       npm_config_globalconfig: join(root, "empty-global.npmrc"),
     };
@@ -296,7 +310,10 @@ export async function runNpmInstalledSmoke(
         "@gitdocket/mcp@0.3.1",
       ],
       root,
-      env,
+      // A scoped registry takes precedence over --registry. The historical
+      // acquisition must leave the candidate-only registry, then update below
+      // returns to the candidate registry/tag without public fallback.
+      { ...env, ...smokeRegistryConfig(options) },
     );
     assert(
       (await readFile(join(prior, "bin/docket"), "utf8")).startsWith(

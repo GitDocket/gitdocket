@@ -24,7 +24,7 @@ jobs:
       contents: write
     uses: ./.github/workflows/standalone.yml
     with:
-      macos_release_tag: candidate-${{ github.ref_name }}
+      qualified_release_tag: candidate-${{ github.ref_name }}
 
   preflight:
     needs: standalone
@@ -62,7 +62,7 @@ jobs:
           pattern: standalone-${{ github.sha }}-*
           path: release/standalone
           merge-multiple: true
-      - run: bun scripts/macos-qualification.ts --artifacts release/standalone
+      - run: bun scripts/macos-qualification.ts --artifacts release/standalone --linux
       - run: bun run release:pack
       - name: Verify the exact candidate and registry state
         run: >-
@@ -106,15 +106,33 @@ jobs:
         with:
           name: release-preflight-${{ github.ref_name }}-${{ github.run_attempt }}
           path: release/receipts
-      - name: Publish, verify, smoke, and promote the coordinated set
+      - name: Publish, verify and smoke the holding set
         run: >-
           bun run release:publish -- registry
           --input release/receipts/preflight.json
-          --output release/receipts/registry.json
+          --hold --output release/receipts/staged.json
       - uses: actions/upload-artifact@v4
         with:
+          name: release-staged-receipt-${{ github.ref_name }}-${{ github.run_attempt }}
+          path: release/receipts/staged.json
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Wait for owner promotion (never republishes)
+        run: >-
+          bun run release -- wait registry
+          --input release/receipts/staged.json --tag latest
+          --timeout-ms 2700000 --output release/receipts/promotion-wait.json
+      - name: Record the verified final registry state
+        run: >-
+          bun run release:publish -- finalize
+          --input release/receipts/staged.json
+          --output release/receipts/registry.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
           name: release-registry-receipt-${{ github.ref_name }}-${{ github.run_attempt }}
-          path: release/receipts/registry.json
+          path: release/receipts/*.json
           if-no-files-found: error
           retention-days: 90
 

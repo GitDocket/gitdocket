@@ -240,6 +240,9 @@ describe("GitEvidenceIndex", () => {
       const second = await concurrent.snapshot(bundle.byId);
       expect(first.git.unmergedActivity).toHaveLength(2000);
       expect(first.git.truncated).toBeTrue();
+      // Observation times describe distinct captures; semantic selection stays deterministic.
+      if (first.git.taskProgress && second?.git.taskProgress)
+        second.git.taskProgress.observedAt = first.git.taskProgress.observedAt;
       expect(second).toEqual(first);
     } finally {
       serial.close();
@@ -310,6 +313,9 @@ describe("GitEvidenceIndex", () => {
       const first = await index.snapshot(bundle.byId);
       const second = await later;
       expect(first.activity).toHaveLength(1);
+      // Observation times describe distinct captures; semantic selection stays deterministic.
+      if (first.git.taskProgress && second?.git.taskProgress)
+        second.git.taskProgress.observedAt = first.git.taskProgress.observedAt;
       expect(second).toEqual(first);
       expect(first.git.checkpoint?.revision).toBe(
         git(root, "rev-parse", "HEAD"),

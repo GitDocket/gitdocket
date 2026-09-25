@@ -12,7 +12,7 @@ export const ENGINE_SEMANTICS = {
   readyOrdering:
     "The ready queue puts ranked tasks first by ascending `rank`; rank ties and the unranked tail use priority (`p0` through `p3`), then ascending task ID as the stable fallback.",
   transitions:
-    "Stored status changes go through the engine's canonical transition table; invalid transitions are rejected, `done` and `closed` are terminal, and moving to `closed` requires a disposition note. Only `done` satisfies dependencies or counts as completion.",
+    "Stored status changes go through the engine's canonical transition table; invalid transitions are rejected, `done` is terminal, and moving to `closed` requires a disposition note. A project may opt Tasks and Epics into `closed` → `todo` reopening separately through `workflow.reopen_closed`; reopening requires a reason note and preserves the earlier disposition. Only `done` satisfies dependencies or counts as completion.",
   mutationOwnership: {
     pickup:
       "The engine owns task selection, the state-machine-checked status transition, active-task state, title derivation, and the context packet; the pickup workflow owns only their sequence, and a native adapter owns only its bounded rename binding.",

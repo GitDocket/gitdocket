@@ -54,6 +54,18 @@ export function canTransition(from: Status, to: Status): boolean {
   return TRANSITIONS[from].includes(to);
 }
 
+export function canTransitionWorkItem(
+  from: Status,
+  to: Status,
+  type: WorkItemType,
+  reopenClosed: readonly WorkItemType[],
+): boolean {
+  return (
+    canTransition(from, to) ||
+    (from === "closed" && to === "todo" && reopenClosed.includes(type))
+  );
+}
+
 /**
  * Manual order: ranked items first, lower `rank` first, priority as
  * the tiebreak and the order for the unranked tail. The ready lists (CLI and

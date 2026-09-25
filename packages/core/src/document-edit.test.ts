@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseConfig } from "./config";
 import {
+  createDocument,
   DOCUMENT_EDIT_MAX_BYTES,
   editDocument,
   readEditableDocument,
@@ -240,6 +241,93 @@ describe("versioned authored source editing", () => {
           "escape.md",
         ),
       ).rejects.toMatchObject({ code: "invalid" });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("ordinary wiki creation", () => {
+  const input = {
+    path: "reference/cache.md",
+    type: "Reference",
+    title: "Cache",
+    body: "# Cache\n\nA complete paragraph.\n",
+  };
+  test("creates all ordinary types, preserves collisions and versions subsequent edits", async () => {
+    const store = new InMemoryFileStore();
+    for (const type of ["Reference", "Spec", "Playbook"]) {
+      const args = { ...input, type, path: `${type.toLowerCase()}/cache.md` };
+      const created = await createDocument(store, config, args);
+      expect(created.document.body).toBe(input.body);
+      expect(created.taskId).toBeNull();
+      const original = await store.read(args.path);
+      await expect(createDocument(store, config, args)).rejects.toThrow(
+        "already exists",
+      );
+      expect(await store.read(args.path)).toBe(original);
+      await editDocument(store, config, args.path, {
+        expectedVersion: created.document.version,
+        patch: { body: "Changed\n" },
+      });
+      await expect(
+        editDocument(store, config, args.path, {
+          expectedVersion: created.document.version,
+          patch: { body: "Stale\n" },
+        }),
+      ).rejects.toThrow("changed");
+    }
+  });
+  test("rejects unauthorized paths, fields and oversized content before writes", async () => {
+    const store = new InMemoryFileStore();
+    for (const path of [
+      "../escape.md",
+      "/escape.md",
+      "reference/INDEX.md",
+      "reference/hidden.MD",
+      "Reference/Project-Guidance.md",
+      "work/a.md",
+      "decisions/a.md",
+      "workflows/a.md",
+      "extensions/a.md",
+      ".agents/a.md",
+    ]) {
+      await expect(
+        createDocument(store, config, { ...input, path }),
+      ).rejects.toThrow();
+    }
+    for (const change of [
+      { status: "todo" },
+      { type: "Task" },
+      { title: " " },
+      { tags: [null] },
+      { body: "x".repeat(DOCUMENT_EDIT_MAX_BYTES) },
+    ])
+      await expect(
+        createDocument(store, config, { ...input, ...change }),
+      ).rejects.toThrow();
+    expect(await store.list()).toEqual([]);
+  });
+  test("exclusive local creation refuses concurrent collisions and linked parents", async () => {
+    const root = await mkdtemp(join(tmpdir(), "docket-wiki-"));
+    try {
+      await mkdir(join(root, "bundle"));
+      await mkdir(join(root, "outside"));
+      await symlink(join(root, "outside"), join(root, "bundle/linked"));
+      const store = new LocalFileStore(join(root, "bundle"));
+      await expect(
+        createDocument(store, config, { ...input, path: "linked/a.md" }),
+      ).rejects.toThrow();
+      const results = await Promise.allSettled([
+        createDocument(store, config, input),
+        createDocument(new LocalFileStore(store.root), config, input),
+      ]);
+      expect(
+        results.filter((result) => result.status === "fulfilled"),
+      ).toHaveLength(1);
+      expect(
+        results.filter((result) => result.status === "rejected"),
+      ).toHaveLength(1);
     } finally {
       await rm(root, { recursive: true, force: true });
     }

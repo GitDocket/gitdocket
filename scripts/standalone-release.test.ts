@@ -1,10 +1,18 @@
 import { afterEach, expect, test } from "bun:test";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DOCKET_VERSION } from "../packages/core/src/version";
 import {
   checked,
+  dependencyNotices,
   digest,
   type StandaloneManifest,
   verifyStandaloneSet,
@@ -154,4 +162,42 @@ test("release verification rejects source/version drift and absent platforms", a
   await expect(
     verifyStandaloneSet(f.root, f.output, { development: true }),
   ).rejects.toThrow();
+});
+
+test("license notices follow workspace and isolated dependencies without stale store versions", async () => {
+  const root = await mkdtemp(join(tmpdir(), "standalone-notices-"));
+  roots.push(root);
+  await mkdir(join(root, "release/licenses"), { recursive: true });
+  await writeFile(join(root, "release/licenses/bun-1.3.14.md"), "Bun notice");
+  const workspace = join(root, "packages/web/node_modules");
+  await mkdir(workspace, { recursive: true });
+  const store = join(root, "node_modules/.bun");
+  const packageDir = async (name: string, version: string) => {
+    const path = join(
+      store,
+      `${name.replace("/", "+")}@${version}`,
+      "node_modules",
+      name,
+    );
+    await mkdir(path, { recursive: true });
+    await writeFile(
+      join(path, "package.json"),
+      JSON.stringify({ name, version, license: "MIT" }),
+    );
+    await writeFile(join(path, "LICENSE"), `${name} ${version} notice`);
+    return path;
+  };
+  const renderer = await packageDir("renderer", "1");
+  const helper = await packageDir("@diagram/helper", "2");
+  await packageDir("renderer", "stale");
+  await symlink(renderer, join(workspace, "renderer"));
+  const peers = join(renderer, "../@diagram");
+  await mkdir(peers);
+  await symlink(helper, join(peers, "helper"));
+  await symlink(renderer, join(helper, "../../renderer"));
+  const notices = await dependencyNotices(root);
+  expect(notices).toContain("renderer 1 notice");
+  expect(notices).toContain("@diagram/helper 2 notice");
+  expect(notices.match(/renderer@1/g)).toHaveLength(1);
+  expect(notices).not.toContain("stale");
 });

@@ -345,6 +345,21 @@ describe("docket upgrade e2e", () => {
       );
 
       const installed = await runUpgrade(fixture, {});
+      const wikiPath = at(".agents", "skills", "docket-wiki", "SKILL.md");
+      expect(await readFile(wikiPath, "utf8")).toContain(
+        "docs/workflows/docket-wiki.md",
+      );
+      expect(
+        await readFile(at("docs", "workflows", "docket-wiki.md"), "utf8"),
+      ).toContain("docket document create");
+      await writeFile(
+        wikiPath,
+        `${await readFile(wikiPath, "utf8")}\nStale generated pointer\n`,
+      );
+      await runUpgrade(fixture, {});
+      expect(await readFile(wikiPath, "utf8")).not.toContain(
+        "Stale generated pointer",
+      );
       const pickupPath = at(".agents", "skills", "docket-pickup", "SKILL.md");
       const pickup = await readFile(pickupPath, "utf8");
       expect(pickup).toContain(ADAPTER_MARKER);

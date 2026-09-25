@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+import { GitEvidenceIndex } from "@gitdocket/core/cache";
 
 // docket — first thin client over @gitdocket/core. Every command is a core
 // call plus formatting; agents pass --json, humans get columns.
@@ -7,15 +8,19 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   appendLog,
+  applyDocumentMove,
   applyIndex,
   type Bundle,
   buildContextPacket,
   type ContextPacket,
+  createDecision,
+  createDocument,
   createWorkItem,
   DEFAULT_BUNDLE,
   DOCKET_VERSION,
   type DocketConfig,
   docketIntent,
+  editDocument,
   findFreshnessWatermark,
   findRepoRoot,
   GitWorktreeIdCoordinator,
@@ -27,9 +32,12 @@ import {
   type Priority,
   parseConfig,
   parseStateOfPlay,
+  planDocumentMove,
   READY_QUEUE_DESCRIPTION,
+  readEditableDocument,
   readProjectGuidance,
   readyWorkItems,
+  recoverDocumentMove,
   renderIndex,
   STATE_OF_PLAY_PATH,
   searchFresh,
@@ -38,9 +46,11 @@ import {
   setRank,
   setStatus,
   sourcePage,
+  taskProgressLabel,
   verifyStatus,
   type WorkItem,
   type WorkItemType,
+  withTaskProgress,
 } from "@gitdocket/core";
 import { scanActivity, taskLinkedCommitsSince } from "@gitdocket/core/cache";
 import { deriveRepositoryOverview } from "@gitdocket/core/orientation";
@@ -63,6 +73,7 @@ import { trailerlessSince } from "./freshness";
 import { refreshIndex } from "./indexing";
 import { AGENT_TARGETS, type AgentTarget, runInit } from "./init";
 import { renderOverview } from "./overview";
+import { pickupConflict } from "./pickup-conflict";
 import { registerTelemetry } from "./telemetry";
 import { runUpgrade } from "./upgrade";
 import { scanRepoMarkers } from "./verify";
@@ -191,6 +202,17 @@ async function printPacket(packet: ContextPacket): Promise<void> {
     );
 }
 
+async function readTaskProgress(b: Bundle, root: string, config: DocketConfig) {
+  const owner = new GitEvidenceIndex(root, config.git.trailer, {
+    bundlePath: config.bundle,
+  });
+  try {
+    return (await owner.snapshot(b.byId)).git.taskProgress;
+  } finally {
+    owner.close();
+  }
+}
+
 const program = new Command();
 registerTelemetry(program, print);
 registerExtensions(program, async () => (await ctx()).store.root, print);
@@ -208,13 +230,29 @@ program
   .option("--json", "machine-readable output")
   .option("--limit <n>", "return the first n ready tasks", integer)
   .action(async (opts: { json?: boolean; limit?: number }) => {
-    const { metadata } = await ctx();
+    const { metadata, root, config } = await ctx();
     const b = await metadata();
+    const progress = await readTaskProgress(b, root, config);
     const ready = readyWorkItems(b).slice(0, opts.limit);
-    if (opts.json) await print(JSON.stringify(ready.map(summarize), null, 2));
+    if (opts.json)
+      await print(
+        JSON.stringify(
+          ready.map((w) => withTaskProgress(summarize(w), progress)),
+          null,
+          2,
+        ),
+      );
     else if (ready.length === 0)
       await print("nothing ready — check `docket task list --status blocked`");
-    else for (const w of ready) await print(row(w));
+    else
+      for (const w of ready) {
+        const p = progress?.tasks.find((p) => p.id === w.fm.id);
+        await print(row(w) + (p ? ` — ${taskProgressLabel(p)}` : ""));
+      }
+    if (!opts.json && progress && !progress.complete)
+      await print(
+        "Worktree progress is partial; run docket task progress for details.",
+      );
   });
 
 program
@@ -615,6 +653,112 @@ program
     }
   });
 
+const document = program
+  .command("document")
+  .description("Create and revise ordinary wiki sources without tracking work");
+document
+  .command("move-plan <from> <to>")
+  .description(
+    "Inspect an ordinary wiki path move and supported link repairs without writing",
+  )
+  .option(
+    "--json",
+    "machine-readable plan with version, affected paths and blockers",
+  )
+  .action(async (from: string, to: string) => {
+    const { store, config } = await ctx();
+    await print(
+      JSON.stringify(await planDocumentMove(store, config, from, to), null, 2),
+    );
+  });
+document
+  .command("move-apply")
+  .description(
+    "Apply a reviewed move with from/to/expectedVersion from a JSON request file",
+  )
+  .requiredOption(
+    "--input <file>",
+    "JSON containing only from, to and expectedVersion from move-plan",
+  )
+  .option("--json", "machine-readable completion or recovery receipt")
+  .action(async (opts: { input: string }) => {
+    const { store, config } = await ctx();
+    const result = await applyDocumentMove(
+      store,
+      config,
+      JSON.parse(await readFile(opts.input, "utf8")),
+    );
+    await print(JSON.stringify(result, null, 2));
+    if (result.state !== "complete") process.exitCode = 1;
+  });
+document
+  .command("move-recover <token>")
+  .description(
+    "Resume a journaled move after validating every original or planned source",
+  )
+  .option("--json", "machine-readable completion or recovery receipt")
+  .action(async (token: string) => {
+    const { store, config } = await ctx();
+    const result = await recoverDocumentMove(store, config, token);
+    await print(JSON.stringify(result, null, 2));
+    if (result.state !== "complete") process.exitCode = 1;
+  });
+document
+  .command("create")
+  .description(
+    "Create a Reference, Spec or Playbook exclusively from a JSON request file",
+  )
+  .requiredOption(
+    "--input <file>",
+    "JSON containing path, type, title, body and optional description/tags",
+  )
+  .option("--json", "machine-readable result")
+  .action(async (opts: { input: string; json?: boolean }) => {
+    const { store, config } = await ctx();
+    const result = await createDocument(
+      store,
+      config,
+      JSON.parse(await readFile(opts.input, "utf8")),
+    );
+    await print(
+      opts.json
+        ? JSON.stringify(result, null, 2)
+        : `Created ${result.document.path}. Run docket index to refresh discovery.`,
+    );
+  });
+document
+  .command("read <path>")
+  .description("Read complete editable source and its concurrency version")
+  .option("--json", "machine-readable result")
+  .action(async (path: string) => {
+    const { store, config } = await ctx();
+    await print(
+      JSON.stringify(await readEditableDocument(store, config, path), null, 2),
+    );
+  });
+document
+  .command("edit <path>")
+  .description(
+    "Save an expectedVersion and body/title/description patch from a JSON file",
+  )
+  .requiredOption("--input <file>", "JSON containing expectedVersion and patch")
+  .option("--json", "machine-readable result")
+  .action(async (path: string, opts: { input: string }) => {
+    const { store, config } = await ctx();
+    await print(
+      JSON.stringify(
+        await editDocument(
+          store,
+          config,
+          path,
+          JSON.parse(await readFile(opts.input, "utf8")),
+        ),
+        null,
+        2,
+      ),
+    );
+  });
+
 program
   .command("source <path>")
   .description(
@@ -682,8 +826,9 @@ task
       limit?: number;
       offset: number;
     }) => {
-      const { metadata } = await ctx();
+      const { metadata, root, config } = await ctx();
       const b = await metadata();
+      const progress = await readTaskProgress(b, root, config);
       let items = b.workItems;
       // History hides by default — it lives in git and the wiki.
       if (opts.status) items = items.filter((w) => w.fm.status === opts.status);
@@ -709,10 +854,72 @@ task
         opts.offset,
         opts.limit === undefined ? undefined : opts.offset + opts.limit,
       );
-      if (opts.json) await print(JSON.stringify(items.map(summarize), null, 2));
-      else for (const w of items) await print(row(w));
+      if (opts.json)
+        await print(
+          JSON.stringify(
+            items.map((w) => withTaskProgress(summarize(w), progress)),
+            null,
+            2,
+          ),
+        );
+      else {
+        for (const w of items) {
+          const p = progress?.tasks.find((p) => p.id === w.fm.id);
+          await print(row(w) + (p ? ` — ${taskProgressLabel(p)}` : ""));
+        }
+        if (progress?.tasks.some((p) => p.localStatus === null))
+          await print("Tasks found only elsewhere: use docket task progress.");
+        if (progress && !progress.complete)
+          await print(
+            "Worktree progress is partial; use docket task progress for details.",
+          );
+      }
     },
   );
+
+task
+  .command("progress [id]")
+  .description(
+    "Read task progress across local worktrees and refs; never changes recorded status",
+  )
+  .option("--json", "machine-readable output")
+  .action(async (id: string | undefined, opts: { json?: boolean }) => {
+    const { metadata, root, config } = await ctx();
+    const b = await metadata();
+    const evidence = await readTaskProgress(b, root, config);
+    const tasks = (evidence?.tasks ?? []).filter((p) => !id || p.id === id);
+    if (opts.json)
+      await print(
+        JSON.stringify(
+          {
+            ...evidence,
+            tasks,
+            observations: tasks.flatMap((p) => p.observations),
+            ...(!evidence
+              ? {
+                  complete: false,
+                  diagnostics: ["Git task progress unavailable"],
+                }
+              : {}),
+          },
+          null,
+          2,
+        ),
+      );
+    else {
+      for (const p of tasks)
+        await print(
+          `${p.id} ${p.title} — ${taskProgressLabel(p)}${p.localStatus === null ? " · only in another checkout/ref" : ""}`,
+        );
+      if (!tasks.length)
+        await print("No task progress observed in admitted sources.");
+      for (const d of evidence?.diagnostics ?? [
+        "Git task progress unavailable",
+      ])
+        await print(d);
+      if (evidence) await print(`Observed ${evidence.observedAt}`);
+    }
+  });
 
 task
   .command("create")
@@ -757,6 +964,39 @@ task
     },
   );
 
+program
+  .command("decision")
+  .description("record decisions without starting tracked work")
+  .command("create")
+  .description(
+    "record an accepted Decision in decisions/ using the configured decision prefix",
+  )
+  .requiredOption("--title <title>", "decision title")
+  .option("--description <text>", "one-sentence description")
+  .option(
+    "--context <text>",
+    "context, relevant links and alternatives considered",
+  )
+  .option("--decision <text>", "accepted choice and why")
+  .option("--consequences <text>", "tradeoffs and follow-up effects")
+  .option("--tags <tags>", "comma-separated tags")
+  .option("--json", "machine-readable output")
+  .action(async (opts) => {
+    const { store, config, idCoordinator } = await ctx();
+    try {
+      const result = await createDecision(
+        store,
+        config,
+        { ...opts, tags: opts.tags?.split(",").map((s: string) => s.trim()) },
+        idCoordinator,
+      );
+      if (opts.json) await print(JSON.stringify(result, null, 2));
+      else await print(`created ${result.id} at ${result.path}`);
+    } catch (error) {
+      fail(error);
+    }
+  });
+
 task
   .command("start [id]")
   .description(
@@ -787,6 +1027,42 @@ task
       return fail(
         new Error(`${item.fm.id} is an epic — start one of its tasks`),
       );
+    const active = (
+      await readFile(activeTaskPath(root), "utf8").catch(
+        (error: NodeJS.ErrnoException) => {
+          if (error.code === "ENOENT") return "";
+          throw error;
+        },
+      )
+    ).trim();
+    if (active && active !== item.fm.id) {
+      const conflict = pickupConflict(root, config.bundle, active, item);
+      if (opts.json) await print(JSON.stringify({ error: conflict }, null, 2));
+      else {
+        await print(conflict.message);
+        await print(
+          `For an explicitly authorized hand-off: ${conflict.handoff.command}, then ${conflict.handoff.nextCommand}`,
+        );
+        await print(
+          "For parallel tracked work, propose a separate linked worktree and confirm before creating it unless isolation is already explicitly authorized.",
+        );
+        await print(`Suggested path: ${conflict.isolation.path}`);
+        await print(
+          `Suggested branch: ${conflict.isolation.branch} (adapt to project branch guidance)`,
+        );
+        await print(
+          `Starting point: ${conflict.isolation.startingPoint}; later integrate the separate branch explicitly.`,
+        );
+        for (const issue of conflict.isolation.issues)
+          await print(`Resolve first: ${issue}`);
+        await print(
+          `Git recipe: ${conflict.isolation.command ?? conflict.isolation.commandTemplate}`,
+        );
+        await print(`Agent prompt: ${conflict.isolation.agentPrompt}`);
+      }
+      process.exitCode = 1;
+      return;
+    }
     try {
       const from = item.fm.status;
       const already = from === "in-progress";
@@ -865,7 +1141,10 @@ task
 task
   .command("move <id> <status>")
   .description("change status (state machine enforced)")
-  .option("--note <text>", "also append a dated Log entry")
+  .option(
+    "--note <text>",
+    "append a dated Log entry (required for closing or reopening closed work)",
+  )
   .option("--json", "machine-readable output")
   .action(
     async (

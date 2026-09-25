@@ -6,7 +6,7 @@ Ask your agent to make a change, check the result, and update the relevant docs.
 
 Browse project docs, see what is ready next, and review completed work in the local web interface. Your agent uses editable workflows stored in the same repository. GitDocket runs locally and needs no hosted account.
 
-> GitDocket 0.5.0 is a preview. File formats and commands may still change.
+> GitDocket 0.6.0 is a preview. File formats and commands may still change.
 
 ![Current GitDocket Home showing project context and ready work in the synthetic Harbor project](site/assets/current-home.jpg)
 

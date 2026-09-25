@@ -6,7 +6,7 @@
 
 import { watch } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import type { DocketConfig } from "@gitdocket/core";
 import { type Assets, createApp, localRequestBoundary } from "./app";
 import { createCommitter } from "./commit";
@@ -39,18 +39,27 @@ export async function buildAssets(
   const result = await Bun.build({
     entrypoints: [join(import.meta.dir, "client", "main.tsx")],
     target: "browser",
+    splitting: true,
+    naming: { entry: "app.js", chunk: "[name]-[hash].[ext]" },
     minify: !opts.dev,
     define: {
       "process.env.NODE_ENV": opts.dev ? '"development"' : '"production"',
     },
     throw: false, // surface logs ourselves — watch mode must outlive bad builds
   });
-  const entry = result.outputs[0];
+  const entry = result.outputs.find((output) => output.kind === "entry-point");
   if (!result.success || !entry) {
     throw new Error(`client build failed:\n${result.logs.join("\n")}`);
   }
   return {
     js: await entry.text(),
+    chunks: Object.fromEntries(
+      await Promise.all(
+        result.outputs
+          .filter((output) => output !== entry)
+          .map(async (output) => [basename(output.path), await output.text()]),
+      ),
+    ),
     css: await readFile(join(import.meta.dir, "client", "styles.css"), "utf8"),
   };
 }
@@ -261,6 +270,7 @@ function startWatcher(assets: Assets): DevWatcher {
       if (stopped) return;
       assets.js = next.js + RELOAD_JS;
       assets.css = next.css;
+      assets.chunks = next.chunks;
       console.log("docket serve — client rebuilt, reloading tabs");
       for (const client of clients) {
         try {

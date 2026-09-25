@@ -60,6 +60,40 @@ const DIRECT_WORK_FORBIDDEN_ACTIONS = [
 ] as const;
 
 export const PROMPT_ROUTING_FIXTURES: readonly PromptRoutingFixture[] = [
+  ...[
+    "Create a wiki page about our cache architecture.",
+    "Revise this reference page to explain cache invalidation.",
+    "Capture our cache architecture in the wiki if it is not already there.",
+    "Move the import reference to a new path and repair its links.",
+  ].map(
+    (prompt, index): PromptRoutingFixture => ({
+      id: `wiki-authoring-${index}`,
+      prompt,
+      expectedIntent: "wiki-authoring",
+      expectedEntrypoint: { kind: "workflow", value: "docket-wiki" },
+      allowedCommands: [
+        "docket guidance --json",
+        "docket search <topic> --json",
+        "docket document read <path> --json",
+        "docket document create --input <file> --json",
+        "docket document edit <path> --input <file> --json",
+        "docket document move-plan <from> <to> --json",
+        "docket document move-apply --input <file> --json",
+        "docket document move-recover <token> --json",
+        "docket index",
+        "docket lint --json",
+      ],
+      maximumInspectionScope: scope("wiki-authoring"),
+      writesPermitted: true,
+      forbiddenActions: [
+        "docket task start",
+        "docket task create",
+        "read unrelated .docket/active-task",
+        "execute a procedure",
+        "activate project guidance",
+      ],
+    }),
+  ),
   {
     id: "direct-work-with-guidance",
     prompt:
@@ -747,6 +781,10 @@ export interface IntentDiscoveryDiagnostic {
 const DISCOVERY_SIGNATURES: Readonly<
   Record<DocketIntentId, readonly string[]>
 > = {
+  "wiki-authoring": [
+    "create or revise ordinary wiki pages",
+    "duplicate checks",
+  ],
   "project-guidance": [
     "manage explicitly requested project guidance",
     "scoped procedures",
@@ -758,7 +796,7 @@ const DISCOVERY_SIGNATURES: Readonly<
     "active-task state",
   ],
   "epic-supervision": ["run a named epic to completion", "serial fallback"],
-  "task-management": ["explicit task operation", "only the work item"],
+  "task-management": ["explicit task operation", "only the named concept"],
   "project-maintenance": [
     "explicitly named docket maintenance",
     "using that workflow",

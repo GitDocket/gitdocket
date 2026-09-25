@@ -52,6 +52,33 @@ const V1 = "0.4.1";
 const NEXT = "0.5.0";
 
 export const TELEMETRY_COVERAGE: SurfaceCoverage[] = [
+  supported("cli", "document move-plan", "document_move_plan", "0.5.1"),
+  supported("cli", "document move-apply", "document_move_apply", "0.5.1"),
+  supported("cli", "document move-recover", "document_move_recover", "0.5.1"),
+  supported("mcp", "document_move_plan", "document_move_plan", "0.5.1"),
+  supported("mcp", "document_move_apply", "document_move_apply", "0.5.1"),
+  supported("mcp", "document_move_recover", "document_move_recover", "0.5.1"),
+  excluded(
+    "cli",
+    "decision",
+    "0.5.1",
+    "Parent group; subcommands are counted.",
+  ),
+  supported("cli", "decision create", "decision_create", "0.5.1"),
+  supported("mcp", "decision_create", "decision_create", "0.5.1"),
+  excluded(
+    "cli",
+    "document",
+    "0.5.1",
+    "Command group; subcommands are observed.",
+  ),
+  supported("cli", "document create", "document_create", "0.5.1"),
+  supported("cli", "document read", "document_read", "0.5.1"),
+  supported("cli", "document edit", "document_edit", "0.5.1"),
+  supported("mcp", "document_create", "document_create", "0.5.1"),
+  supported("mcp", "document_read", "document_read", "0.5.1"),
+  supported("mcp", "document_edit", "document_edit", "0.5.1"),
+  supported("mcp", "index", "index", "0.5.1"),
   supported("cli", "ready", "ready", V1),
   supported("cli", "overview", "overview", V1),
   supported("cli", "search", "search", V1),
@@ -64,6 +91,9 @@ export const TELEMETRY_COVERAGE: SurfaceCoverage[] = [
   supported("cli", "init", "init", V1),
   supported("cli", "upgrade", "upgrade", V1),
   supported("cli", "task list", "task_list", V1),
+  supported("cli", "task progress", "task_progress", "0.5.1"),
+  supported("mcp", "task_progress", "task_progress", "0.5.1"),
+  supported("serve", "GET /api/task-progress", "task_progress", "0.5.1"),
   supported("cli", "task create", "task_create", V1),
   supported("cli", "task start", "task_start", V1),
   supported("cli", "task stop", "task_stop", V1),
@@ -144,6 +174,8 @@ export const TELEMETRY_COVERAGE: SurfaceCoverage[] = [
   supported("serve", "GET /api/source/:path", "source_page", V1),
   supported("serve", "GET /api/concept/:path", "task_get", V1),
   supported("serve", "GET /api/work/:number", "task_get", V1),
+  supported("serve", "GET /api/document-create", "edit_open", "0.5.1"),
+  supported("serve", "POST /api/document-create", "document_create", "0.5.1"),
   supported("serve", "GET /api/guidance", "project_guidance", NEXT),
   supported("serve", "GET /api/edit-source/:path", "edit_open", NEXT),
   supported("serve", "POST /api/edit-source/:path", "edit_save", NEXT),
@@ -184,6 +216,8 @@ export function coverageFor(
 export function cliOperation(args: string[]): Operation | undefined {
   const key =
     args[0] === "task" ||
+    args[0] === "decision" ||
+    args[0] === "document" ||
     args[0] === "extension" ||
     args[0] === "telemetry" ||
     (args[0] === "verify" && args[1])

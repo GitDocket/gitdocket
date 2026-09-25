@@ -1,3 +1,4 @@
+import { foreignTaskSummaries, withTaskProgress } from "@gitdocket/core";
 // @gitdocket/mcp — the auto-approvable agent surface. Every tool is a
 // narrow, named, zod-validated mirror of a @gitdocket/core op; none executes
 // shell. Writes address IDs; source pages accept only exact members of the
@@ -7,19 +8,31 @@
 
 import {
   appendLog,
+  applyDocumentMove,
+  applyIndex,
   buildSchemas,
+  createDecision,
+  createDocument,
   createWorkItem,
   DOCKET_VERSION,
+  DOCUMENT_TYPES,
   type DocketConfig,
   docketIntent,
+  editDocument,
   type FileStore,
   GitWorktreeIdCoordinator,
   lintBundle,
+  loadBundle,
   MARKDOWN_AUTHORING_RULE,
+  mutate,
   PRIORITIES,
   parseConcept,
+  planDocumentMove,
   READY_QUEUE_DESCRIPTION,
+  readEditableDocument,
   readyWorkItems,
+  recoverDocumentMove,
+  renderIndex,
   STATES,
   setStatus,
   sourcePage,
@@ -185,9 +198,15 @@ export function createDocketServer(
       annotations: READ,
     },
     async ({ limit }) => {
-      const { bundle: b } = await owner.metadata();
+      const { bundle: b, config } = await owner.metadata();
+      const evidence = (await owner.evidence(config)?.snapshot(b.byId))?.git
+        .taskProgress;
       const ready = readyWorkItems(b);
-      return json(ready.slice(0, limit).map(summarize));
+      return json(
+        ready
+          .slice(0, limit)
+          .map((w) => withTaskProgress(summarize(w), evidence)),
+      );
     },
   );
 
@@ -195,7 +214,8 @@ export function createDocketServer(
     "task_list",
     {
       title: "List work items",
-      description: "All work items, optionally filtered by status or type.",
+      description:
+        "Local work items with observed worktree progress, optionally filtered by recorded status or type. Use task_progress to discover tasks existing only on other branches.",
       inputSchema: {
         status: z.enum(STATES).optional().describe("filter by status"),
         type: z.enum(WORK_ITEM_TYPES).optional().describe("Task or Epic"),
@@ -205,14 +225,16 @@ export function createDocketServer(
       annotations: READ,
     },
     async ({ status, type, limit, offset }) => {
-      const { bundle: b } = await owner.metadata();
+      const { bundle: b, config } = await owner.metadata();
+      const evidence = (await owner.evidence(config)?.snapshot(b.byId))?.git
+        .taskProgress;
       let items = b.workItems;
       if (status) items = items.filter((w) => w.fm.status === status);
       if (type) items = items.filter((w) => w.fm.type === type);
       return json(
         items
           .slice(offset, limit === undefined ? undefined : offset + limit)
-          .map(summarize),
+          .map((w) => withTaskProgress(summarize(w), evidence)),
       );
     },
   );
@@ -230,8 +252,14 @@ export function createDocketServer(
     },
     async ({ id }) => {
       const { bundle: b, config } = await owner.metadata();
+      const evidence = (await owner.evidence(config)?.snapshot(b.byId))?.git
+        .taskProgress;
       const item = b.byId(id);
-      if (!item) throw new Error(`no item with id ${id}`);
+      if (!item) {
+        const foreign = foreignTaskSummaries(evidence).find((p) => p.id === id);
+        if (foreign) return json(foreign);
+        throw new Error(`no item with id ${id}`);
+      }
       const source = await owner.source(item.path);
       const current = parseConcept(
         item.path,
@@ -245,9 +273,38 @@ export function createDocketServer(
       )
         throw new Error(`item changed; retry lookup: ${id}`);
       return json({
+        ...withTaskProgress({ id: current.fm.id }, evidence),
         path: item.path,
         frontmatter: current.fm,
         source,
+      });
+    },
+  );
+
+  server.registerTool(
+    "task_progress",
+    {
+      title: "Read task progress across worktrees",
+      description:
+        "Bounded local worktree and committed-ref observations, including foreign-only tasks, conflicts and coverage; read-only.",
+      inputSchema: { id: z.string().optional() },
+      annotations: READ,
+    },
+    async ({ id }) => {
+      const { bundle, config } = await owner.metadata();
+      const evidence = (await owner.evidence(config)?.snapshot(bundle.byId))
+        ?.git.taskProgress;
+      if (!evidence)
+        return json({
+          complete: false,
+          diagnostics: ["Git task progress unavailable"],
+          tasks: [],
+        });
+      const tasks = evidence.tasks.filter((p) => !id || p.id === id);
+      return json({
+        ...evidence,
+        tasks,
+        observations: tasks.flatMap((p) => p.observations),
       });
     },
   );
@@ -334,6 +391,184 @@ export function createDocketServer(
   );
 
   server.registerTool(
+    "index",
+    {
+      title: "Refresh wiki discovery",
+      description:
+        "Refresh the generated bundle index after authorized source changes, preserving authored index regions. Does not select or change tracked work.",
+      annotations: WRITE,
+    },
+    async () =>
+      json(
+        await owner.mutate(({ store, config }) =>
+          mutate(store, async () => {
+            const current = (await store.list()).includes("index.md")
+              ? await store.read("index.md")
+              : "";
+            const next = applyIndex(
+              current,
+              renderIndex(await loadBundle(store, config)),
+            );
+            if (current !== next) await store.write("index.md", next);
+            return {
+              changed: current !== next,
+              paths: current !== next ? ["index.md"] : [],
+            };
+          }),
+        ),
+      ),
+  );
+
+  server.registerTool(
+    "document_move_plan",
+    {
+      title: "Inspect a wiki page move",
+      description:
+        "Plan an ordinary Reference/Spec/Playbook path move without writing. Returns affected paths, supported link replacements, blockers, unmanaged-reference warnings and a complete bundle version. Title-only edits use document_edit.",
+      inputSchema: { from: z.string(), to: z.string() },
+      annotations: READ,
+    },
+    async ({ from, to }) =>
+      json(
+        await owner.readDocument(({ store, config }) =>
+          planDocumentMove(store, config, from, to),
+        ),
+      ),
+  );
+  server.registerTool(
+    "document_move_apply",
+    {
+      title: "Apply a reviewed wiki page move",
+      description:
+        "Recompute and apply a reviewed plan from from/to/expectedVersion; repair supported links and index. Does not change tracker state or guidance. If state is recovery_required, retain the receipt and use document_move_recover; originals remain in its journal.",
+      inputSchema: {
+        from: z.string(),
+        to: z.string(),
+        expectedVersion: z.string(),
+      },
+      annotations: { ...WRITE, destructiveHint: true },
+    },
+    async (input) =>
+      json(
+        await owner.mutate(({ store, config }) =>
+          applyDocumentMove(store, config, input),
+        ),
+      ),
+  );
+  server.registerTool(
+    "document_move_recover",
+    {
+      title: "Recover an interrupted wiki move",
+      description:
+        "Resume a move using its recovery token. Validates the journal and original/planned source versions; unrelated changes require explicit reconciliation. Never blindly restore journal bytes.",
+      inputSchema: { token: z.string() },
+      annotations: { ...WRITE, destructiveHint: true },
+    },
+    async ({ token }) =>
+      json(
+        await owner.mutate(({ store, config }) =>
+          recoverDocumentMove(store, config, token),
+        ),
+      ),
+  );
+
+  server.registerTool(
+    "document_create",
+    {
+      title: "Create a wiki page",
+      description:
+        "Create an ordinary Reference, Spec or Playbook at a bundle-relative path; collisions are rejected. Search for existing knowledge first. Does not track work or activate guidance. Run index afterward.",
+      inputSchema: {
+        path: z.string(),
+        type: z.enum(DOCUMENT_TYPES),
+        title: z.string(),
+        description: z.string().optional(),
+        body: z.string(),
+        tags: z.array(z.string()).optional(),
+      },
+      annotations: WRITE,
+    },
+    async (input) =>
+      json(
+        await owner.mutate(({ store, config }) =>
+          createDocument(store, config, input),
+        ),
+      ),
+  );
+  server.registerTool(
+    "document_read",
+    {
+      title: "Read a complete editable document",
+      description:
+        "Read the complete body, title, description and version for a versioned save. Never use paged source excerpts as replacement drafts.",
+      inputSchema: { path: z.string() },
+      annotations: READ,
+    },
+    async ({ path }) =>
+      json(
+        await owner.readDocument(({ store, config }) =>
+          readEditableDocument(store, config, path),
+        ),
+      ),
+  );
+  server.registerTool(
+    "document_edit",
+    {
+      title: "Save a versioned document edit",
+      description:
+        "Replace only the supplied body/title/description at expectedVersion. A newer source conflicts without writing. No tracker transitions or guidance selection occur. Run index after changes.",
+      inputSchema: {
+        path: z.string(),
+        expectedVersion: z.string(),
+        patch: z
+          .object({
+            body: z.string().optional(),
+            title: z.string().nullable().optional(),
+            description: z.string().nullable().optional(),
+          })
+          .strict(),
+      },
+      annotations: { ...WRITE, destructiveHint: true },
+    },
+    async ({ path, ...input }) =>
+      json(
+        await owner.mutate(({ store, config }) =>
+          editDocument(store, config, path, input),
+        ),
+      ),
+  );
+
+  server.registerTool(
+    "decision_create",
+    {
+      title: "Record a decision",
+      description:
+        "Create an accepted Decision under decisions/ with the configured decision prefix and its own sequence. Record context, alternatives, choice and consequences. Does not start tracked work or change project guidance. Run index afterward to refresh the derived index.",
+      inputSchema: {
+        title: z.string().min(1),
+        description: z.string().optional(),
+        tags: z.array(z.string()).optional(),
+        context: z
+          .string()
+          .optional()
+          .describe("context, relevant links and alternatives considered"),
+        decision: z.string().optional().describe("accepted choice and why"),
+        consequences: z
+          .string()
+          .optional()
+          .describe("tradeoffs and follow-up effects"),
+      },
+      annotations: WRITE,
+    },
+    async (input) =>
+      json(
+        await owner.mutate(async ({ store, config }) =>
+          createDecision(store, config, input, idCoordinator),
+        ),
+      ),
+  );
+
+  server.registerTool(
     "task_create",
     {
       title: "Create a work item",
@@ -382,14 +617,16 @@ export function createDocketServer(
     {
       title: "Change a work item's status",
       description:
-        "Move a work item through the state machine (invalid transitions are rejected). A disposition note is required when moving to closed; other transitions may optionally append a dated Log entry.",
+        "Move a work item through the state machine (invalid transitions are rejected). Moving to closed requires a disposition note. A project may permit closed Tasks or Epics to return to todo; that move requires a reason note and preserves the earlier disposition.",
       inputSchema: {
         id: z.string().min(1),
         to: z.enum(STATES),
         note: z
           .string()
           .optional()
-          .describe("dated Log entry; required when `to` is `closed`"),
+          .describe(
+            "dated Log entry; required when moving to closed or reopening closed work",
+          ),
       },
       annotations: WRITE,
     },

@@ -308,6 +308,21 @@ describe("publication candidate and preflight", () => {
 });
 
 describe("resumable registry publication", () => {
+  test("holding-only publication returns smoke evidence without owner tag writes", async () => {
+    const candidate = candidateFixture();
+    const registry = new FakeRegistry();
+    const result = await runRegistryPublication(
+      await preflight(candidate, registry),
+      registry,
+      { smoke, holdOnly: true, ...fastPolling() },
+    );
+    expect(result.final.holding).toBe("complete");
+    expect(result.final.public).toBe("absent");
+    expect(
+      registry.actions.some((action) => action.endsWith(":latest")),
+    ).toBeFalse();
+    expect(result.smoke.serveStatus).toBe(200);
+  });
   test("a missing platform cannot promote launchers, and retry never republishes existing binaries", async () => {
     const candidate = candidateFixture();
     candidate.packages = RELEASE_PACKAGE_DEFINITIONS.map((definition) => ({
@@ -409,7 +424,7 @@ describe("resumable registry publication", () => {
         smoke,
         ...fastPolling(),
       }),
-    ).rejects.toThrow("tag failed");
+    ).rejects.toThrow("registry did not converge");
     expect(registry.tags.get("@gitdocket/core")?.latest).toBeUndefined();
   });
 
@@ -475,6 +490,7 @@ describe("resumable registry publication", () => {
       },
     );
     expect(result.final.public).toBe("complete");
+    expect(polling.monotonicNow()).toBe(360_000);
     expect(
       registry.actions.filter((item) => item.startsWith("publish:")),
     ).toHaveLength(4);
@@ -483,7 +499,9 @@ describe("resumable registry publication", () => {
     ).toHaveLength(4);
     expect(messages[0]).toBe("published @gitdocket/core@0.2.0 under staged");
     expect(
-      messages.some((item) => item.startsWith("waiting for @gitdocket/core")),
+      messages.some((item) =>
+        item.startsWith("waiting for coordinated package set"),
+      ),
     ).toBeTrue();
     expect(messages).toContain(
       "registry installation smoke passed; promoting public tags",
@@ -515,7 +533,9 @@ describe("resumable registry publication", () => {
     ).rejects.toThrow("publication may already have succeeded");
     expect(polling.monotonicNow()).toBe(600_000);
     expect(smoked).toBeFalse();
-    expect(registry.actions).toEqual(["publish:@gitdocket/core"]);
+    expect(registry.actions).toEqual(
+      candidate.packages.map((item) => `publish:${item.name}`),
+    );
     expect(messages[0]).toBe("published @gitdocket/core@0.2.0 under staged");
     registry.hideAccepted = false;
     const resumed = await runRegistryPublication(

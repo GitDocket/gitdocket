@@ -85,6 +85,31 @@ describe("renderWorkflow", () => {
       "a newly supervised epic replaces it through the epic workflow",
     );
     expect(pickup.body).toContain("continue silently");
+    expect(pickup.body).toContain("active-task-conflict");
+    expect(pickup.body).toContain(
+      "May I create a linked Git worktree at <path>",
+    );
+    expect(pickup.body).toContain(
+      "An applicable explicit request or session instruction",
+    );
+    expect(pickup.body).toContain(
+      "declining or not answering leaves both checkout and branch/worktree inventory unchanged",
+    );
+    expect(pickup.body).toContain(
+      "scoped automatic-isolation preference saved in existing project guidance at the user's request",
+    );
+    expect(pickup.body).toContain(
+      "Missing, ambiguous or revoked authority requires the same direct question",
+    );
+    expect(pickup.body).toContain(
+      "One-time approval does not save a preference",
+    );
+    expect(pickup.body).toContain(
+      "Changing shell directory alone does not retarget an existing MCP server",
+    );
+    expect(renderAgentSkillStub(pickup, "docket/")).toContain(
+      "docket/workflows/docket-pickup.md",
+    );
   });
 
   test("epic supervision fixes the preflight, serial fallback, integration, and receipt contract", () => {

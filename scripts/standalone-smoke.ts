@@ -130,7 +130,38 @@ export async function smokeStandalone(
         signal: AbortSignal.timeout(5000),
       });
       assert.equal(asset.status, 200);
-      assert((await asset.text()).length > 10_000, "browser code is embedded");
+      const entry = await asset.text();
+      assert(entry.length > 10_000, "browser code is embedded");
+      // Follow both static and lazy imports: a working entry alone cannot prove
+      // that standalone packaging retained the Mermaid diagram modules.
+      const scanner = new Bun.Transpiler({ loader: "js" });
+      const seen = new Set<string>(["/assets/app.js"]);
+      const pending = [{ path: "/assets/app.js", source: entry }];
+      while (pending.length) {
+        const module = pending.pop();
+        if (!module) break;
+        for (const dependency of scanner.scanImports(module.source)) {
+          assert(dependency.path.startsWith("./"), "browser modules are local");
+          const target: URL = new URL(
+            dependency.path,
+            new URL(module.path, url),
+          );
+          if (seen.has(target.pathname)) continue;
+          seen.add(target.pathname);
+          const response = await fetch(target, {
+            signal: AbortSignal.timeout(5000),
+          });
+          assert.equal(response.status, 200, target.pathname);
+          assert(
+            response.headers.get("content-type")?.includes("text/javascript"),
+          );
+          pending.push({
+            path: target.pathname,
+            source: await response.text(),
+          });
+        }
+      }
+      assert(seen.size > 2, "lazy browser modules are embedded");
     } finally {
       clearTimeout(timer);
       server.kill();

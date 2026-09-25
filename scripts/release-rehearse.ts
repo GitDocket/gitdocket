@@ -22,7 +22,7 @@ import {
 
 const ROOT = join(import.meta.dir, "..");
 
-function sha256(value: string): string {
+function sha256(value: string | Uint8Array): string {
   return new Bun.CryptoHasher("sha256").update(value).digest("hex");
 }
 
@@ -43,13 +43,14 @@ function correctVersion(candidate: PackageCandidate): RegistryVersion {
   return {
     integrity: candidate.integrity,
     dependencies: { ...candidate.dependencies },
+    optionalDependencies: { ...candidate.optionalDependencies },
     repository: { ...candidate.repository },
     provenanceUrl: `https://registry.npmjs.invalid/-/npm/v1/attestations/${encodeURIComponent(candidate.name)}@${candidate.version}`,
     provenancePredicate: "https://slsa.dev/provenance/v1",
   };
 }
 
-class MemoryRegistry implements RegistryBoundary {
+export class MemoryRegistry implements RegistryBoundary {
   versions = new Map<string, RegistryVersion>();
   tags = new Map<string, Record<string, string>>();
   actions: string[] = [];
@@ -90,7 +91,7 @@ class MemoryRegistry implements RegistryBoundary {
   }
 }
 
-class MemoryGitHub implements GitHubBoundary {
+export class MemoryGitHub implements GitHubBoundary {
   release: GitHubReleaseView | null = null;
 
   async inspectRelease(): Promise<GitHubReleaseView | null> {
@@ -103,6 +104,7 @@ class MemoryGitHub implements GitHubBoundary {
     notesPath: string;
     receiptPath: string;
     prerelease: boolean;
+    assets?: string[];
   }): Promise<void> {
     const receipt = await readFile(options.receiptPath, "utf8");
     this.release = {
@@ -113,6 +115,12 @@ class MemoryGitHub implements GitHubBoundary {
       prerelease: options.prerelease,
       url: `https://github.com/GitDocket/gitdocket/releases/tag/${options.tag}`,
       assets: [
+        ...(await Promise.all(
+          (options.assets ?? []).map(async (path) => ({
+            name: basename(path),
+            sha256: sha256(await readFile(path)),
+          })),
+        )),
         {
           name: basename(options.receiptPath),
           sha256: sha256(receipt),
