@@ -27,6 +27,7 @@ import {
   runGit,
   serializeReleasePlan,
 } from "./release-contract";
+import type { CheckLevel } from "./standalone-smoke";
 import { verifyUpgradeCompatibility } from "./upgrade-compatibility";
 
 export const STAGE_SCHEMA = 1 as const;
@@ -114,12 +115,14 @@ export interface StageReceipt {
 }
 
 export interface SmokeResult {
+  level?: CheckLevel;
   packageVersions: Record<string, string>;
   mcpTools: string[];
   serveStatus: number;
 }
 
 export interface InstalledSmokeOptions {
+  level?: CheckLevel;
   dependencies: Record<string, string>;
   version: string;
   localTarballs?: string[];

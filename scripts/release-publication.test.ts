@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { DOCKET_VERSION } from "../packages/core/src/version";
@@ -808,6 +808,81 @@ describe("GitHub Release completion", () => {
     ).rejects.toThrow("GitHub Release failed");
     expect(fixture.receipt.final.public).toBe("complete");
   });
+});
+
+test("real GitHub CLI boundary keeps npm registry out of release arguments", async () => {
+  const root = await temporaryRoot();
+  const log = join(root, "gh-arguments.jsonl");
+  await writeFile(
+    join(root, "gh"),
+    `#!${process.execPath}
+import { appendFileSync } from "node:fs";
+const args = Bun.argv.slice(2);
+appendFileSync(process.env.GITDOCKET_GH_ARGV_LOG, JSON.stringify(args) + "\\n");
+if (args.includes("https://registry.npmjs.org/")) {
+  console.error("unexpected registry URL in GitHub arguments");
+  process.exit(2);
+}
+if (args[1] === "view") {
+  console.error("release not found");
+  process.exit(1);
+}
+if (args[1] !== "create") process.exit(2);
+`,
+    { mode: 0o755 },
+  );
+  const moduleUrl = new URL("./release-publish.ts", import.meta.url).href;
+  const result = Bun.spawnSync(
+    [
+      process.execPath,
+      "--eval",
+      `const { GhReleaseBoundary } = await import(${JSON.stringify(moduleUrl)});
+const github = new GhReleaseBoundary();
+if (await github.inspectRelease("v0.6.0", "registry.json") !== null) throw new Error("expected absent release");
+await github.createRelease({ tag: "v0.6.0", title: "GitDocket v0.6.0", notesPath: "/candidate/notes.md", receiptPath: "/candidate/registry.json", assets: ["/candidate/archive.tar.gz"], prerelease: false });`,
+    ],
+    {
+      env: {
+        ...process.env,
+        PATH: `${root}:${process.env.PATH}`,
+        GITDOCKET_GH_ARGV_LOG: log,
+      },
+      stdout: "pipe",
+      stderr: "pipe",
+    },
+  );
+  expect(result.stderr.toString()).toBe("");
+  expect(result.exitCode).toBe(0);
+  const calls = (await readFile(log, "utf8"))
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line));
+  expect(calls).toEqual([
+    [
+      "release",
+      "view",
+      "v0.6.0",
+      "--repo",
+      RELEASE_REPOSITORY,
+      "--json",
+      "tagName,name,body,isDraft,isPrerelease,url,assets",
+    ],
+    [
+      "release",
+      "create",
+      "v0.6.0",
+      "/candidate/registry.json",
+      "/candidate/archive.tar.gz",
+      "--repo",
+      RELEASE_REPOSITORY,
+      "--verify-tag",
+      "--title",
+      "GitDocket v0.6.0",
+      "--notes-file",
+      "/candidate/notes.md",
+      "--latest",
+    ],
+  ]);
 });
 
 async function git(root: string, ...args: string[]): Promise<string> {

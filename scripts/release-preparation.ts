@@ -11,6 +11,7 @@ import { exportPublicSnapshot } from "./export-public";
 import {
   verifyLinuxQualification,
   verifyMacosQualification,
+  verifyQualificationMatrix,
 } from "./macos-qualification";
 import { parseReleasePlan } from "./release-contract";
 import { linuxDocker } from "./release-linux";
@@ -39,6 +40,7 @@ import {
   type StandaloneManifest,
   verifyStandaloneSet,
 } from "./standalone-release";
+import { checkLevelForTarget } from "./standalone-smoke";
 
 export type ComputeRunner = (
   args: string[],
@@ -65,6 +67,7 @@ export interface QualificationConfig {
   linuxArtifacts: string;
   mode: "build" | "verify";
   linuxDocker?: boolean;
+  fullMatrix?: boolean;
   mac?: { arm64: MacTools; x64: MacTools };
 }
 export function validateQualificationConfig(value: QualificationConfig): void {
@@ -77,6 +80,10 @@ export function validateQualificationConfig(value: QualificationConfig): void {
       typeof value[name] === "string" && isAbsolute(value[name]),
       `qualify ${name} requires an absolute path`,
     );
+  assert(
+    value.fullMatrix === undefined || typeof value.fullMatrix === "boolean",
+    "qualify fullMatrix must be boolean",
+  );
   if (value.mode === "build") {
     assert.equal(
       process.platform,
@@ -277,6 +284,7 @@ export async function qualifyRelease(
             tools.bun,
             "scripts/standalone-release.ts",
             "build",
+            ...(config.fullMatrix ? ["--full-matrix"] : []),
             "--output",
             artifacts,
           ],
@@ -314,6 +322,7 @@ export async function qualifyRelease(
     if (config.mode === "build") {
       for (const arch of ["arm64", "x64"] as const) {
         const tools = config.mac?.[arch] as MacTools;
+        const level = checkLevelForTarget(`darwin-${arch}`, config.fullMatrix);
         const env = {
           PATH: `${join(config.source, "release/tools", arch)}:${process.env.PATH}`,
         };
@@ -321,6 +330,8 @@ export async function qualifyRelease(
           [
             tools.bun,
             "scripts/npm-qualify.ts",
+            "--level",
+            level,
             "--output",
             join(artifacts, `npm-darwin-${arch}.json`),
           ],
@@ -331,6 +342,8 @@ export async function qualifyRelease(
           [
             tools.bun,
             "scripts/homebrew-qualify.ts",
+            "--level",
+            level,
             "--source",
             config.source,
             "--artifacts",
@@ -351,6 +364,7 @@ export async function qualifyRelease(
     await (dependencies.verifyMac ?? verifyMacosQualification)(
       config.source,
       artifacts,
+      config.fullMatrix,
     );
     steps.push("verified Mac source, checksum, host and upgrade receipts");
     if (config.linuxDocker) {
@@ -359,8 +373,14 @@ export async function qualifyRelease(
         output: artifacts,
         mode: "channels",
         plan: config.plan,
+        fullMatrix: config.fullMatrix,
       });
-      await verifyLinuxQualification(config.source, artifacts);
+      await verifyLinuxQualification(
+        config.source,
+        artifacts,
+        config.fullMatrix,
+      );
+      await verifyQualificationMatrix(artifacts, config.fullMatrix);
       steps.push(
         "qualified Linux npm and Homebrew in local Docker, including Node 24 x64",
       );
@@ -512,6 +532,9 @@ export async function reviewPacket(
     options.destination,
     join(options.destination, "release/standalone"),
   );
+  const qualificationMatrix = await verifyQualificationMatrix(
+    join(options.destination, "release/standalone"),
+  );
   const macChannels = [];
   for (const target of [
     "darwin-arm64",
@@ -582,6 +605,7 @@ export async function reviewPacket(
     stageSha256: sha256(stageBody),
     packages,
     standalone,
+    qualificationMatrix,
     macChannels,
     linuxDockerEvidence,
     registry: registryState,
@@ -647,9 +671,11 @@ export async function reviewPacket(
     "",
     "## Local channel evidence",
     "",
+    `Qualification matrix: ${qualificationMatrix}. Deep checks run on Mac and Linux ARM64; x64 and Node 24 run ${qualificationMatrix === "full" ? "deep" : "basic"} checks.`,
+    "",
     ...macChannels.map(
       (item) =>
-        `- ${item.path}: \`${item.sha256}\`; host ${item.receipt.qualificationHost.platform}/${item.receipt.qualificationHost.arch}, ${item.receipt.qualificationHost.execution}. Full checked receipt is in the JSON packet.`,
+        `- ${item.path}: \`${item.sha256}\`; ${item.receipt.level} checks; host ${item.receipt.qualificationHost.platform}/${item.receipt.qualificationHost.arch}, ${item.receipt.qualificationHost.execution}. Full checked receipt is in the JSON packet.`,
     ),
     "",
     "## Registry observation",

@@ -24,7 +24,8 @@ afterEach(async () => {
     await rm(root, { recursive: true, force: true });
 });
 
-async function fixture() {
+async function fixture(arch: "arm64" | "x64" = "arm64") {
+  const target = `darwin-${arch}` as const;
   const root = await mkdtemp(join(tmpdir(), "standalone-release-test-"));
   roots.push(root);
   const output = join(root, "release/standalone");
@@ -51,7 +52,7 @@ async function fixture() {
     JSON.stringify({
       schema: 1,
       bunVersion: "1.3.14",
-      targets: ["darwin-arm64"],
+      targets: [target],
     }),
   );
   const source = {
@@ -61,7 +62,7 @@ async function fixture() {
   };
   const build = {
     version: DOCKET_VERSION,
-    target: "darwin-arm64" as const,
+    target,
     bunVersion: "1.3.14",
     source,
   };
@@ -76,7 +77,7 @@ async function fixture() {
     await writeFile(join(contents, name), body);
     files[name] = digest(body);
   }
-  const archive = `gitdocket-${DOCKET_VERSION}-darwin-arm64.tar.gz`;
+  const archive = `gitdocket-${DOCKET_VERSION}-${target}.tar.gz`;
   checked(
     [
       "tar",
@@ -91,14 +92,16 @@ async function fixture() {
   const sha256 = digest(await readFile(join(output, archive)));
   const manifest: StandaloneManifest = {
     schema: 1,
+    status: "READY",
     ...build,
     archive,
     sha256,
     files,
     smoke: {
+      level: "deep",
       version: DOCKET_VERSION,
       platform: "darwin",
-      arch: "arm64",
+      arch,
       runtimePath: "Git and standalone executables only",
       checks: [
         "CLI/MCP versions",
@@ -112,7 +115,7 @@ async function fixture() {
     },
   };
   const save = () =>
-    writeFile(join(output, "darwin-arm64.json"), JSON.stringify(manifest));
+    writeFile(join(output, `${target}.json`), JSON.stringify(manifest));
   await save();
   await writeFile(join(output, `${archive}.sha256`), `${sha256}  ${archive}\n`);
   return { root, output, manifest, save };
@@ -138,6 +141,21 @@ test("a compile-only or incomplete smoke cannot qualify a native platform", asyn
     verifyStandaloneSet(f.root, f.output, { development: true }),
   ).rejects.toThrow("native execution");
   f.manifest.smoke.arch = "arm64";
+  f.manifest.smoke.checks.pop();
+  await f.save();
+  await expect(
+    verifyStandaloneSet(f.root, f.output, { development: true }),
+  ).rejects.toThrow();
+});
+
+test("x64 native archive accepts basic installed smoke but not missing behavior", async () => {
+  const f = await fixture("x64");
+  f.manifest.smoke.level = "basic";
+  f.manifest.smoke.checks = f.manifest.smoke.checks.slice(0, 5);
+  await f.save();
+  expect(
+    await verifyStandaloneSet(f.root, f.output, { development: true }),
+  ).toHaveLength(3);
   f.manifest.smoke.checks.pop();
   await f.save();
   await expect(

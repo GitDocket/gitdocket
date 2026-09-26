@@ -85,8 +85,9 @@ export async function verifyPublicInstallation(root: string) {
       manifest.files[name],
       `public ${name} differs from its release receipt`,
     );
-  const homebrew = await smokeStandalone(bin);
+  const homebrew = await smokeStandalone(bin, { level: "basic" });
   const npm = await runNpmInstalledSmoke({
+    level: "basic",
     version: DOCKET_VERSION,
     dependencies: Object.fromEntries(
       RELEASE_PACKAGE_DEFINITIONS.map((pkg) => [pkg.name, DOCKET_VERSION]),
@@ -94,6 +95,8 @@ export async function verifyPublicInstallation(root: string) {
   });
   return {
     schema: 1,
+    status: "READY",
+    level: "basic",
     version: DOCKET_VERSION,
     target,
     source: manifest.source,

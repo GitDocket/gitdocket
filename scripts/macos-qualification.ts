@@ -9,6 +9,7 @@ import {
   type StandaloneManifest,
   verifyStandaloneSet,
 } from "./standalone-release";
+import type { CheckLevel } from "./standalone-smoke";
 
 export function qualificationHost() {
   let armHardware = process.arch === "arm64";
@@ -71,6 +72,8 @@ export function qualificationHost() {
 }
 
 type ChannelReceipt = {
+  status: "READY";
+  level: CheckLevel;
   version: string;
   source: StandaloneManifest["source"];
   archiveSha256: string;
@@ -84,6 +87,7 @@ type NpmReceipt = ChannelReceipt & {
   npm: string;
   productPath: string;
   smoke: {
+    level: CheckLevel;
     packageVersions: Record<string, string>;
     mcpTools: string[];
     serveStatus: number;
@@ -101,9 +105,20 @@ export function validateChannelReceipts(
   npm: NpmReceipt,
   brew: HomebrewReceipt,
   nodeMajor = 22,
+  expectedLevel?: CheckLevel,
 ) {
   assert(/^(darwin|linux)-(arm64|x64)$/.test(native.target));
+  assert.equal(native.status, "READY", "native qualification is not ready");
   const [platform, arch] = native.target.split("-");
+  const level = expectedLevel ?? (arch === "arm64" ? "deep" : npm.level);
+  assert(["basic", "deep"].includes(level), "invalid channel check level");
+  assert.equal(npm.level, level, "npm check level differs");
+  assert.equal(brew.level, level, "Homebrew check level differs");
+  assert.equal(npm.status, "READY", "npm qualification is not ready");
+  assert.equal(brew.status, "READY", "Homebrew qualification is not ready");
+  assert.equal(npm.smoke.level, level, "npm smoke level differs");
+  assert.equal(brew.smoke.level, level, "Homebrew smoke level differs");
+  assert.equal(native.smoke.level, level, "native smoke level differs");
   for (const receipt of [npm, brew]) {
     assert.equal(
       receipt.version,
@@ -170,30 +185,55 @@ export function validateChannelReceipts(
     "initialization/task/index",
     "embedded Serve resources",
     "MCP ready call",
-    "historical/customized/stale upgrades",
-    "npm update",
-    "npm uninstall preserves project",
-    "migration from published Bun-dependent 0.3.1",
+    ...(level === "deep"
+      ? [
+          "historical/customized/stale upgrades",
+          "npm update",
+          "npm uninstall preserves project",
+          "migration from published Bun-dependent 0.3.1",
+        ]
+      : []),
   ])
     assert(npm.checks.includes(check), `missing macOS npm check: ${check}`);
   assert.equal(brew.target, native.target);
   assert(/^[a-f0-9]{64}$/.test(brew.formulaSha256));
-  assert.deepEqual(
-    brew.smoke,
-    native.smoke,
-    "Homebrew must exercise the installed standalone product",
-  );
+  if (level === "deep")
+    assert.deepEqual(
+      brew.smoke,
+      native.smoke,
+      "Homebrew must exercise the installed standalone product",
+    );
+  else {
+    assert.equal(brew.smoke.version, native.version);
+    assert.equal(brew.smoke.platform, platform);
+    assert.equal(brew.smoke.arch, arch);
+    for (const check of [
+      "CLI/MCP versions",
+      "dual-agent initialization",
+      "task create/ready/index",
+      "embedded browser assets",
+      "MCP ready tool",
+    ])
+      assert(
+        brew.smoke.checks.includes(check),
+        `missing basic Homebrew smoke: ${check}`,
+      );
+  }
   for (const check of [
     "formula install and both executable hashes",
     "formula functional test",
-    "reinstall",
-    "revision upgrade",
-    "failed checksum preserves accepted keg",
-    "failed download preserves accepted keg",
-    "published npm 0.3.1 precedence",
-    "preserved custom MCP path and explicit migration",
-    "MCP actual tool through stable Homebrew opt path",
-    "uninstall preserves project and competing npm installation",
+    ...(level === "deep"
+      ? [
+          "reinstall",
+          "revision upgrade",
+          "failed checksum preserves accepted keg",
+          "failed download preserves accepted keg",
+          "published npm 0.3.1 precedence",
+          "preserved custom MCP path and explicit migration",
+          "MCP actual tool through stable Homebrew opt path",
+          "uninstall preserves project and competing npm installation",
+        ]
+      : []),
   ])
     assert(
       brew.checks.includes(check),
@@ -205,9 +245,10 @@ export function validateMacosReceipts(
   native: StandaloneManifest,
   npm: NpmReceipt,
   brew: HomebrewReceipt,
+  expectedLevel?: CheckLevel,
 ) {
   assert(native.target.startsWith("darwin-"));
-  validateChannelReceipts(native, npm, brew);
+  validateChannelReceipts(native, npm, brew, 22, expectedLevel);
 }
 
 export function validateDockerReceipt(
@@ -267,6 +308,7 @@ export function validateDockerReceipt(
 export async function verifyLinuxQualification(
   root: string,
   artifacts: string,
+  fullMatrix = false,
 ) {
   await verifyStandaloneSet(root, artifacts);
   const native = JSON.parse(
@@ -291,13 +333,20 @@ export async function verifyLinuxQualification(
       JSON.parse(await readFile(join(artifacts, `${name}.json`), "utf8"));
     const native = await read(target);
     const brew = await read(`homebrew-${target}`);
-    validateChannelReceipts(native, await read(`npm-${target}`), brew);
+    validateChannelReceipts(
+      native,
+      await read(`npm-${target}`),
+      brew,
+      22,
+      fullMatrix ? "deep" : undefined,
+    );
     if (target === "linux-x64")
       validateChannelReceipts(
         native,
         await read(`npm-${target}-node24`),
         brew,
         24,
+        fullMatrix ? "deep" : undefined,
       );
   }
 }
@@ -305,6 +354,7 @@ export async function verifyLinuxQualification(
 export async function verifyMacosQualification(
   root: string,
   artifacts: string,
+  fullMatrix = false,
 ) {
   await verifyStandaloneSet(root, artifacts);
   for (const target of ["darwin-arm64", "darwin-x64"]) {
@@ -314,8 +364,48 @@ export async function verifyMacosQualification(
       await read(target),
       await read(`npm-${target}`),
       await read(`homebrew-${target}`),
+      fullMatrix ? "deep" : undefined,
     );
   }
+}
+
+export async function verifyQualificationMatrix(
+  artifacts: string,
+  fullMatrix?: boolean,
+) {
+  const readLevel = async (name: string): Promise<CheckLevel> => {
+    const receipt = JSON.parse(
+      await readFile(join(artifacts, `${name}.json`), "utf8"),
+    );
+    assert(
+      ["basic", "deep"].includes(receipt.level),
+      `invalid check level: ${name}`,
+    );
+    return receipt.level;
+  };
+  const x64 = await readLevel("npm-darwin-x64");
+  const expected =
+    fullMatrix === undefined ? x64 : fullMatrix ? "deep" : "basic";
+  assert.equal(x64, expected, "Mac x64 check level differs from matrix");
+  for (const name of [
+    "homebrew-darwin-x64",
+    "npm-linux-x64",
+    "homebrew-linux-x64",
+    "npm-linux-x64-node24",
+  ])
+    assert.equal(
+      await readLevel(name),
+      expected,
+      `${name} check level differs from matrix`,
+    );
+  for (const name of [
+    "npm-darwin-arm64",
+    "homebrew-darwin-arm64",
+    "npm-linux-arm64",
+    "homebrew-linux-arm64",
+  ])
+    assert.equal(await readLevel(name), "deep", `${name} must be deep`);
+  return expected === "deep" ? "full" : "lean";
 }
 
 if (import.meta.main) {
@@ -332,6 +422,10 @@ if (import.meta.main) {
   if (values.linux)
     await verifyLinuxQualification(
       resolve(import.meta.dir, ".."),
+      resolve(values.artifacts ?? "release/standalone"),
+    );
+  if (values.linux)
+    await verifyQualificationMatrix(
       resolve(values.artifacts ?? "release/standalone"),
     );
   console.log(

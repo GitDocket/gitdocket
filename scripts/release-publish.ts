@@ -178,7 +178,6 @@ export class GhReleaseBoundary implements GitHubBoundary {
       tag,
       "--repo",
       RELEASE_REPOSITORY,
-      RELEASE_REGISTRY,
       "--json",
       "tagName,name,body,isDraft,isPrerelease,url,assets",
     ]);
@@ -240,7 +239,6 @@ export class GhReleaseBoundary implements GitHubBoundary {
       ...(options.assets ?? []),
       "--repo",
       RELEASE_REPOSITORY,
-      RELEASE_REGISTRY,
       "--verify-tag",
       "--title",
       options.title,

@@ -9,9 +9,14 @@ import {
   type StandaloneManifest,
   verifyStandaloneSet,
 } from "./standalone-release";
+import type { CheckLevel } from "./standalone-smoke";
 
 if (import.meta.main) {
-  const { values } = parseArgs({ options: { output: { type: "string" } } });
+  const { values } = parseArgs({
+    options: { output: { type: "string" }, level: { type: "string" } },
+  });
+  const level = (values.level ?? "deep") as CheckLevel;
+  assert(["basic", "deep"].includes(level), "invalid npm check level");
   const root = resolve(import.meta.dir, "..");
   await verifyStandaloneSet(root, join(root, "release/standalone"));
   const manifest = (await Bun.file(
@@ -33,11 +38,14 @@ if (import.meta.main) {
     ]),
   );
   const smoke = await runNpmInstalledSmoke({
+    level,
     version: DOCKET_VERSION,
     dependencies,
     localTarballs: Object.values(dependencies).map((value) => value.slice(5)),
   });
   const receipt = {
+    status: "READY",
+    level,
     qualificationHost: qualificationHost(),
     source: manifest.source,
     archiveSha256: manifest.sha256,
@@ -54,10 +62,14 @@ if (import.meta.main) {
       "initialization/task/index",
       "embedded Serve resources",
       "MCP ready call",
-      "historical/customized/stale upgrades",
-      "npm update",
-      "npm uninstall preserves project",
-      "migration from published Bun-dependent 0.3.1",
+      ...(level === "deep"
+        ? [
+            "historical/customized/stale upgrades",
+            "npm update",
+            "npm uninstall preserves project",
+            "migration from published Bun-dependent 0.3.1",
+          ]
+        : []),
     ],
     smoke,
   };

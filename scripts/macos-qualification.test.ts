@@ -1,10 +1,14 @@
 import { expect, test } from "bun:test";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
   validateChannelReceipts,
   validateDockerReceipt,
   validateMacosReceipts,
+  verifyQualificationMatrix,
 } from "./macos-qualification";
+import { checkLevelForTarget } from "./standalone-smoke";
 
 function fixture(arch: "arm64" | "x64" = "arm64") {
   const version = "0.4.0";
@@ -14,6 +18,7 @@ function fixture(arch: "arm64" | "x64" = "arm64") {
     exportSha256: "b".repeat(64),
   };
   const smoke = {
+    level: "deep" as "basic" | "deep",
     version,
     platform: "darwin" as const,
     arch,
@@ -30,6 +35,7 @@ function fixture(arch: "arm64" | "x64" = "arm64") {
   };
   const native: Parameters<typeof validateMacosReceipts>[0] = {
     schema: 1,
+    status: "READY",
     version,
     source,
     target: arch === "arm64" ? "darwin-arm64" : "darwin-x64",
@@ -40,6 +46,7 @@ function fixture(arch: "arm64" | "x64" = "arm64") {
     smoke,
   };
   const shared = {
+    status: "READY" as const,
     version,
     source: structuredClone(source),
     archiveSha256: native.sha256,
@@ -55,6 +62,7 @@ function fixture(arch: "arm64" | "x64" = "arm64") {
   };
   const npm = {
     ...structuredClone(shared),
+    level: "deep" as "basic" | "deep",
     platform: "darwin" as const,
     arch,
     node: "v22.23.2",
@@ -73,6 +81,7 @@ function fixture(arch: "arm64" | "x64" = "arm64") {
       "migration from published Bun-dependent 0.3.1",
     ],
     smoke: {
+      level: "deep" as "basic" | "deep",
       packageVersions: {
         "@gitdocket/cli": version,
         "@gitdocket/mcp": version,
@@ -84,6 +93,7 @@ function fixture(arch: "arm64" | "x64" = "arm64") {
   };
   const brew = {
     ...structuredClone(shared),
+    level: "deep" as "basic" | "deep",
     target: native.target,
     formulaSha256: "d".repeat(64),
     smoke: structuredClone(smoke),
@@ -142,6 +152,70 @@ test("rejects wrong architecture, undisclosed Rosetta, and missing installed che
   expect(() => validateMacosReceipts(native, npm, brew)).toThrow(
     "missing macOS Homebrew check",
   );
+});
+
+test("lean x64 receipts retain installed checks and reject a false deep claim", () => {
+  const { native, npm, brew } = fixture("x64");
+  native.smoke.level = "basic";
+  native.smoke.checks = native.smoke.checks.slice(0, 5);
+  npm.level = "basic";
+  npm.smoke.level = "basic";
+  npm.checks = npm.checks.slice(0, 6);
+  brew.level = "basic";
+  brew.smoke.level = "basic";
+  brew.smoke.checks = brew.smoke.checks.slice(0, 5);
+  brew.checks = brew.checks.slice(0, 2);
+  expect(() => validateMacosReceipts(native, npm, brew)).not.toThrow();
+  expect(() => validateMacosReceipts(native, npm, brew, "deep")).toThrow(
+    "check level differs",
+  );
+  npm.level = "deep";
+  expect(() => validateMacosReceipts(native, npm, brew)).toThrow(
+    "check level differs",
+  );
+  npm.level = "basic";
+  brew.smoke.checks.pop();
+  expect(() => validateMacosReceipts(native, npm, brew)).toThrow(
+    "missing basic Homebrew smoke",
+  );
+});
+
+test("lean and full matrix receipts cannot be mixed", async () => {
+  expect(checkLevelForTarget("darwin-arm64")).toBe("deep");
+  expect(checkLevelForTarget("linux-x64")).toBe("basic");
+  expect(checkLevelForTarget("linux-x64", true)).toBe("deep");
+  const root = await mkdtemp(join(tmpdir(), "qualification-matrix-"));
+  const names = [
+    "npm-darwin-arm64",
+    "homebrew-darwin-arm64",
+    "npm-linux-arm64",
+    "homebrew-linux-arm64",
+    "npm-darwin-x64",
+    "homebrew-darwin-x64",
+    "npm-linux-x64",
+    "homebrew-linux-x64",
+    "npm-linux-x64-node24",
+  ];
+  try {
+    for (const name of names)
+      await writeFile(
+        join(root, `${name}.json`),
+        JSON.stringify({ level: name.includes("arm64") ? "deep" : "basic" }),
+      );
+    expect(await verifyQualificationMatrix(root)).toBe("lean");
+    await writeFile(
+      join(root, "npm-linux-x64-node24.json"),
+      '{"level":"deep"}',
+    );
+    await expect(verifyQualificationMatrix(root)).rejects.toThrow(
+      "differs from matrix",
+    );
+    for (const name of names.filter((name) => name.includes("x64")))
+      await writeFile(join(root, `${name}.json`), '{"level":"deep"}');
+    expect(await verifyQualificationMatrix(root, true)).toBe("full");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });
 
 test("draft import has push access without checking out code, while qualification stays read-only", async () => {

@@ -125,6 +125,8 @@ export async function localPackageRegistry(tarballs: string[]) {
 export async function runNpmInstalledSmoke(
   options: InstalledSmokeOptions,
 ): Promise<SmokeResult> {
+  const level = options.level ?? "deep";
+  assert(["basic", "deep"].includes(level));
   const root = await mkdtemp(join(tmpdir(), "gitdocket-npm-smoke-"));
   let registry: Awaited<ReturnType<typeof localPackageRegistry>> | undefined;
   try {
@@ -183,6 +185,7 @@ export async function runNpmInstalledSmoke(
     let mcpTools: string[] = [];
     await smokeStandalone(bin, {
       node: true,
+      level,
       onTools: (names) => {
         mcpTools = names;
       },
@@ -233,7 +236,7 @@ export async function runNpmInstalledSmoke(
       project,
       npxEnv,
     );
-    await smokeStandalone(dirname(resolvedNpx), { node: true });
+    await smokeStandalone(dirname(resolvedNpx), { node: true, level: "basic" });
     const nativeName = `@gitdocket/bin-${process.platform}-${process.arch}`;
     const nativePath = await command(
       [
@@ -247,6 +250,8 @@ export async function runNpmInstalledSmoke(
     const nativeManifest = JSON.parse(await readFile(nativePath, "utf8"));
     assert.equal(nativeManifest.version, options.version);
     packageVersions[nativeName] = nativeManifest.version;
+    if (level === "basic")
+      return { level, packageVersions, mcpTools, serveStatus: 200 };
     await writeFile(
       join(project, "authored-note.md"),
       "Keep the owner's project notes and instructions.\n",
@@ -337,9 +342,9 @@ export async function runNpmInstalledSmoke(
       root,
       env,
     );
-    await smokeStandalone(join(prior, "bin"), { node: true });
+    await smokeStandalone(join(prior, "bin"), { node: true, level: "basic" });
     assert.deepEqual(await projectBytes(project), before);
-    return { packageVersions, mcpTools, serveStatus: 200 };
+    return { level, packageVersions, mcpTools, serveStatus: 200 };
   } finally {
     registry?.stop();
     await rm(root, { recursive: true, force: true });

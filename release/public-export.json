@@ -1,7 +1,6 @@
 {
   "schema": 1,
   "paths": [
-    ".github/dependabot.yml",
     ".github/workflows/ci.yml",
     ".github/workflows/dependency-audit.yml",
     ".github/workflows/publish.yml",
@@ -366,6 +365,7 @@
     "site/assets/product-home.jpg",
     "site/assets/product-task.jpg",
     "site/assets/single-task-done.png",
+    "site/copy-install.js",
     "site/demo/README.md",
     "site/demo/handoff.md",
     "site/demo/onboarding.md",

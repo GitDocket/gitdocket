@@ -20,6 +20,7 @@ import { prepareTap } from "./homebrew-tap";
 import { qualificationHost } from "./macos-qualification";
 import { projectBytes } from "./npm-smoke";
 import { digest } from "./standalone-release";
+import type { CheckLevel } from "./standalone-smoke";
 import { smokeStandalone } from "./standalone-smoke";
 
 // Run only in a disposable Homebrew prefix or on an ephemeral CI runner.
@@ -28,7 +29,10 @@ export async function qualifyHomebrew(options: {
   artifacts: string;
   brew: string;
   audit?: boolean;
+  level?: CheckLevel;
 }) {
+  const level = options.level ?? "deep";
+  assert(["basic", "deep"].includes(level), "invalid Homebrew check level");
   const root = await mkdtemp(join(tmpdir(), "gitdocket-homebrew-"));
   const env: Record<string, string | undefined> = {
     ...process.env,
@@ -165,7 +169,31 @@ export async function qualifyHomebrew(options: {
         digest(await readFile(join(bin, name))),
         manifest.files[name],
       );
-    const smoke = await smokeStandalone(bin);
+    const smoke = await smokeStandalone(bin, { level });
+    if (level === "basic")
+      return {
+        schema: 1,
+        status: "READY",
+        level,
+        version: DOCKET_VERSION,
+        target: `${process.platform}-${process.arch}`,
+        source: prepared.source,
+        homebrew: (await brew("--version")).stdout,
+        prefix,
+        standardPrefix: prefix === expectedPrefix,
+        host: (await run(["uname", "-a"])).stdout,
+        qualificationHost: qualificationHost(),
+        formulaSha256: prepared.formulaSha256,
+        archiveSha256: manifest.sha256,
+        smoke,
+        checks: [
+          "formula install and both executable hashes",
+          "formula functional test",
+        ],
+        assistance:
+          "Isolated prefix and exact local archive mirror; installed product has no Bun, Node or npm on PATH.",
+        commands,
+      };
     const project = join(root, "adopter");
     await mkdir(project);
     await run(["git", "init", "-q"], project);
@@ -325,6 +353,8 @@ export async function qualifyHomebrew(options: {
     assert.deepEqual(await projectBytes(prior), oldFiles);
     return {
       schema: 1,
+      status: "READY",
+      level,
       version: DOCKET_VERSION,
       target: `${process.platform}-${process.arch}`,
       source: prepared.source,
@@ -383,6 +413,7 @@ if (import.meta.main) {
       brew: { type: "string" },
       output: { type: "string" },
       audit: { type: "boolean" },
+      level: { type: "string" },
     },
   });
   const source = resolve(values.source ?? join(import.meta.dir, ".."));
@@ -393,6 +424,7 @@ if (import.meta.main) {
     artifacts: resolve(values.artifacts ?? join(source, "release/standalone")),
     brew,
     audit: values.audit,
+    level: (values.level ?? "deep") as CheckLevel,
   });
   const body = `${JSON.stringify(result, null, 2)}\n`;
   if (values.output) await writeFile(values.output, body);

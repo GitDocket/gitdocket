@@ -76,10 +76,7 @@
           "type": {
             "description": "Task or Epic",
             "type": "string",
-            "enum": [
-              "Epic",
-              "Task"
-            ]
+            "enum": ["Epic", "Task"]
           },
           "limit": {
             "type": "integer",
@@ -109,9 +106,7 @@
             "description": "e.g. HBR-14 or ADR-2"
           }
         },
-        "required": [
-          "id"
-        ],
+        "required": ["id"],
         "$schema": "http://json-schema.org/draft-07/schema#"
       }
     },
@@ -156,9 +151,7 @@
             "maximum": 100
           }
         },
-        "required": [
-          "query"
-        ],
+        "required": ["query"],
         "$schema": "http://json-schema.org/draft-07/schema#"
       }
     },
@@ -193,16 +186,10 @@
                 "maximum": 9007199254740991
               }
             },
-            "required": [
-              "path",
-              "sourceHash",
-              "offset"
-            ]
+            "required": ["path", "sourceHash", "offset"]
           }
         },
-        "required": [
-          "path"
-        ],
+        "required": ["path"],
         "$schema": "http://json-schema.org/draft-07/schema#"
       }
     },
@@ -238,10 +225,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "from",
-          "to"
-        ],
+        "required": ["from", "to"],
         "$schema": "http://json-schema.org/draft-07/schema#"
       }
     },
@@ -262,11 +246,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "from",
-          "to",
-          "expectedVersion"
-        ],
+        "required": ["from", "to", "expectedVersion"],
         "$schema": "http://json-schema.org/draft-07/schema#"
       }
     },
@@ -281,9 +261,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "token"
-        ],
+        "required": ["token"],
         "$schema": "http://json-schema.org/draft-07/schema#"
       }
     },
@@ -299,11 +277,7 @@
           },
           "type": {
             "type": "string",
-            "enum": [
-              "Reference",
-              "Spec",
-              "Playbook"
-            ]
+            "enum": ["Reference", "Spec", "Playbook"]
           },
           "title": {
             "type": "string"
@@ -321,12 +295,7 @@
             }
           }
         },
-        "required": [
-          "path",
-          "type",
-          "title",
-          "body"
-        ],
+        "required": ["path", "type", "title", "body"],
         "$schema": "http://json-schema.org/draft-07/schema#"
       }
     },
@@ -341,9 +310,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "path"
-        ],
+        "required": ["path"],
         "$schema": "http://json-schema.org/draft-07/schema#"
       }
     },
@@ -367,26 +334,16 @@
                 "type": "string"
               },
               "title": {
-                "type": [
-                  "string",
-                  "null"
-                ]
+                "type": ["string", "null"]
               },
               "description": {
-                "type": [
-                  "string",
-                  "null"
-                ]
+                "type": ["string", "null"]
               }
             },
             "additionalProperties": false
           }
         },
-        "required": [
-          "path",
-          "expectedVersion",
-          "patch"
-        ],
+        "required": ["path", "expectedVersion", "patch"],
         "$schema": "http://json-schema.org/draft-07/schema#"
       }
     },
@@ -423,9 +380,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "title"
-        ],
+        "required": ["title"],
         "$schema": "http://json-schema.org/draft-07/schema#"
       }
     },
@@ -443,10 +398,7 @@
           "type": {
             "default": "Task",
             "type": "string",
-            "enum": [
-              "Epic",
-              "Task"
-            ]
+            "enum": ["Epic", "Task"]
           },
           "description": {
             "description": "one-sentence description",
@@ -466,12 +418,7 @@
           "priority": {
             "default": "p2",
             "type": "string",
-            "enum": [
-              "p0",
-              "p1",
-              "p2",
-              "p3"
-            ]
+            "enum": ["p0", "p1", "p2", "p3"]
           },
           "assignee": {
             "type": "string"
@@ -483,9 +430,7 @@
             }
           }
         },
-        "required": [
-          "title"
-        ],
+        "required": ["title"],
         "$schema": "http://json-schema.org/draft-07/schema#"
       }
     },
@@ -516,10 +461,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "id",
-          "to"
-        ],
+        "required": ["id", "to"],
         "$schema": "http://json-schema.org/draft-07/schema#"
       }
     },
@@ -539,10 +481,7 @@
             "minLength": 1
           }
         },
-        "required": [
-          "id",
-          "entry"
-        ],
+        "required": ["id", "entry"],
         "$schema": "http://json-schema.org/draft-07/schema#"
       }
     }

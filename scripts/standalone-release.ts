@@ -21,13 +21,14 @@ import {
   type StandaloneTarget,
   standaloneTarget,
 } from "./standalone-build";
-import { smokeStandalone } from "./standalone-smoke";
+import { checkLevelForTarget, smokeStandalone } from "./standalone-smoke";
 
 export const digest = (bytes: string | Uint8Array) =>
   createHash("sha256").update(bytes).digest("hex");
 const hashFile = async (path: string) => digest(await readFile(path));
 export interface StandaloneManifest {
   schema: 1;
+  status: "READY";
   version: string;
   target: StandaloneTarget;
   bunVersion: string;
@@ -166,6 +167,7 @@ export async function packageStandalone(
   root: string,
   output: string,
   development = false,
+  fullMatrix = false,
 ) {
   const config = await releaseConfig(root);
   assert.equal(
@@ -238,9 +240,12 @@ export async function packageStandalone(
     const extracted = join(scratch, "installed");
     await mkdir(extracted);
     checked(["tar", "-xzf", join(output, archive), "-C", extracted], root);
-    const smoke = await smokeStandalone(extracted);
+    const smoke = await smokeStandalone(extracted, {
+      level: checkLevelForTarget(target, fullMatrix),
+    });
     const manifest: StandaloneManifest = {
       schema: 1,
+      status: "READY",
       version: DOCKET_VERSION,
       target,
       bunVersion: Bun.version,
@@ -296,6 +301,12 @@ export async function verifyStandaloneSet(
       "native execution evidence is required",
     );
     assert.equal(manifest.smoke.version, DOCKET_VERSION);
+    assert.equal(manifest.status, "READY", "native qualification is not ready");
+    const level = manifest.smoke.level;
+    assert(
+      level === checkLevelForTarget(target) || level === "deep",
+      "native build has invalid check level",
+    );
     assert.equal(
       manifest.smoke.runtimePath,
       "Git and standalone executables only",
@@ -306,8 +317,12 @@ export async function verifyStandaloneSet(
       "task create/ready/index",
       "embedded browser assets",
       "MCP ready tool",
-      "source-only watch diagnostic",
-      "historical/customized/stale upgrades",
+      ...(level === "deep"
+        ? [
+            "source-only watch diagnostic",
+            "historical/customized/stale upgrades",
+          ]
+        : []),
     ]);
     assert.equal(
       manifest.archive,
@@ -378,6 +393,7 @@ if (import.meta.main) {
     options: {
       output: { type: "string" },
       development: { type: "boolean", default: false },
+      "full-matrix": { type: "boolean", default: false },
     },
   });
   const root = resolve(import.meta.dir, "..");
@@ -385,7 +401,12 @@ if (import.meta.main) {
   if (positionals[0] === "build")
     console.log(
       JSON.stringify(
-        await packageStandalone(root, output, values.development),
+        await packageStandalone(
+          root,
+          output,
+          values.development,
+          values["full-matrix"],
+        ),
         null,
         2,
       ),
@@ -402,6 +423,6 @@ if (import.meta.main) {
     );
   else
     throw new Error(
-      "Usage: bun scripts/standalone-release.ts <build|verify> [--output DIR] [--development]",
+      "Usage: bun scripts/standalone-release.ts <build|verify> [--output DIR] [--development] [--full-matrix]",
     );
 }

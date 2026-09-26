@@ -7,6 +7,7 @@ import { parseReleasePlan } from "./release-contract";
 import { capture, jsonFile, saveReceipt } from "./release-operator";
 import { compute } from "./release-preparation";
 import { sha256 } from "./release-stage";
+import { checkLevelForTarget } from "./standalone-smoke";
 
 export async function linuxDocker(options: {
   source: string;
@@ -14,6 +15,7 @@ export async function linuxDocker(options: {
   mode: "build" | "channels";
   plan?: string;
   sourceRoot?: string;
+  fullMatrix?: boolean;
 }) {
   const source = resolve(options.source);
   const output = resolve(options.output);
@@ -72,6 +74,7 @@ export async function linuxDocker(options: {
       schema: 1,
       command: "linux",
       mode: options.mode,
+      fullMatrix: options.fullMatrix ?? false,
       status,
       sourceCommit: identity.sourceCommit,
       exportSha256: sha256(identityBody),
@@ -91,6 +94,7 @@ export async function linuxDocker(options: {
         "linux",
         "--mode",
         options.mode,
+        ...(options.fullMatrix ? ["--full-matrix"] : []),
         "--source",
         source,
         "--output",
@@ -101,6 +105,7 @@ export async function linuxDocker(options: {
   try {
     for (const arch of ["arm64", "x64"] as const) {
       const platform = `linux/${arch === "x64" ? "amd64" : "arm64"}`;
+      const level = checkLevelForTarget(`linux-${arch}`, options.fullMatrix);
       const image = `gitdocket-qualification:${arch}-${sha256(await readFile(join(source, "release/docker/Dockerfile"))).slice(0, 12)}`;
       await compute(
         [
@@ -132,18 +137,20 @@ export async function linuxDocker(options: {
         `test "$(bun -p 'process.platform + "-" + process.arch')" = linux-${arch}`,
         "bun install --frozen-lockfile",
         ...(options.mode === "build"
-          ? ["bun scripts/standalone-release.ts build --output /output"]
+          ? [
+              `bun scripts/standalone-release.ts build ${options.fullMatrix ? "--full-matrix " : ""}--output /output`,
+            ]
           : [
               "mkdir -p release/standalone",
               "cp -a /artifacts/. release/standalone/",
               "bun scripts/release-pack.ts",
-              `bun scripts/npm-qualify.ts --output /output/npm-linux-${arch}.json`,
+              `bun scripts/npm-qualify.ts --level ${level} --output /output/npm-linux-${arch}.json`,
               ...(arch === "x64"
                 ? [
-                    "PATH=/opt/node24/bin:$PATH bun scripts/npm-qualify.ts --output /output/npm-linux-x64-node24.json",
+                    `PATH=/opt/node24/bin:$PATH bun scripts/npm-qualify.ts --level ${level} --output /output/npm-linux-x64-node24.json`,
                   ]
                 : []),
-              `bun scripts/homebrew-qualify.ts --source /work --artifacts /work/release/standalone --brew /home/linuxbrew/.linuxbrew/bin/brew --audit --output /output/homebrew-linux-${arch}.json`,
+              `bun scripts/homebrew-qualify.ts --level ${level} --source /work --artifacts /work/release/standalone --brew /home/linuxbrew/.linuxbrew/bin/brew --audit --output /output/homebrew-linux-${arch}.json`,
             ]),
       ].join("\n");
       // Only the reviewed export and explicit artifacts are exposed. No host credentials or Docker socket enter the container.
@@ -215,6 +222,7 @@ export async function linuxCommand(args: string[], sourceRoot: string) {
       output: { type: "string" },
       plan: { type: "string" },
       mode: { type: "string", default: "build" },
+      "full-matrix": { type: "boolean" },
     },
   });
   assert(
@@ -228,5 +236,6 @@ export async function linuxCommand(args: string[], sourceRoot: string) {
     mode: values.mode,
     plan: values.plan,
     sourceRoot,
+    fullMatrix: values["full-matrix"],
   });
 }

@@ -9,11 +9,27 @@ import { shippedHistory } from "../packages/core/src/shipped";
 import { DOCKET_VERSION } from "../packages/core/src/version";
 import { verifyUpgradeCompatibility } from "./upgrade-compatibility";
 
+export type CheckLevel = "basic" | "deep";
+
+export function checkLevelForTarget(
+  target: string,
+  fullMatrix = false,
+): CheckLevel {
+  assert(/^(darwin|linux)-(arm64|x64)$/.test(target));
+  return fullMatrix || target.endsWith("-arm64") ? "deep" : "basic";
+}
+
 /** The test harness uses Bun; every product subprocess has only Git and Docket on PATH. */
 export async function smokeStandalone(
   directory: string,
-  options: { node?: boolean; onTools?: (names: string[]) => void } = {},
+  options: {
+    node?: boolean;
+    level?: CheckLevel;
+    onTools?: (names: string[]) => void;
+  } = {},
 ) {
+  const level = options.level ?? "deep";
+  assert(["basic", "deep"].includes(level));
   const root = await mkdtemp(join(tmpdir(), "gitdocket-standalone-smoke-"));
   const bin = join(root, "bin");
   const project = join(root, "project");
@@ -187,35 +203,38 @@ export async function smokeStandalone(
     } finally {
       await client.close();
     }
-    const watch = Bun.spawnSync([cli, "serve", "--watch"], {
-      cwd: project,
-      env,
-      stdout: "pipe",
-      stderr: "pipe",
-      timeout: 5000,
-    });
-    assert.equal(watch.exitCode, 1);
-    assert(
-      watch.stderr
-        .toString()
-        .includes("--watch requires a source installation"),
-    );
-    await verifyUpgradeCompatibility({
-      history: shippedHistory(),
-      version: DOCKET_VERSION,
-      upgrade: async (cwd, dryRun) => {
-        const report = JSON.parse(
-          run(
-            [cli, "upgrade", ...(dryRun ? ["--dry-run"] : []), "--json"],
-            cwd,
-            [0, 1],
-          ),
-        );
-        assert(Array.isArray(report.conflicts));
-        return report;
-      },
-    });
+    if (level === "deep") {
+      const watch = Bun.spawnSync([cli, "serve", "--watch"], {
+        cwd: project,
+        env,
+        stdout: "pipe",
+        stderr: "pipe",
+        timeout: 5000,
+      });
+      assert.equal(watch.exitCode, 1);
+      assert(
+        watch.stderr
+          .toString()
+          .includes("--watch requires a source installation"),
+      );
+      await verifyUpgradeCompatibility({
+        history: shippedHistory(),
+        version: DOCKET_VERSION,
+        upgrade: async (cwd, dryRun) => {
+          const report = JSON.parse(
+            run(
+              [cli, "upgrade", ...(dryRun ? ["--dry-run"] : []), "--json"],
+              cwd,
+              [0, 1],
+            ),
+          );
+          assert(Array.isArray(report.conflicts));
+          return report;
+        },
+      });
+    }
     return {
+      level,
       version: DOCKET_VERSION,
       platform: process.platform,
       arch: process.arch,
@@ -228,8 +247,12 @@ export async function smokeStandalone(
         "task create/ready/index",
         "embedded browser assets",
         "MCP ready tool",
-        "source-only watch diagnostic",
-        "historical/customized/stale upgrades",
+        ...(level === "deep"
+          ? [
+              "source-only watch diagnostic",
+              "historical/customized/stale upgrades",
+            ]
+          : []),
       ],
     };
   } finally {
@@ -239,10 +262,20 @@ export async function smokeStandalone(
 
 if (import.meta.main) {
   const { values } = parseArgs({
-    options: { bin: { type: "string" }, output: { type: "string" } },
+    options: {
+      bin: { type: "string" },
+      output: { type: "string" },
+      level: { type: "string" },
+    },
   });
   assert(values.bin, "--bin DIR is required");
-  const receipt = await smokeStandalone(resolve(values.bin));
+  assert(
+    values.level === undefined || ["basic", "deep"].includes(values.level),
+    "invalid standalone check level",
+  );
+  const receipt = await smokeStandalone(resolve(values.bin), {
+    level: (values.level ?? "deep") as CheckLevel,
+  });
   const json = `${JSON.stringify(receipt, null, 2)}\n`;
   if (values.output) await Bun.write(values.output, json);
   console.log(json);
