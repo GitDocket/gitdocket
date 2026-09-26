@@ -52,7 +52,7 @@ search terms, task IDs, and file paths. Storage lives outside the repository.
 
 Upgrade reports distinguish file operations from retained workflow differences. Human output labels retained differences `review`; JSON includes a `reviewRequired` path list and `reviewRequired: true` on those items. Compare these files with the current shipped workflow to distinguish intentional project requirements from stale instructions, including after resolving merge conflicts. An `up-to-date` action or current origin stamp does not establish content equivalence. Exit status remains nonzero for merge conflicts; review items preserve project-owned text and do not change the exit status.
 
-## Workflow extensions (0.4.0 development)
+## Workflow extensions
 
 Use `docket extension inspect|install|list|show|configure|enable|disable|remove|update|validate|reconcile|recover|refresh` for optional repository-owned workflow packages. [The extension guide](extensions.md) documents exact commands, authoring, tool recipes and evidence limits. Installation and validation never execute package content.
 

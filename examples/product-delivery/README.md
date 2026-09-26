@@ -1,6 +1,6 @@
 # Beacon: request to local release handoff
 
-Beacon is a small, working bookmark app before JSON export exists. The installable `product-delivery` package supplies the review, delivery and knowledge-reuse process; `incident-review` demonstrates a second independently owned workflow. Both install through an actual GitDocket 0.4.0 development candidate. This is a synthetic learning and qualification example, not a released app or prewritten successful agent demonstration.
+Beacon is a small, working bookmark app before JSON export exists. The installable `product-delivery` package supplies the review, delivery and knowledge-reuse process; `incident-review` demonstrates a second independently owned workflow. The recorded qualification installed both through an actual GitDocket 0.4.0 development candidate; current readers can use the released 0.6.0 commands below. This is a synthetic learning and qualification example, not a released app or prewritten successful agent demonstration.
 
 ## What you will learn
 
@@ -10,7 +10,7 @@ The agent follows the process; you review and authorize the next step. GitDocket
 
 ## 1. Prepare the starting project
 
-Install GitDocket 0.5.0 with `brew install gitdocket/tap/gitdocket`, or use the [npm alternative](https://github.com/GitDocket/gitdocket/blob/main/docs/npm.md). This example app and its verification scripts additionally need Bun 1.3.14+, Git and a coding agent. Full delivery verification needs Chrome/Chromium and permission to run a local server. The source archive does not include the CLI. Bun is an example-app prerequisite; the installed GitDocket commands do not need a separate Bun runtime.
+Install GitDocket 0.6.0 with `brew install gitdocket/tap/gitdocket`, or use the [npm alternative](https://github.com/GitDocket/gitdocket/blob/main/docs/npm.md). This example app and its verification scripts additionally need Bun 1.3.14+, Git and a coding agent. Full delivery verification needs Chrome/Chromium and permission to run a local server. The source archive does not include the CLI. Bun is an example-app prerequisite; the installed GitDocket commands do not need a separate Bun runtime.
 
 From an extracted example download or GitDocket source checkout, prepare a previously nonexistent disposable repository:
 
@@ -22,7 +22,7 @@ bun run docket -- extension configure product-delivery --set '{"reviewer":"relea
 bun run docket -- extension show product-delivery --json
 ```
 
-Replace the absolute paths with your installed candidate and a new destination. The helper initializes a Git project and installs/enables the canonical packages through that candidate. The second `show` should report `release owner` as the effective reviewer with project ownership. To view the starting app, run `bun run start`, open `http://127.0.0.1:4173`, then stop that server before browser verification.
+Replace the absolute paths with your installed GitDocket executable and a new destination. The helper initializes a Git project and installs/enables the canonical packages through that executable. The second `show` should report `release owner` as the effective reviewer with project ownership. To view the starting app, run `bun run start`, open `http://127.0.0.1:4173`, then stop that server before browser verification.
 
 Use the exact installed candidate executable, not a source fallback. `example-source.json` records its version, canonical package source hashes, installation/configuration state and setup commands. The generated wrapper continues to require that installed CLI path. Both registry and installed content are committed, and the repository needs no author package directory after preparation. Read [the extension author/adopter guide](../../docs/extensions.md) for installation into an existing project, updating, reconciliation and retirement.
 

@@ -1,9 +1,9 @@
 {
   "kind": "canonical-source-archive",
-  "sha256": "e1a8579fbe878dda9e4385862adaca13fa44e425a130e5ba3ed3efb8fe6bd04b",
+  "sha256": "7d43469e2d7492ba84b155c4260f636a2879cfd3ec169a3350b191875804dfb6",
   "files": {
-    "README.md": "c4e55ee35868a6ec1fd60a94303ff5ee2528ce276769eea84969bc178dae963b",
-    "docs/extensions.md": "3d9f379cc3494c528be6b544f755dadbf34f0eefc42845292bd9f4b7e428551d",
+    "README.md": "9624d03e9f3abfeb239f341a709ac9a5fe9858a1b7a1caab21f39f240c141f9f",
+    "docs/extensions.md": "6abea3d45c9d8230f3f5d1100d1dcb06cf9f1b62529a3ddb80f3e82769cf0d59",
     "examples/extensions/README.md": "1ad18edf448629df94f9f0855309adedfd381ef7eb6ad65a044dd73c2121cf58",
     "examples/extensions/beacon-tools/extension.json": "23d79b92f8ee97321d5ae4b7df3b71710d9f71eed97abb25f4684976ce8a6d37",
     "examples/extensions/beacon-tools/recipes/checks.md": "e649a865f56a30bb0711433cd0ced61915115766917a80558efeb6438b155bdc",
@@ -30,7 +30,7 @@
     "examples/extensions/product-delivery/templates/verification.md": "ca0e003a6df267ad61beefce66df5ee44fb082985f0c5bdb04adc0b3891a5b84",
     "examples/extensions/product-delivery/workflows/delivery.md": "1532cf649bc76b5b806ad7ab07bc4d083b5661ff1c2df9490630ddf653b298ec",
     "examples/product-delivery/AGENTS.md": "98d271eaa5b584aabe816505c04a92947b6505f43c224bc831da1e9bc2e3359a",
-    "examples/product-delivery/README.md": "e019b224acbcfc77953d7a1e4004d66f9a34fa992fcb02630b96a83fee93e996",
+    "examples/product-delivery/README.md": "6964c2e1b3234f38429ff4a076c3614b77db6a00058c100b22dcf2b96ec62fa2",
     "examples/product-delivery/app/app.js": "1ef85df687d80324da72c85b1c2cdc3342f36a31303554c8e3c593b6030de54f",
     "examples/product-delivery/app/bookmarks.js": "b2f847bccb23f1b443d1ffa9ac1794b535aa0ffe5b9dd0f70a1377b56c8b1e2f",
     "examples/product-delivery/app/fixtures.js": "16227ada6cef71326a4b6d6b7b57b3430e13497509e468b61cc66291aeaef3e1",
@@ -53,7 +53,7 @@
     "scripts/extensions/check-beacon-browser.ts": "ccb3fdeaa7063be2d888be581f102e67fac6900d0fff1d791e2853e486f02631",
     "scripts/extensions/mcp-fixture.test.ts": "9afe3fcc57d4072e6811dca0e2d79caa79cb6adf7b0b6d46f33e7c1683aff89b",
     "scripts/extensions/mcp-fixture.ts": "5f329c6bff7a0327d67e3235d7a55f04f99dd82107ea6246c75ddd6e389a535e",
-    "scripts/extensions/package-examples.ts": "efe67ea5b668f7b58e08d58f58ebb3fd23c90cea7a87f221319611a35faf994b",
+    "scripts/extensions/package-examples.ts": "8e0cad42f52198316edbc14a22afe6f1041b5a54c11415b55941856f8b486e69",
     "scripts/extensions/prepare-discovery.ts": "384525c97db7c51924d9ded6da8895d682ca58c10bd498313522e046010b1977",
     "scripts/extensions/prepare-example.ts": "7f8e54a06bfd9f97cae9db2d6e7f923cf13e40d5a30f9df2357bb5b03445a2a4",
     "scripts/extensions/prepare-rehearsal.ts": "a7c3ce4b2e2c17aee0431ce3eb0fb13f0d2796122c76d8b70c84f92a744fc9c5",
@@ -61,5 +61,5 @@
     "scripts/extensions/run-agent-case.ts": "1d983dc00d1d480bc81d2e4314864678808331e523f0a614e1b516599403035c",
     "scripts/extensions/run-claude-case.ts": "3941594310827d438d302adaaf7754847d51cafe2da79ddf8af227da94184b7f"
   },
-  "limits": "Setup and canonical sources only; no fabricated review or implementation evidence. Requires GitDocket 0.4.0 installed through Homebrew or npm; Bun runs the example app and scripts."
+  "limits": "Setup and canonical sources only; no fabricated review or implementation evidence. Requires GitDocket 0.6.0 installed through Homebrew or npm; Bun runs the example app and scripts."
 }

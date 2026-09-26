@@ -18,7 +18,7 @@ description: What enters the pipeline and which guarantees it provides.
 ---
 ```
 
-In the 0.4.0 development version, the engine supplies a writing rule for all bundle documents: keep each prose paragraph and each simple list item on one source line, and let the browser or Markdown preview wrap it. `docket lint` reports accidental prose wrapping with a path and source line; `--strict` makes warnings fail the check. Meaningful Markdown structure, code, tables, quoted source, HTML and explicit two-space or backslash hard breaks are preserved. Lint is read-only, and browser saves retain the submitted body exactly; review existing wrapped prose rather than joining all newlines automatically.
+The engine supplies a writing rule for all bundle documents: keep each prose paragraph and each simple list item on one source line, and let the browser or Markdown preview wrap it. `docket lint` reports accidental prose wrapping with a path and source line; `--strict` makes warnings fail the check. Meaningful Markdown structure, code, tables, quoted source, HTML and explicit two-space or backslash hard breaks are preserved. Lint is read-only, and browser saves retain the submitted body exactly; review existing wrapped prose rather than joining all newlines automatically.
 
 ## Work items
 
@@ -52,4 +52,4 @@ Decisions are numbered separately and record why an alternative was selected. Wo
 
 Optional project guidance records your standards and scoped procedures, while task Outcomes and reference docs record what happened and why. Docket's supplied tracker workflows describe activities such as pickup and close; your project procedures can describe activities such as deployment, used only when that activity is requested. Guidance discovery helps an agent find relevant instructions; it does not guarantee model compliance.
 
-Guidance and the shared browser editor are included in 0.3.0. Upgrade older installations to use them. Supplied workflow Markdown can already be edited and merged by `docket upgrade`; the [0.4.0 preview adds workflow extensions](extensions.md) for reusable team processes.
+Project guidance, the shared browser editor and [workflow extensions](extensions.md) are included in the current release. Supplied workflow Markdown can be edited and merged by `docket upgrade`; extensions provide reusable team processes.

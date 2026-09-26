@@ -15,7 +15,7 @@ After completion, scripted Chromium actions added an optional writing convention
 - [CLI receipt](receipt.json): actual commands, results and task-linked commits.
 - [Completed task source](task.md), [contributor guide](contributing.md), [documentation decision](documentation.md), and [saved instruction](project-guidance.md): exact source snapshots. Their original links resolve inside the replayed repository, rather than this static evidence directory.
 - [Browser receipt](browser.json): exact before/after guidance source and performed steps.
-- [Editing screenshot](../../assets/guidance-edit.png), [local-save screenshot](../../assets/guidance-saved.png), and [completed-task screenshot](../../assets/single-task-done.png): real candidate UI with synthetic content.
+- [Editing screenshot](../../assets/guidance-edit.png), [local-save screenshot](../../assets/guidance-saved.png), and [completed-task screenshot](../../assets/single-task-done.png): historical UI screenshots with synthetic content.
 - [Fresh-session prompt and response](handoff.md): actual independent context recovery and application of the saved knowledge.
 
 The basic tutorial succeeds before guidance exists. Guidance and shared browser editing were development-candidate features when this evidence was recorded and are included in 0.3.0, with the supported limits explained in the everyday-use guide. Saving a file does not instantly change an already-running agent's context; the fresh session must discover and read it. This example reuses the separately qualified guidance/editor contracts and adds one combined public-safe check.
