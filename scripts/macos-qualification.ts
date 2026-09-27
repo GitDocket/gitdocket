@@ -168,7 +168,7 @@ export function validateChannelReceipts(
     npm.node.startsWith(`v${nodeMajor}.`),
     `qualification requires Node ${nodeMajor}`,
   );
-  assert.equal(npm.npm, "11.17.0");
+  assert.equal(npm.npm, "11.20.0");
   assert.equal(npm.productPath, "Node, Git and npm launchers; no Bun");
   assert.equal(npm.smoke.serveStatus, 200);
   assert(npm.smoke.mcpTools.includes("ready"));

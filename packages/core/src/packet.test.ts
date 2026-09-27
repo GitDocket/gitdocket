@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { loadBundle } from "./bundle";
 import { parseConfig } from "./config";
 import { InMemoryFileStore } from "./filestore";
-import { buildContextPacket } from "./packet";
+import { buildContextPacket, buildEpicSupervisionRoute } from "./packet";
 
 const config = parseConfig();
 
@@ -173,5 +173,43 @@ describe("buildContextPacket", () => {
     expect(buildContextPacket(store, bundle, "DEC-1")).rejects.toThrow(
       "no work item",
     );
+  });
+});
+
+describe("buildEpicSupervisionRoute", () => {
+  test("returns the authoritative Epic and title without writing", async () => {
+    const store = seed();
+    const bundle = await loadBundle(store, config);
+    const path = "work/epics/DKT-10-theme.md";
+    const before = await store.read(path);
+
+    const result = await buildEpicSupervisionRoute(store, bundle, "DKT-10");
+
+    expect(result).toMatchObject({
+      outcome: "route",
+      route: { intent: "epic-supervision", workflow: "docket-epic" },
+      suggestedSessionTitle: "Epic DKT-10 — The theme",
+      epic: { path, fm: { id: "DKT-10", status: "in-progress" }, body: "x" },
+    });
+    expect(await store.read(path)).toBe(before);
+  });
+
+  test("rejects stale Epic metadata, Task IDs and unknown IDs", async () => {
+    const store = seed();
+    const bundle = await loadBundle(store, config);
+    const path = "work/epics/DKT-10-theme.md";
+    await store.write(
+      path,
+      (await store.read(path)).replace("status: in-progress", "status: done"),
+    );
+    await expect(
+      buildEpicSupervisionRoute(store, bundle, "DKT-10"),
+    ).rejects.toThrow("epic changed or is invalid");
+    await expect(
+      buildEpicSupervisionRoute(store, bundle, "DKT-1"),
+    ).rejects.toThrow("no epic");
+    await expect(
+      buildEpicSupervisionRoute(store, bundle, "DKT-404"),
+    ).rejects.toThrow("no epic");
   });
 });

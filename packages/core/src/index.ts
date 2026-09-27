@@ -142,8 +142,10 @@ export {
 } from "./ops";
 export {
   buildContextPacket,
+  buildEpicSupervisionRoute,
   type CommitRef,
   type ContextPacket,
+  type EpicSupervisionRoute,
   type PacketDep,
   type PacketLink,
 } from "./packet";

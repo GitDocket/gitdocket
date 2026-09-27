@@ -66,7 +66,7 @@ import {
   type SearchHit,
   viewCatalog,
 } from "./palette";
-import { modeLabel, nextMode, type SortMode } from "./sort";
+import { modeLabel, nextMode, parseBoardSorts, type SortMode } from "./sort";
 import {
   DEFAULT_STATE,
   type ListState,
@@ -2411,20 +2411,15 @@ function Palette({ sections }: { sections: string[] }) {
   );
 }
 
-// Header count: terminal columns are capped server-side, so say what's hidden.
-const _columnCount = (data: BoardData, state: string): string => {
-  const shown = data.cards.filter((c) => c.status === state).length;
-  const total = data.totals[state] ?? shown;
-  return total > shown ? `latest ${shown} of ${total}` : String(total);
-};
-
 // Per-column sort choices survive data refreshes (React state) and page
 // reloads (localStorage) — client-side only.
 const SORT_KEY = "docket.board.sort";
 
 function loadSorts(): Record<string, SortMode> {
   try {
-    return JSON.parse(localStorage.getItem(SORT_KEY) ?? "{}");
+    return (
+      parseBoardSorts(JSON.parse(localStorage.getItem(SORT_KEY) ?? "{}")) ?? {}
+    );
   } catch {
     return {};
   }

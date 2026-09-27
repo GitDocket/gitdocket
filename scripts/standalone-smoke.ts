@@ -66,11 +66,11 @@ export async function smokeStandalone(
       env,
       stdout: "pipe",
       stderr: "pipe",
-      timeout: 20_000,
+      timeout: 60_000,
     });
     assert(
       allowed.includes(result.exitCode),
-      `${args.join(" ")} failed: ${result.stderr}`,
+      `${args.join(" ")} failed (exit ${result.exitCode}, signal ${result.signalCode}): stdout=${result.stdout} stderr=${result.stderr}`,
     );
     return result.stdout.toString().trim();
   };

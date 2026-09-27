@@ -243,7 +243,7 @@ export async function qualifyRelease(
         const tools = config.mac?.[arch] as MacTools;
         assert.equal(
           capture([tools.bun, "--version"]),
-          "1.3.14",
+          "1.4.2",
           `pin Bun for ${arch}`,
         );
         assert.match(
@@ -253,7 +253,7 @@ export async function qualifyRelease(
         );
         assert.equal(
           capture([tools.node, tools.npm, "--version"]),
-          "11.17.0",
+          "11.20.0",
           `pin npm for ${arch}`,
         );
         assert.equal(
@@ -305,8 +305,8 @@ export async function qualifyRelease(
     const bun = nativeTools?.bun ?? process.execPath;
     assert.equal(
       capture([bun, "--version"]),
-      "1.3.14",
-      "qualification packing requires Bun 1.3.14",
+      "1.4.2",
+      "qualification packing requires Bun 1.4.2",
     );
     await run(
       [bun, "scripts/release-pack.ts"],
@@ -411,13 +411,13 @@ export async function createWorkspace(
   assert(npm, "npm executable is required");
   assert.equal(
     capture([bun, "--version"]),
-    "1.3.14",
-    "workspace requires Bun 1.3.14; pass --bun or select it in PATH",
+    "1.4.2",
+    "workspace requires Bun 1.4.2; pass --bun or select it in PATH",
   );
   assert.equal(
     capture([npm, "--version"]),
-    "11.17.0",
-    "workspace requires npm 11.17.0; pass --npm or select it in PATH",
+    "11.20.0",
+    "workspace requires npm 11.20.0; pass --npm or select it in PATH",
   );
   const commit = capture(
     ["git", "rev-parse", "--verify", `${options.ref}^{commit}`],
@@ -577,7 +577,7 @@ export async function reviewPacket(
     stageReceiptSha256: sha256(stageBody),
     repository: "GitDocket/gitdocket",
     registry: "https://registry.npmjs.org/",
-    npmVersion: "11.17.0",
+    npmVersion: "11.20.0",
     workflowRef: "",
     holdingTag: "staged",
     publicTag: "latest",

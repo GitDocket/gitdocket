@@ -88,7 +88,7 @@ async function fixture(version = "0.2.0"): Promise<string> {
     "packages/mcp/bin/run.cjs",
     ".github/workflows/standalone.yml",
     "release/standalone.json",
-    "release/licenses/bun-1.3.14.md",
+    "release/licenses/bun-1.4.2.md",
     "scripts/standalone-build.ts",
     "scripts/standalone-smoke.ts",
     "scripts/standalone-release.ts",

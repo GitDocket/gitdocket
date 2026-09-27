@@ -72,7 +72,7 @@ async function sourceFixture(version = "0.2.0"): Promise<string> {
     "packages/mcp/bin/run.cjs": "// fixture\n",
     ".github/workflows/standalone.yml": "name: fixture\n",
     "release/standalone.json": "{}\n",
-    "release/licenses/bun-1.3.14.md": "fixture notice\n",
+    "release/licenses/bun-1.4.2.md": "fixture notice\n",
     "scripts/standalone-build.ts": "export {};\n",
     "scripts/standalone-smoke.ts": "export {};\n",
     "scripts/standalone-release.ts": "export {};\n",

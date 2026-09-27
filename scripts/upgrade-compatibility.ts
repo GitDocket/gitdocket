@@ -147,9 +147,7 @@ export async function verifyUpgradeCompatibility(options: {
     const pickupSlug = "docket-pickup";
     const pickupCurrentBody = current.bodies[pickupSlug];
     const pickupPrevious = historical.find(
-      (entry) =>
-        entry.bodies[pickupSlug] &&
-        entry.bodies[pickupSlug] !== pickupCurrentBody,
+      (entry) => entry.version === "0.6.0" && entry.bodies[pickupSlug],
     );
     assert(pickupPrevious);
     const pickupPreviousBody = pickupPrevious.bodies[pickupSlug];
@@ -170,6 +168,7 @@ export async function verifyUpgradeCompatibility(options: {
     const pickupBody = bodyOf(await readFile(path(pickupSlug), "utf8"));
     assert(pickupBody.includes(pickupLocal));
     assert(pickupBody.includes("active-task-conflict"));
+    assert(pickupBody.includes('outcome: "route"'));
     assert(pickupBody.includes("May I create a linked Git worktree at <path>"));
 
     const stalePickup = workflow(

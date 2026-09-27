@@ -199,4 +199,90 @@ describe("docket task start pickup contract", () => {
       "HEAD is not a usable starting commit; choose a committed starting point.",
     );
   });
+
+  test("routes a named Epic without changing status, active task, or child selection", async () => {
+    const epic = JSON.parse(
+      sh([
+        "bun",
+        CLI,
+        "task",
+        "create",
+        "--type",
+        "Epic",
+        "--title",
+        "Ship the program",
+        "--json",
+      ]).stdout,
+    ) as { id: string; path: string };
+    const child = JSON.parse(
+      sh([
+        "bun",
+        CLI,
+        "task",
+        "create",
+        "--title",
+        "Build first part",
+        "--epic",
+        `/${epic.path}`,
+        "--json",
+      ]).stdout,
+    ) as { id: string; path: string };
+
+    const routed = sh(["bun", CLI, "task", "start", epic.id, "--json"]);
+    expect(routed.code).toBe(0);
+    expect(JSON.parse(routed.stdout)).toMatchObject({
+      outcome: "route",
+      route: { intent: "epic-supervision", workflow: "docket-epic" },
+      suggestedSessionTitle: `Epic ${epic.id} — Ship the program`,
+      epic: {
+        path: epic.path,
+        fm: { id: epic.id, type: "Epic", status: "todo" },
+      },
+    });
+    expect(routed.stderr).toBe("");
+    expect(
+      await readFile(join(repo, ".docket", "active-task"), "utf8").catch(
+        () => undefined,
+      ),
+    ).toBeUndefined();
+    expect(await readFile(join(repo, "docket", epic.path), "utf8")).toContain(
+      "status: todo",
+    );
+    expect(await readFile(join(repo, "docket", child.path), "utf8")).toContain(
+      "status: todo",
+    );
+
+    const human = sh(["bun", CLI, "task", "start", epic.id]);
+    expect(human.code).toBe(0);
+    expect(human.stdout).toContain("route to the docket-epic workflow");
+    expect(human.stdout).toContain("no status or active task changed");
+
+    const otherId = JSON.parse(
+      sh([
+        "bun",
+        CLI,
+        "task",
+        "create",
+        "--title",
+        "Other active work",
+        "--json",
+      ]).stdout,
+    ).id as string;
+    expect(sh(["bun", CLI, "task", "start", otherId, "--json"]).code).toBe(0);
+    const marker = await readFile(join(repo, ".docket", "active-task"), "utf8");
+    const token = await readFile(
+      join(repo, ".docket", "workflow-token"),
+      "utf8",
+    );
+    expect(sh(["bun", CLI, "task", "start", epic.id, "--json"]).code).toBe(0);
+    expect(await readFile(join(repo, ".docket", "active-task"), "utf8")).toBe(
+      marker,
+    );
+    expect(
+      await readFile(join(repo, ".docket", "workflow-token"), "utf8"),
+    ).toBe(token);
+    expect(await readFile(join(repo, "docket", child.path), "utf8")).toContain(
+      "status: todo",
+    );
+  });
 });

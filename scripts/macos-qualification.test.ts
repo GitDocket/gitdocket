@@ -39,7 +39,7 @@ function fixture(arch: "arm64" | "x64" = "arm64") {
     version,
     source,
     target: arch === "arm64" ? "darwin-arm64" : "darwin-x64",
-    bunVersion: "1.3.14",
+    bunVersion: "1.4.2",
     archive: `gitdocket-${version}-darwin-${arch}.tar.gz`,
     sha256: "c".repeat(64),
     files: {},
@@ -66,7 +66,7 @@ function fixture(arch: "arm64" | "x64" = "arm64") {
     platform: "darwin" as const,
     arch,
     node: "v22.23.2",
-    npm: "11.17.0",
+    npm: "11.20.0",
     productPath: "Node, Git and npm launchers; no Bun",
     checks: [
       "npm global install",

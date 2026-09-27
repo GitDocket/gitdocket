@@ -11,7 +11,7 @@ concurrency:
 
 jobs:
   checks:
-    name: Bun 1.3.14 / Linux
+    name: Bun 1.4.2 / Linux
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -19,11 +19,11 @@ jobs:
           fetch-depth: 0
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.14
+          bun-version: 1.4.2
       - uses: actions/setup-node@v6
         with:
           node-version: "24"
-      - run: npm install --global npm@11.17.0
+      - run: npm install --global npm@11.20.0
       - run: npm --version
       - run: bun --version
       - run: bun install --frozen-lockfile

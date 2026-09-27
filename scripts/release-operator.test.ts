@@ -26,7 +26,7 @@ function fixture() {
     stageReceiptSha256: "b".repeat(64),
     repository: "GitDocket/gitdocket",
     registry: "https://registry.npmjs.org/",
-    npmVersion: "11.17.0",
+    npmVersion: "11.20.0",
     workflowRef: "unused",
     holdingTag: "staged",
     publicTag: "latest",

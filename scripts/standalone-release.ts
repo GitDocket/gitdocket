@@ -160,7 +160,7 @@ export async function dependencyNotices(root: string): Promise<string> {
       `${pkg.name}@${pkg.version} (${pkg.license ?? "see upstream"})\n${texts.join("\n")}`,
     );
   }
-  return `${await readFile(join(root, "release/licenses/bun-1.3.14.md"), "utf8")}\n\n${notices.join("\n\n---\n\n")}\n`;
+  return `${await readFile(join(root, "release/licenses/bun-1.4.2.md"), "utf8")}\n\n${notices.join("\n\n---\n\n")}\n`;
 }
 
 export async function packageStandalone(

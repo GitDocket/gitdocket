@@ -30,8 +30,16 @@
 <dl class="use-cases">
 <div><dt>Deliver a product change</dt><dd>Write a proposal, review the scope, build the feature, and check the result.</dd></div>
 <div><dt>Review an incident</dt><dd>Gather the timeline, investigate what happened, and record what to do next.</dd></div>
+<div><dt>Bring a list into planning</dt><dd>Read an external list through an agent connection, cite its items, and review proposed project work.</dd></div>
 <div><dt>Share your team’s approach</dt><dd>Save your workflow and templates so each session starts with the same instructions.</dd></div>
 </dl>
+<section id="external-lists" aria-labelledby="external-lists-title">
+<h2 id="external-lists-title">Bring an external list into a project plan</h2>
+<p>Notion is an illustrative source. If your agent already has an authorized Notion connector or MCP tool, an extension can guide it to read a selected list, keep links to the source items, and draft a planning proposal in your repository. Create Docket tasks from that proposal only when you explicitly ask.</p>
+<p><strong>Example request:</strong> “Read the launch list in my connected Notion workspace. Cite each item and draft a project plan in this repository. Ask me before creating tasks.”</p>
+<ol><li>Connect the source to your agent and authorize the needed read access.</li><li>Configure a list-reading workflow with the source and a binding to the tool your agent already exposes.</li><li>Ask the agent to follow the workflow, then review the sourced proposal before recording any requested work items.</li></ol>
+<p>The extension supplies reusable instructions, configuration and tool bindings. It does not install a connector, manage credentials or provide background synchronization. No ready-made Notion extension or live Notion validation ships here. The <a href="/docs/extensions/beacon/#observed">Beacon walkthrough</a> shows retained project records; its <a href="/docs/extensions/beacon/#verified">verification and provenance</a> include a real local MCP fixture with synthetic inputs, not a live third-party provider.</p>
+</section>
 <h2>One change helps the next</h2>
 <p>In the Beacon example, an agent adds bookmark export and records the file format it chose. A fresh session finds that decision and uses it to plan import.</p>
 <ol class="journey" aria-label="Beacon delivery sequence"><li>Request</li><li>Reviewed proposal</li><li>Checked change</li><li>Recorded decision</li><li>Next change</li></ol>

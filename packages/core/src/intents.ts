@@ -140,7 +140,7 @@ export const DOCKET_INTENTS = {
     id: "pickup",
     title: "Pick up or continue work",
     discovery:
-      "Start or resume explicitly tracked Docket work only — use a Docket ID, an unambiguous existing item, or explicit next/backlog selection; direct work bypasses Docket and ambiguous references require resolution before active-task state changes.",
+      "Start or resume explicitly tracked Docket work only — use a Docket ID, an unambiguous existing item, or explicit next/backlog selection; named Epics route to supervision, direct work bypasses Docket, and ambiguous references require resolution before active-task state changes.",
     defaultEntrypoint: { kind: "workflow", value: "docket-pickup" },
     mode: "state-changing",
     authority:
@@ -151,6 +151,7 @@ export const DOCKET_INTENTS = {
       "start DKT-12",
       "pick up the next Docket task",
       "continue work on DKT-12",
+      "pick up DKT-42 and carry it through even if it is an epic",
     ],
     exclusions: [
       "what-is-next questions without action language",

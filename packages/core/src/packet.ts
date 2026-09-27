@@ -45,6 +45,47 @@ export interface ContextPacket {
   guidance: ProjectGuidance;
 }
 
+export interface EpicSupervisionRoute {
+  outcome: "route";
+  route: { intent: "epic-supervision"; workflow: "docket-epic" };
+  suggestedSessionTitle: string;
+  epic: { path: string; fm: WorkItemFrontmatter; body: string };
+}
+
+const bodyWithoutFrontmatter = (source: string): string =>
+  source.replace(/^---\n[\s\S]*?\n---\n/, "").trim();
+
+/** Resolve a named Epic without changing its status, selecting a child, or touching pickup state. */
+export async function buildEpicSupervisionRoute(
+  store: FileStore,
+  bundle: Bundle,
+  id: string,
+): Promise<EpicSupervisionRoute> {
+  const item = bundle.byId(id);
+  if (item?.kind !== "work" || item.fm.type !== "Epic")
+    throw new Error(`no epic with id ${id}`);
+
+  const source = await store.read(item.path);
+  const parsed = parseConcept(item.path, source, buildSchemas(bundle.config));
+  if (
+    parsed.concept?.kind !== "work" ||
+    parsed.concept.fm.type !== "Epic" ||
+    JSON.stringify(parsed.concept.fm) !== JSON.stringify(item.fm)
+  )
+    throw new Error(`epic changed or is invalid: ${item.path}`);
+
+  return {
+    outcome: "route",
+    route: { intent: "epic-supervision", workflow: "docket-epic" },
+    suggestedSessionTitle: `Epic ${item.fm.id} — ${item.fm.title ?? ""}`,
+    epic: {
+      path: item.path,
+      fm: item.fm,
+      body: bodyWithoutFrontmatter(source),
+    },
+  };
+}
+
 /**
  * Build the packet for a work item. `commits` is the task's trailer-matched
  * history, newest first — callers with a repo get it from `scanActivity`
@@ -68,7 +109,7 @@ export async function buildContextPacket(
     JSON.stringify(parsed.concept.fm) !== JSON.stringify(item.fm)
   )
     throw new Error(`task changed or is invalid: ${item.path}`);
-  const body = source.replace(/^---\n[\s\S]*?\n---\n/, "").trim();
+  const body = bodyWithoutFrontmatter(source);
 
   const conceptAt = (path: string | undefined) =>
     path ? bundle.concepts.find((c) => c.path === path) : undefined;

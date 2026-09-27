@@ -42,6 +42,8 @@ docket extension configure product-delivery --unbind issue-read --json
 
 A binding neither provides credentials nor grants authority. The agent checks the actual tool inventory/schema. A missing bound tool is unavailable; multiple plausible unbound tools require selection. Manually supplied issue text is useful when labeled with its actual provenance. Read identity/revision evidence, match checks to the exact code revision, and keep local handoffs reviewable. External writes need explicit authorization for a prepared body and destination. Reconcile an uncertain result by operation identity before retrying; retain actual returned references. The [Beacon example](../examples/product-delivery/README.md) includes a separately launched synthetic MCP fixture, never a live provider claim.
 
+An external list is another illustrative read workflow: with an existing authorized Notion connector or MCP tool, a project could bind a list-reading capability, ask the agent to retain links to each source item, and review a planning proposal before explicitly requesting Docket tasks. No Notion extension package or live Notion validation is included. Extensions do not install connectors, manage credentials or synchronize a provider in the background; the [Beacon verification](../site/docs/extensions/beacon/index.html#verified) demonstrates the local synthetic tool boundary and retained project records.
+
 ## Update and retire
 
 ```sh

@@ -55,7 +55,7 @@ import { HTTPException } from "hono/http-exception";
 import { filterCards, parseBoardState } from "./client/board";
 import { applyEpicList, parseEpicListState } from "./client/epiclist";
 import { dropRank } from "./client/rank";
-import { type SortMode, sortCards } from "./client/sort";
+import { parseBoardSorts, sortCards } from "./client/sort";
 import { applyList, parseListState } from "./client/tasklist";
 import type { Committer } from "./commit";
 import { markdownHeadingOffsets, renderMarkdown } from "./render";
@@ -1045,19 +1045,14 @@ export function createApp(
         all,
         parseBoardState(new URL(c.req.url).search.slice(1)),
       );
-      let modes: Record<string, SortMode> = {};
+      let modes: ReturnType<typeof parseBoardSorts>;
       try {
-        modes = JSON.parse(c.req.query("sorts") ?? "{}");
+        modes = parseBoardSorts(JSON.parse(c.req.query("sorts") ?? "{}"));
       } catch {
         throw new HTTPException(400, { message: "invalid board sorts" });
       }
-      for (const mode of Object.values(modes))
-        if (
-          mode &&
-          (!["priority", "recency", "id"].includes(mode.key) ||
-            !["asc", "desc"].includes(mode.dir))
-        )
-          throw new HTTPException(400, { message: "invalid board sort" });
+      if (!modes)
+        throw new HTTPException(400, { message: "invalid board sorts" });
       const columns = repo.config.workflow.states.map((status) => {
         const result = pageRows(
           sortCards(

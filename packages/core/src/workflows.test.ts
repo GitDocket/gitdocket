@@ -51,7 +51,7 @@ describe("renderWorkflow", () => {
     if (!pickup) throw new Error("docket-pickup workflow missing");
     const authority = pickup.body.indexOf("Pickup authority requires");
     const resolve = pickup.body.indexOf("Resolve the target and command");
-    const start = pickup.body.indexOf("Start through the engine");
+    const start = pickup.body.indexOf("Start or route through the engine");
     const preserve = pickup.body.indexOf(
       "Preserve a retained epic-manager identity",
     );
@@ -65,6 +65,9 @@ describe("renderWorkflow", () => {
     expect(handoff).toBeGreaterThan(rename);
     expect(pickup.description).toContain("explicitly tracked Docket work only");
     expect(pickup.body).toContain("docket task start <ID> --json");
+    expect(pickup.body).toContain('outcome: "route"');
+    expect(pickup.body).toContain('route.workflow: "docket-epic"');
+    expect(pickup.body).toContain("stop another active task");
     expect(pickup.body).toContain(
       "Only explicit next-Docket-task or backlog-selection language authorizes bare",
     );

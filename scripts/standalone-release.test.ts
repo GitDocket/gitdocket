@@ -51,7 +51,7 @@ async function fixture(arch: "arm64" | "x64" = "arm64") {
     join(root, "release/standalone.json"),
     JSON.stringify({
       schema: 1,
-      bunVersion: "1.3.14",
+      bunVersion: "1.4.2",
       targets: [target],
     }),
   );
@@ -63,7 +63,7 @@ async function fixture(arch: "arm64" | "x64" = "arm64") {
   const build = {
     version: DOCKET_VERSION,
     target,
-    bunVersion: "1.3.14",
+    bunVersion: "1.4.2",
     source,
   };
   const files: Record<string, string> = {};
@@ -186,7 +186,7 @@ test("license notices follow workspace and isolated dependencies without stale s
   const root = await mkdtemp(join(tmpdir(), "standalone-notices-"));
   roots.push(root);
   await mkdir(join(root, "release/licenses"), { recursive: true });
-  await writeFile(join(root, "release/licenses/bun-1.3.14.md"), "Bun notice");
+  await writeFile(join(root, "release/licenses/bun-1.4.2.md"), "Bun notice");
   const workspace = join(root, "packages/web/node_modules");
   await mkdir(workspace, { recursive: true });
   const store = join(root, "node_modules/.bun");

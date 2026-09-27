@@ -69,9 +69,13 @@ describe("prompt-routing fixture contract", () => {
       } else {
         expect(fixture.allowedCommands.length).toBeGreaterThan(0);
       }
-      expect(fixture.maximumInspectionScope).toBe(
+      const authorizedScopes: string[] = [
         AGENT_INTENTS[fixture.expectedIntent].inspectionScope,
-      );
+        ...(fixture.composedIntents ?? []).map(
+          (intent) => AGENT_INTENTS[intent].inspectionScope,
+        ),
+      ];
+      expect(authorizedScopes).toContain(fixture.maximumInspectionScope);
       expect(typeof fixture.writesPermitted).toBe("boolean");
       expect(fixture.forbiddenActions.length).toBeGreaterThan(0);
     }
@@ -119,6 +123,12 @@ describe("prompt-routing fixture contract", () => {
     expect(fixtures["pickup-named-start"]?.allowedCommands).toEqual([
       "docket task start DKT-12 --json",
     ]);
+    expect(fixtures["pickup-named-epic-route"]?.composedIntents).toEqual([
+      "epic-supervision",
+    ]);
+    expect(fixtures["pickup-named-epic-route"]?.forbiddenActions).toContain(
+      "set the epic as .docket/active-task",
+    );
     expect(
       fixtures["pickup-explicit-next-docket-task"]?.allowedCommands,
     ).toEqual(["docket task start --json"]);

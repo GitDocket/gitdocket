@@ -1,5 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { modeLabel, nextMode, type SortMode, sortCards } from "./sort";
+import {
+  modeLabel,
+  nextMode,
+  parseBoardSorts,
+  type SortMode,
+  sortCards,
+} from "./sort";
 
 const card = (
   id: string,
@@ -19,6 +25,24 @@ const CARDS = [
 ];
 
 const ids = (cards: { id: string }[]) => cards.map((c) => c.id);
+
+test("saved board sorts accept valid modes and reject malformed JSON shapes", () => {
+  const valid: Record<string, SortMode> = {
+    todo: { key: "id", dir: "desc" },
+    done: null,
+  };
+  expect(parseBoardSorts(valid)).toEqual(valid);
+  for (const invalid of [
+    null,
+    [],
+    "bad",
+    { todo: [] },
+    { todo: {} },
+    { todo: { key: "id", dir: "sideways" } },
+    { todo: { key: "priority", dir: "asc", extra: true } },
+  ])
+    expect(parseBoardSorts(invalid)).toBeNull();
+});
 
 describe("sortCards", () => {
   test("null mode preserves server order", () => {

@@ -13,7 +13,7 @@ GitDocket’s CLI is intentionally small. Use `--json` when another program or c
 | `docket task list` | List tracked work with filters. |
 | `docket task create` | Create a Task or Epic with the next project ID. |
 | `docket decision create` | Record an accepted Decision with the configured decision prefix. |
-| `docket task start <ID>` | Start or resume explicitly selected tracked work; refuse a different ID when this checkout is occupied. |
+| `docket task start <ID>` | Start or resume a named Task, or return a non-mutating Epic supervision route; refuse a different Task ID when this checkout is occupied. |
 | `docket task stop` | Clear the checkout-local active task without changing its status. |
 | `docket task close <ID>` | Move completed work to `done`, or explicitly close without completion. |
 | `docket lint` | Report schema, link, and workflow-hygiene problems. |
@@ -23,6 +23,8 @@ GitDocket’s CLI is intentionally small. Use `--json` when another program or c
 | `docket serve` | Open the local-only browser interface. |
 
 Run `docket <command> --help` for flags and exact argument forms.
+
+For a named Task, `docket task start <ID> --json` moves it to `in-progress`, sets the checkout-local active task and returns a context packet. For a named Epic, the same command succeeds with `outcome: "route"`, a `docket-epic` workflow target, authoritative Epic content and the exact `Epic <ID> — <title>` manager title. The route does not change status, write or clear the active-task marker, or select a child; epic supervision owns the subsequent graph, readiness and checkout-conflict judgment.
 
 ## Parallel tracked work
 

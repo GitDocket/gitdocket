@@ -12,6 +12,7 @@ import {
   applyIndex,
   type Bundle,
   buildContextPacket,
+  buildEpicSupervisionRoute,
   type ContextPacket,
   createDecision,
   createDocument,
@@ -1023,10 +1024,23 @@ task
     const item = b.byId(id);
     if (item?.kind !== "work")
       return fail(new Error(`no work item with id ${id}`));
-    if (item.fm.type === "Epic")
-      return fail(
-        new Error(`${item.fm.id} is an epic — start one of its tasks`),
-      );
+    if (item.fm.type === "Epic") {
+      try {
+        const route = await buildEpicSupervisionRoute(store, b, item.fm.id);
+        if (opts.json) await print(JSON.stringify(route, null, 2));
+        else {
+          await print(
+            `${item.fm.id} is an epic — route to the docket-epic workflow`,
+          );
+          await print(
+            `no status or active task changed; supervise ready child tasks under ${route.suggestedSessionTitle}`,
+          );
+        }
+      } catch (error) {
+        fail(error);
+      }
+      return;
+    }
     const active = (
       await readFile(activeTaskPath(root), "utf8").catch(
         (error: NodeJS.ErrnoException) => {

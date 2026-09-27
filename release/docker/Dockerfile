@@ -1,4 +1,4 @@
-FROM oven/bun:1.3.14 AS bun
+FROM oven/bun:1.4.2 AS bun
 FROM node:24.2.0-bookworm AS node24
 FROM node:22.14.0-bookworm AS node22
 FROM ubuntu:24.04
@@ -6,7 +6,7 @@ COPY --from=node22 /usr/local /usr/local
 COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
 COPY --from=node24 /usr/local/bin/node /opt/node24/bin/node
 RUN apt-get update && apt-get install -y --no-install-recommends build-essential curl file git procps ruby python3 ca-certificates locales && rm -rf /var/lib/apt/lists/* \
-    && npm install --global npm@11.17.0 \
+    && npm install --global npm@11.20.0 \
     && useradd --create-home --shell /bin/bash linuxbrew \
     && mkdir -p /home/linuxbrew/.linuxbrew /work /output \
     && chown -R linuxbrew:linuxbrew /home/linuxbrew /work /output

@@ -14,6 +14,23 @@ export type SortMode = {
   dir: "asc" | "desc";
 } | null;
 
+/** Validate the JSON shape shared by saved preferences and board queries. */
+export function parseBoardSorts(
+  value: unknown,
+): Record<string, SortMode> | null {
+  if (value === null || typeof value !== "object" || Array.isArray(value))
+    return null;
+  for (const mode of Object.values(value)) {
+    if (mode === null) continue;
+    if (typeof mode !== "object" || Array.isArray(mode)) return null;
+    if (Object.keys(mode).length !== 2) return null;
+    if (!["priority", "recency", "id"].includes((mode as SortMode)?.key ?? ""))
+      return null;
+    if (!["asc", "desc"].includes((mode as SortMode)?.dir ?? "")) return null;
+  }
+  return value as Record<string, SortMode>;
+}
+
 // Click cycle: server default → priority high-first → low-first →
 // newest-first → oldest-first → id high-first → low-first →
 // back to default.

@@ -715,6 +715,30 @@ No linked decisions.
 });
 
 describe("board and epics", () => {
+  test("paged board rejects malformed sort queries and retains valid sorting", async () => {
+    for (const invalid of [
+      "null",
+      "[]",
+      '"bad"',
+      '{"todo":[]}',
+      '{"todo":{}}',
+      '{"todo":{"key":"id","dir":"sideways"}}',
+    ]) {
+      const response = await app.request(
+        `/api/board?page=1&sorts=${encodeURIComponent(invalid)}`,
+      );
+      expect(response.status).toBe(400);
+    }
+    const { status, body } = await get(
+      `/api/board?page=1&sorts=${encodeURIComponent(JSON.stringify({ todo: { key: "id", dir: "desc" } }))}`,
+    );
+    expect(status).toBe(200);
+    expect(body.cards.map((card: { id: string }) => card.id)).toEqual([
+      "DKT-3",
+      "DKT-1",
+    ]);
+  });
+
   test("board serves cards from the cache in configured state order", async () => {
     const { status, body } = await get("/api/board");
     expect(status).toBe(200);

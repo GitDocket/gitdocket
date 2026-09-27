@@ -132,8 +132,8 @@ export async function linuxDocker(options: {
       const command = [
         "set -euo pipefail",
         "tar -C /source --exclude=node_modules --exclude=.git --exclude=release/tools --exclude=release/tarballs --exclude=release/standalone -cf - . | tar -C /work -xf -",
-        'test "$(bun --version)" = 1.3.14',
-        'test "$(npm --version)" = 11.17.0',
+        'test "$(bun --version)" = 1.4.2',
+        'test "$(npm --version)" = 11.20.0',
         `test "$(bun -p 'process.platform + "-" + process.arch')" = linux-${arch}`,
         "bun install --frozen-lockfile",
         ...(options.mode === "build"

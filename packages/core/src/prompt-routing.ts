@@ -434,6 +434,33 @@ export const PROMPT_ROUTING_FIXTURES: readonly PromptRoutingFixture[] = [
     traits: ["pickup-control"],
   },
   {
+    id: "pickup-named-epic-route",
+    prompt:
+      "Pick up and work on DKT-42. Use docket-pickup first, then carry DKT-42 through implementation and verification even if it is an epic.",
+    expectedIntent: "pickup",
+    composedIntents: ["epic-supervision"],
+    expectedEntrypoint: { kind: "workflow", value: "docket-pickup" },
+    allowedCommands: [
+      "docket task start DKT-42 --json",
+      "docket task list --epic DKT-42 --all --json",
+      "docket ready --json",
+      "docket task start <child-ID> --json",
+      "docket task close <child-ID> --json",
+      "docket index",
+    ],
+    maximumInspectionScope: scope("epic-supervision"),
+    writesPermitted: true,
+    forbiddenActions: [
+      "set the epic as .docket/active-task",
+      "change epic status during the route",
+      "select a child before authoritative readiness",
+      "treat the typed epic route as a terminal failure",
+      "mutate unrelated tasks",
+    ],
+    surfaceEvidence: ["typed, non-mutating route", "docket-epic"],
+    traits: ["combined-intents", "pickup-control"],
+  },
+  {
     id: "pickup-explicit-next-docket-task",
     prompt: "Pick up the next Docket task.",
     expectedIntent: "pickup",
@@ -599,11 +626,20 @@ export function validatePromptRoutingFixtures(
     seen.add(fixture.id);
 
     const intent = intents[fixture.expectedIntent];
-    if (fixture.maximumInspectionScope !== intent.inspectionScope) {
+    const authorizedScopes = [
+      intent.inspectionScope,
+      ...(fixture.composedIntents ?? []).map(
+        (composed) => intents[composed].inspectionScope,
+      ),
+    ];
+    if (!authorizedScopes.includes(fixture.maximumInspectionScope)) {
       diagnostics.push({
         code: "inspection-scope-drift",
         fixture: fixture.id,
-        message: `maximum inspection scope differs from ${intent.id}`,
+        message: `maximum inspection scope differs from ${[
+          intent.id,
+          ...(fixture.composedIntents ?? []),
+        ].join(" or ")}`,
       });
     }
     if (
@@ -695,17 +731,29 @@ export function validatePromptRoutingFixtures(
   const namedPickup = fixtures.find(
     (fixture) => fixture.id === "pickup-named-start",
   );
+  const namedEpicRoute = fixtures.find(
+    (fixture) => fixture.id === "pickup-named-epic-route",
+  );
   const nextPickup = fixtures.find(
     (fixture) => fixture.id === "pickup-explicit-next-docket-task",
   );
   if (
     namedPickup?.allowedCommands[0] !== "docket task start DKT-12 --json" ||
-    nextPickup?.allowedCommands[0] !== "docket task start --json"
+    nextPickup?.allowedCommands[0] !== "docket task start --json" ||
+    namedEpicRoute?.expectedIntent !== "pickup" ||
+    !namedEpicRoute.composedIntents?.includes("epic-supervision") ||
+    namedEpicRoute.allowedCommands[0] !== "docket task start DKT-42 --json" ||
+    !namedEpicRoute.forbiddenActions.includes(
+      "set the epic as .docket/active-task",
+    ) ||
+    !namedEpicRoute.forbiddenActions.includes(
+      "treat the typed epic route as a terminal failure",
+    )
   ) {
     diagnostics.push({
       code: "pickup-control-regression",
       message:
-        "named pickup must stay named while explicit next-Docket pickup retains the bare engine selection command",
+        "named pickup must stay named, named Epics must route into supervision without becoming active tasks, and explicit next-Docket pickup must retain the bare engine selection command",
     });
   }
 

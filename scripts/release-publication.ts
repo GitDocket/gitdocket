@@ -27,7 +27,7 @@ export const RELEASE_REPOSITORY = "GitDocket/gitdocket";
 export const RELEASE_WORKFLOW = ".github/workflows/publish.yml";
 export const RELEASE_ENVIRONMENT = "release";
 export const RELEASE_REGISTRY = "https://registry.npmjs.org/";
-export const RELEASE_NPM_VERSION = "11.17.0";
+export const RELEASE_NPM_VERSION = "11.20.0";
 
 export interface PackageCandidate {
   id: (typeof PACKAGE_IDS)[number];
