@@ -11,7 +11,7 @@
     <meta property="og:image" content="https://gitdocket.com/assets/current-home.jpg" />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/styles.css?v=a0d4f1c5fc15" />
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -48,10 +48,10 @@
 <p>CLI-only example: run <code>docket search cache --json</code>, review any matches, then save this JSON as <code>page.json</code> in the project root, outside the bundle:</p>
 <pre><code class="language-json">{"path":"reference/cache.md","type":"Reference","title":"Cache architecture","description":"How cache keys expire.","tags":["architecture"],"body":"# Cache architecture\n\nKeys expire after five minutes.\n"}</code></pre>
 <p>After saving page.json in the project root, run this from the initialized project directory. The target reference/cache.md must not already exist:</p>
-<pre><code class="language-sh">docket document create --input page.json --json</code></pre>
-<pre><code class="language-sh">docket document read reference/cache.md --json</code></pre>
-<pre><code class="language-sh">docket index</code></pre>
-<pre><code class="language-sh">docket lint --json</code></pre>
+<pre><code class="language-sh">docket document create --input page.json --json &amp;&amp;
+  docket document read reference/cache.md --json &amp;&amp;
+  docket index &amp;&amp;
+  docket lint --json</code></pre>
 <p>For a revision, copy the complete <code>body</code> and <code>version</code> from the read result, revise the body, and save <code>{"expectedVersion":"&lt;returned-version&gt;","patch":{"body":"&lt;complete-revised-body&gt;"}}</code> as <code>edit.json</code>. Run <code>docket document edit reference/cache.md --input edit.json --json</code>, followed by index and lint. A duplicate path or stale version fails without replacing the newer source; reread and reconcile explicitly. MCP-only clients use <code>search</code>, <code>document_create</code>, <code>document_read</code>, <code>document_edit</code>, <code>index</code> and <code>lint</code> with the same fields. Native skills are generated for Claude, Codex and Cursor; restart an existing session if its skill inventory predates the upgrade.</p>
 <h2 id="reorganize-a-wiki-page">Reorganize a wiki page</h2>
 <blockquote>
@@ -65,9 +65,9 @@
 </blockquote>
 <p>The <code>docket-task</code> workflow records the actual choice as an accepted Decision with Context, Decision and Consequences sections. Observations and reference material stay in ordinary wiki pages; saving a decision does not make it project guidance.</p>
 <p>This example creates an accepted Decision. Use it in a practice project, or replace the details with a choice your project has actually accepted:</p>
-<pre><code class="language-sh">docket decision create --title "Use nightly CSV imports" --context "Considered nightly CSV and real-time events; the upstream system already supplies nightly files." --decision "Use nightly CSV for initial onboarding to avoid delaying launch." --consequences "Onboarding may wait until the next run; revisit events when an upstream feed exists." --json</code></pre>
-<pre><code class="language-sh">docket index</code></pre>
-<pre><code class="language-sh">docket lint --json</code></pre>
+<pre><code class="language-sh">docket decision create --title "Use nightly CSV imports" --context "Considered nightly CSV and real-time events; the upstream system already supplies nightly files." --decision "Use nightly CSV for initial onboarding to avoid delaying launch." --consequences "Onboarding may wait until the next run; revisit events when an upstream feed exists." --json &amp;&amp;
+  docket index &amp;&amp;
+  docket lint --json</code></pre>
 <p>Read back the returned path with <code>docket document read &lt;path&gt; --json</code> and add relevant links through a complete versioned edit if needed. The default prefix is <code>DEC</code>, configurable with <code>ids.decision_prefix</code>; returned IDs are allocated safely across linked worktrees. MCP-only clients call <code>decision_create</code> with <code>title</code>, <code>context</code>, <code>decision</code>, <code>consequences</code> and optional <code>description</code>/<code>tags</code>, then <code>index</code> and <code>lint</code>. Existing task state and guidance remain unchanged.</p>
 <h2 id="find-your-bearings-and-resume">Find your bearings and resume</h2>
 <blockquote>
@@ -149,6 +149,6 @@
 </main>
     </div>
     <footer class="shell footer"><a class="brand" href="/">GitDocket</a><p>Project knowledge and work, together in Git.</p><a href="https://github.com/GitDocket/gitdocket">Source on GitHub ↗</a></footer>
-      <script src="/copy-install.js" defer></script>
+      <script src="/copy-install.js?v=b002106b2d67" defer></script>
   </body>
 </html>

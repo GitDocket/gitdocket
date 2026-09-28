@@ -1,19 +1,11 @@
 # Install with Homebrew
 
-Install GitDocket with Homebrew:
+Install GitDocket with Homebrew and verify both commands:
 
 ```sh
-brew install gitdocket/tap/gitdocket
-```
-
-After installation, verify both commands:
-
-```sh
-docket --version
-```
-
-```sh
-docket-mcp --version
+brew install gitdocket/tap/gitdocket &&
+  docket --version &&
+  docket-mcp --version
 ```
 
 This installs `docket`, the command-line tool, and `docket-mcp`, which connects your coding agent to the project. Continue with [Getting started](getting-started.md). If you already use Node 22+, [npm](npm.md) is another installation option.
@@ -36,13 +28,8 @@ The command uses the project-maintained `GitDocket/homebrew-tap`. On Homebrew 6 
 Update the application with:
 
 ```sh
-brew update
-```
-
-After the package list update succeeds, upgrade GitDocket:
-
-```sh
-brew upgrade gitdocket/tap/gitdocket
+brew update &&
+  brew upgrade gitdocket/tap/gitdocket
 ```
 
 From each initialized project directory, preview the supplied-instruction changes:

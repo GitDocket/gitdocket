@@ -11,7 +11,7 @@
     <meta property="og:image" content="https://gitdocket.com/assets/current-home.jpg" />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/styles.css?v=a0d4f1c5fc15" />
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -26,20 +26,20 @@
 <p>Try GitDocket by asking your coding agent to complete a small task. Review the result, then open a fresh session and see how it uses a decision recorded during that work.</p>
 <h2 id="1-install-and-initialize">1. Install and initialize</h2>
 <p>You need Homebrew, Git, and a coding agent. See <a href="/docs/install/#supported-platforms">supported platforms</a> or the <a href="/docs/install/#npm-alternative">npm alternative</a>.</p>
-<p>Run one row at a time, continuing after it succeeds. Install GitDocket and check both commands:</p>
-<pre><code class="language-sh">brew install gitdocket/tap/gitdocket</code></pre>
-<pre><code class="language-sh">docket --version</code></pre>
-<pre><code class="language-sh">docket-mcp --version</code></pre>
+<p>Install GitDocket and verify both commands:</p>
+<pre><code class="language-sh">brew install gitdocket/tap/gitdocket &amp;&amp;
+  docket --version &amp;&amp;
+  docket-mcp --version</code></pre>
 <p>Create a practice repository in a new directory. If docket-playground already exists, use an unused name in both the mkdir and cd commands. Keep using the same terminal:</p>
-<pre><code class="language-sh">mkdir docket-playground</code></pre>
-<pre><code class="language-sh">cd docket-playground</code></pre>
-<pre><code class="language-sh">git init</code></pre>
+<pre><code class="language-sh">mkdir docket-playground &amp;&amp;
+  cd docket-playground &amp;&amp;
+  git init</code></pre>
 <p>Add a README and initialize GitDocket. This example uses Codex; replace --agent codex with --agent cursor or --agent claude for your agent, or omit it for portable AGENTS.md instructions:</p>
-<pre><code class="language-sh">printf '# Harbor\n\nA synthetic documentation project.\n' > README.md</code></pre>
-<pre><code class="language-sh">docket init --agent codex</code></pre>
+<pre><code class="language-sh">printf '# Harbor\n\nA synthetic documentation project.\n' > README.md &amp;&amp;
+  docket init --agent codex</code></pre>
 <p>Save the starting point in Git. If Git asks for an author identity, configure your usual name and email, then retry the commit:</p>
-<pre><code class="language-sh">git add .</code></pre>
-<pre><code class="language-sh">git commit -m "Initialize Harbor with Docket"</code></pre>
+<pre><code class="language-sh">git add . &amp;&amp;
+  git commit -m "Initialize Harbor with Docket"</code></pre>
 <p>For Cursor, enable Docket once in Customize → MCPs (Command Palette: Open MCPs).</p>
 <p>Open the initialized repository in a fresh agent session so it discovers the project instructions.</p>
 <p>In an existing project, run <code>docket init</code> there instead. It leaves your existing files in place and creates a <code>docket/</code> folder for docs and work. You can add existing documentation gradually.</p>
@@ -50,10 +50,10 @@
 </blockquote>
 <p>The agent creates a task, writes the guide, checks it, and records the result. It also saves the decision about offline links so the next session can find it. If the agent needs something from you, resolve the issue it names and ask it to resume the same task.</p>
 <h2 id="3-inspect-the-result">3. Inspect the result</h2>
-<pre><code class="language-sh">docket task list --all</code></pre>
-<pre><code class="language-sh">docket ready</code></pre>
-<pre><code class="language-sh">git log -5 --format=full</code></pre>
-<pre><code class="language-sh">git status --short</code></pre>
+<pre><code class="language-sh">docket task list --all &amp;&amp;
+  docket ready &amp;&amp;
+  git log -5 --format=full &amp;&amp;
+  git status --short</code></pre>
 <p>Start the local browser interface. Leave this terminal running; press Ctrl+C when you are finished:</p>
 <pre><code class="language-sh">docket serve</code></pre>
 <p>Open the local URL printed by <code>docket serve</code>. Find the completed task on the Board, or read its Markdown file under <code>docket/work/tasks/</code>. Its Outcome should explain the change and the checks performed.</p>
@@ -73,6 +73,6 @@
 </main>
     </div>
     <footer class="shell footer"><a class="brand" href="/">GitDocket</a><p>Project knowledge and work, together in Git.</p><a href="https://github.com/GitDocket/gitdocket">Source on GitHub ↗</a></footer>
-      <script src="/copy-install.js" defer></script>
+      <script src="/copy-install.js?v=b002106b2d67" defer></script>
   </body>
 </html>

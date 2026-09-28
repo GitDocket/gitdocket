@@ -1,19 +1,11 @@
 # Install with npm
 
-If you use Node 22 or later, you can install GitDocket with npm:
+If you use Node 22 or later, install GitDocket with npm and verify both commands:
 
 ```sh
-npm install -g --include=optional @gitdocket/cli @gitdocket/mcp
-```
-
-After installation, verify both commands:
-
-```sh
-docket --version
-```
-
-```sh
-docket-mcp --version
+npm install -g --include=optional @gitdocket/cli @gitdocket/mcp &&
+  docket --version &&
+  docket-mcp --version
 ```
 
 This installs the command-line tool and the MCP server for your coding agent. Keep optional dependencies enabled: they supply the executable for your platform. The supported platforms are macOS 15+ and glibc Linux on ARM64 or x64; see [platform details](homebrew.md#supported-platforms).

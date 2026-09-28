@@ -37,15 +37,9 @@ docket extension install "/path/to/examples/extensions/product-delivery" --enabl
 Optional: set the project’s reviewer choice to release owner:
 
 ```sh
-docket extension configure product-delivery --set '{"reviewer":"release owner"}' --json
-```
-
-```sh
-docket extension show product-delivery --json
-```
-
-```sh
-docket extension validate product-delivery --json
+docket extension configure product-delivery --set '{"reviewer":"release owner"}' --json &&
+  docket extension show product-delivery --json &&
+  docket extension validate product-delivery --json
 ```
 
 Installation without `--enable` leaves the package disabled. `show` returns current availability, exact sources and configuration ownership. For example, `effectiveConfig.reviewer` is `{ "value": "release owner", "owner": "project" }`; source entries include bundle-relative paths. Read `docket source extensions/product-delivery/workflows/delivery.md --json`, then pass its exact returned `nextCursor` as `--cursor` with the same path until no continuation remains. A stale cursor requires restarting the read. Commit `docket/extensions/registry.json` and installed content together with generated pointers. A clone works without the original source directory. Completed proposals, decisions, work items and review records belong elsewhere in the project bundle, where extension updates/removal cannot own them. The bundle location follows `docket.yaml`; `docket/` is the default.

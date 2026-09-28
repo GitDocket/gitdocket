@@ -1,14 +1,10 @@
 // Enhance code blocks without changing their selectable, copyable text.
 for (const [index, pre] of [...document.querySelectorAll("pre")].entries()) {
   const code = pre.querySelector("code");
-  if (!code || pre.closest(".install-chip, .command-row")) continue;
+  if (!code || pre.closest(".install-chip")) continue;
 
   const block = document.createElement("div");
   block.className = "code-block";
-  const isCommand = !code.classList.contains("language-json");
-  if (isCommand) block.classList.add("command-block");
-  const toolbar = document.createElement("div");
-  toolbar.className = "code-toolbar";
   const status = document.createElement("span");
   status.id = `copy-status-block-${index}`;
   status.className = "copy-status";
@@ -25,18 +21,14 @@ for (const [index, pre] of [...document.querySelectorAll("pre")].entries()) {
   button.setAttribute("aria-label", `${label} block ${index + 1}`);
   button.setAttribute("aria-describedby", status.id);
   pre.before(block);
-  if (isCommand) {
-    if (label === "Copy example") block.classList.add("example-block");
-    block.append(pre, button, status);
-  } else {
-    toolbar.append(status, button);
-    block.append(toolbar, pre);
-  }
+  if (label === "Copy example") block.classList.add("example-block");
+  if (label === "Copy JSON") block.classList.add("json-block");
+  block.append(pre, button, status);
 }
 
 for (const button of document.querySelectorAll("button.copy-command")) {
   const code = button
-    .closest(".code-block, .install-chip, .command-row")
+    .closest(".code-block, .install-chip")
     ?.querySelector("pre code");
   const status = document.getElementById(
     button.getAttribute("aria-describedby"),
@@ -54,7 +46,7 @@ for (const button of document.querySelectorAll("button.copy-command")) {
         throw new Error("clipboard unavailable");
       await navigator.clipboard.writeText(code.textContent);
       status.textContent = "Copied";
-      if (button.closest(".command-block")) button.textContent = "Copied";
+      if (button.closest(".code-block")) button.textContent = "Copied";
       resetTimer = setTimeout(() => {
         button.textContent = label;
         status.textContent = "";

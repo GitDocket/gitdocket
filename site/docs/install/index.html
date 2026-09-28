@@ -11,7 +11,7 @@
     <meta property="og:image" content="https://gitdocket.com/assets/current-home.jpg" />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/styles.css?v=a0d4f1c5fc15" />
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -23,12 +23,10 @@
       <aside class="docs-sidebar"><p class="eyebrow">Reference</p><nav aria-label="Documentation"><a href="/docs/">Get started</a><a href="/docs/install/">Installation</a><a href="/docs/example/">One-task example</a><a href="/docs/everyday/">Everyday use</a><a href="/docs/epics/">Epics</a><a href="/docs/extensions/">Extensions</a><a href="/docs/cli/">CLI commands</a><a href="/docs/mcp/">MCP & workflows</a><a href="/docs/api/">Local HTTP reference</a></nav></aside>
       <main class="docs-content" id="main" tabindex="-1">
 <h1 id="install-gitdocket">Install GitDocket</h1>
-<p>Install GitDocket with Homebrew:</p>
-<div class="command-row"><pre><code class="language-sh">brew install gitdocket/tap/gitdocket</code></pre><button type="button" class="copy-command" hidden aria-label="Copy Homebrew install command" aria-describedby="copy-status-install">Copy</button></div>
-<p id="copy-status-install" class="copy-status" role="status"></p>
-<p>After installation, verify both commands:</p>
-<pre><code class="language-sh">docket --version</code></pre>
-<pre><code class="language-sh">docket-mcp --version</code></pre>
+<p>Install GitDocket with Homebrew and verify both commands:</p>
+<pre><code class="language-sh">brew install gitdocket/tap/gitdocket &amp;&amp;
+  docket --version &amp;&amp;
+  docket-mcp --version</code></pre>
 <p>This installs <code>docket</code>, the command-line tool, and <code>docket-mcp</code>, which connects your coding agent to the project. Continue with <a href="/docs/">Getting started</a>. If you already use Node 22+, <a href="/docs/install/#npm-alternative">npm</a> is another installation option.</p>
 <h2 id="supported-platforms">Supported platforms</h2>
 <p>You need Git and Homebrew. GitDocket supports:</p>
@@ -41,9 +39,8 @@
 <p>The command uses the project-maintained <code>GitDocket/homebrew-tap</code>. On Homebrew 6 and later, the fully qualified command grants trust to this formula. See <a href="https://docs.brew.sh/Tap-Trust">Homebrew tap trust</a>.</p>
 <h2 id="updating-and-removing">Updating and removing</h2>
 <p>Update the application with:</p>
-<pre><code class="language-sh">brew update</code></pre>
-<p>After the package list update succeeds, upgrade GitDocket:</p>
-<pre><code class="language-sh">brew upgrade gitdocket/tap/gitdocket</code></pre>
+<pre><code class="language-sh">brew update &amp;&amp;
+  brew upgrade gitdocket/tap/gitdocket</code></pre>
 <p>From each initialized project directory, preview the supplied-instruction changes:</p>
 <pre><code class="language-sh">docket upgrade --dry-run --json</code></pre>
 <p>Review the dry-run output and resolve any reported conflicts with your customizations before applying the update:</p>
@@ -56,11 +53,10 @@
 <p>If Homebrew reports a link collision, remove the old GitDocket packages with their original installer: <code>npm uninstall -g @gitdocket/cli @gitdocket/mcp</code> or <code>bun remove -g @gitdocket/cli @gitdocket/mcp</code>. Review the named paths before removing anything; avoid force-overwriting unknown executables. Run <code>brew link gitdocket/tap/gitdocket</code>, open a new terminal, and check <code>type -a docket docket-mcp</code> again.</p>
 <p>An agent may still point to the old executable through <code>.mcp.json</code>, <code>.cursor/mcp.json</code>, <code>.codex/config.toml</code> or its host-level MCP settings. Update any old absolute paths and restart the agent. Re-running <code>docket init</code> preserves custom entries, so check those yourself. For a new Cursor registration, enable Docket in Customize → MCPs.</p>
 <h2 id="npm-alternative">npm alternative</h2>
-<p>If you use Node 22 or later, you can install GitDocket with npm:</p>
-<pre><code class="language-sh">npm install -g --include=optional @gitdocket/cli @gitdocket/mcp</code></pre>
-<p>After installation, verify both commands:</p>
-<pre><code class="language-sh">docket --version</code></pre>
-<pre><code class="language-sh">docket-mcp --version</code></pre>
+<p>If you use Node 22 or later, install GitDocket with npm and verify both commands:</p>
+<pre><code class="language-sh">npm install -g --include=optional @gitdocket/cli @gitdocket/mcp &amp;&amp;
+  docket --version &amp;&amp;
+  docket-mcp --version</code></pre>
 <p>This installs the command-line tool and the MCP server for your coding agent. Keep optional dependencies enabled: they supply the executable for your platform. The supported platforms are macOS 15+ and glibc Linux on ARM64 or x64; see <a href="/docs/install/#supported-platforms">platform details</a>.</p>
 <p>Continue with <a href="/docs/">Getting started</a>.</p>
 <h2 id="run-with-npx">Run with npx</h2>
@@ -77,6 +73,6 @@
 </main>
     </div>
     <footer class="shell footer"><a class="brand" href="/">GitDocket</a><p>Project knowledge and work, together in Git.</p><a href="https://github.com/GitDocket/gitdocket">Source on GitHub ↗</a></footer>
-    <script src="/copy-install.js" defer></script>
+    <script src="/copy-install.js?v=b002106b2d67" defer></script>
   </body>
 </html>

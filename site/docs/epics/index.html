@@ -11,7 +11,7 @@
     <meta property="og:image" content="https://gitdocket.com/assets/current-home.jpg" />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/styles.css?v=a0d4f1c5fc15" />
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -34,8 +34,8 @@
 </blockquote>
 <p>The agent creates the epic and tasks, writes the guide, checks it, and updates the docs. Dependencies keep the work in order: the README task becomes ready once the guide task is done. Before closing the epic, the agent checks the overall result.</p>
 <h2 id="review-the-result">Review the result</h2>
-<pre><code class="language-sh">docket task list --all</code></pre>
-<pre><code class="language-sh">docket ready</code></pre>
+<pre><code class="language-sh">docket task list --all &amp;&amp;
+  docket ready</code></pre>
 <p>On a successful run, the two tasks and their epic are done. Open the README link, read the guide, and review the checks described in each Outcome and the linked Git commits. If the agent reports an issue it cannot resolve, address it and resume the same epic.</p>
 <p>In a later session, ask “Where did we leave off?” The agent can use the saved task state, docs, and Git history to answer. A written re-entry note may need refreshing; readiness is calculated from current task files.</p>
 <p>To start an existing item yourself, use its actual ID from <code>docket task list</code>:</p>
@@ -45,6 +45,6 @@
 </main>
     </div>
     <footer class="shell footer"><a class="brand" href="/">GitDocket</a><p>Project knowledge and work, together in Git.</p><a href="https://github.com/GitDocket/gitdocket">Source on GitHub ↗</a></footer>
-      <script src="/copy-install.js" defer></script>
+      <script src="/copy-install.js?v=b002106b2d67" defer></script>
   </body>
 </html>

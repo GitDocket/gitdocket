@@ -333,7 +333,7 @@ pre {
   background: #202822;
   color: #eff4ee;
   border-radius: 8px;
-  padding: 20px 22px;
+  padding: 12px 16px;
   margin: 20px 0;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -459,81 +459,39 @@ td code {
   color: var(--muted);
   font-size: 14px;
 }
-.command-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 20px 0 0;
-  padding: 12px 14px;
-  background: #202822;
-  color: #eff4ee;
-  border-radius: 8px;
-}
-.command-row pre {
-  flex: 1;
-  min-width: 0;
-  margin: 0;
-  padding: 0;
-  background: none;
-}
-.command-row + .copy-status {
-  margin-top: 8px;
-}
 .code-block {
-  margin: 20px 0;
-  background: #202822;
-  color: #eff4ee;
-  border-radius: 8px;
-}
-.code-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 12px;
-  padding: 8px 12px;
-}
-.code-toolbar .copy-status {
-  margin: 0;
-  color: #afd1b8;
-  font-size: 13px;
-}
-.code-block pre {
-  margin: 0;
-  padding-top: 0;
-}
-.command-block {
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
+  align-items: start;
   column-gap: 12px;
-  padding: 8px 12px 8px 20px;
+  margin: 16px 0;
+  padding: 10px 12px 10px 16px;
+  background: #202822;
+  color: #eff4ee;
+  border-radius: 8px;
 }
-.command-block pre {
+.code-block pre {
   min-width: 0;
-  padding: 0;
+  margin: 0;
+  padding: 4px 0;
   border-radius: 0;
   background: none;
-  line-height: 1.6;
+  font-size: 13px;
+  line-height: 20px;
 }
-.command-block > .copy-command {
+.code-block > .copy-command {
   min-width: 64px;
+  min-height: 28px;
+  padding: 4px 10px;
 }
 .example-block > .copy-command {
   min-width: 112px;
 }
-.command-block:has(+ .command-block) {
-  margin-bottom: 0;
-  border-bottom-left-radius: 0;
-  border-bottom-right-radius: 0;
+.json-block > .copy-command {
+  min-width: 92px;
 }
-.command-block + .command-block {
-  margin-top: 0;
-  border-top: 1px solid #39443b;
-  border-top-left-radius: 0;
-  border-top-right-radius: 0;
-}
-.command-block > .copy-status:not(.copy-error) {
+.code-block > .copy-status:not(.copy-error) {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -542,7 +500,7 @@ td code {
   overflow: hidden;
   clip-path: inset(50%);
 }
-.command-block > .copy-error {
+.code-block > .copy-error {
   grid-column: 1 / -1;
   margin: 4px 0;
   color: #afd1b8;
