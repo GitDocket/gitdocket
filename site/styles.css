@@ -416,6 +416,7 @@ td code {
   user-select: none;
 }
 .install-chip pre {
+  min-width: 0;
   margin: 0;
   padding: 0;
   background: none;
@@ -427,10 +428,10 @@ td code {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  min-width: 44px;
+  min-height: 36px;
   margin: 0;
-  padding: 0;
+  padding: 6px 10px;
   border: 0;
   border-radius: 6px;
   appearance: none;
@@ -438,14 +439,12 @@ td code {
   background: transparent;
   color: #eff4ee;
   cursor: pointer;
-  line-height: 0;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.2;
 }
-.copy-command svg {
-  display: block;
-  width: 16px;
-  height: 16px;
-  fill: currentColor;
-  stroke: none;
+.copy-command[hidden] {
+  display: none;
 }
 .copy-command:hover {
   background: rgba(255, 255, 255, 0.08);
@@ -479,6 +478,28 @@ td code {
 }
 .command-row + .copy-status {
   margin-top: 8px;
+}
+.code-block {
+  margin: 20px 0;
+  background: #202822;
+  color: #eff4ee;
+  border-radius: 8px;
+}
+.code-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 8px 12px;
+}
+.code-toolbar .copy-status {
+  margin: 0;
+  color: #afd1b8;
+  font-size: 13px;
+}
+.code-block pre {
+  margin: 0;
+  padding-top: 0;
 }
 .hero-next {
   margin-top: 8px;
@@ -592,6 +613,7 @@ td code {
   }
   .install-chip {
     margin-inline: 0;
+    gap: 6px;
   }
   .install-chip pre {
     white-space: pre-wrap;
