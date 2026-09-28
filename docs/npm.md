@@ -4,7 +4,17 @@ If you use Node 22 or later, you can install GitDocket with npm:
 
 ```sh
 npm install -g --include=optional @gitdocket/cli @gitdocket/mcp
+```
+
+After npm installation succeeds, check the CLI:
+
+```sh
 docket --version
+```
+
+Check the MCP server command:
+
+```sh
 docket-mcp --version
 ```
 
@@ -18,6 +28,11 @@ For a temporary invocation:
 
 ```sh
 npx --yes --package=@gitdocket/cli --package=@gitdocket/mcp docket --version
+```
+
+To initialize a project with npx, first open its Git repository in your terminal. This example enables all three agent adapters; omit any --agent option you do not use:
+
+```sh
 npx --yes --package=@gitdocket/cli --package=@gitdocket/mcp docket init --agent cursor --agent claude --agent codex
 ```
 

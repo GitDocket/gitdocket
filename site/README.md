@@ -2,6 +2,8 @@
 
 The site is static: no package install, build step, server runtime, analytics, cookies, or third-party requests. All HTML pages load one local script, `site/copy-install.js`, which adds a Copy button to every code block and powers the existing Homebrew controls. Each control copies only its associated code text, preserving indentation and line breaks, with keyboard access and success/failure feedback. Without JavaScript, code remains selectable and copy controls stay hidden. Keep the shared script on new pages so new code blocks receive the same behavior. The content security policy allows scripts only from this site.
 
+Use one shell command per copyable block. Explain the working directory, prerequisites and placeholder replacements before the command; separate a dry run from its apply step with a review instruction, and label optional or alternative operations individually. Keep each JSON document intact with `language-json` (Copy JSON), and mark MCP tool-name/argument examples `language-mcp` (Copy example) with an explanation that they belong in an MCP client. Shell examples use `language-sh`. Keep source Markdown and public HTML aligned when splitting commands or revising their instructions.
+
 For Cloudflare Pages:
 
 - Production branch: `main`

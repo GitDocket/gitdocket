@@ -25,9 +25,8 @@
 <h1 id="grow-to-an-epic">Grow to an epic</h1>
 <p>Use an epic when several tasks contribute to one outcome. Start with the <a href="/docs/">one-task tutorial</a> if you are new to GitDocket.</p>
 <h2 id="try-a-small-epic">Try a small epic</h2>
-<p>Initialize a scratch Git repository with the adapter for your agent:</p>
-<pre><code class="language-sh">docket init --agent cursor
-</code></pre>
+<p>From an existing scratch Git repository, initialize GitDocket with the adapter for your agent:</p>
+<pre><code class="language-sh">docket init --agent cursor</code></pre>
 <p>Choose <code>--agent codex</code> for Codex or <code>--agent claude</code> for Claude Code. Omit the flag for portable <code>AGENTS.md</code> guidance. For Cursor, enable Docket once in Customize → MCPs.</p>
 <p>Open the repository in a fresh agent session and ask:</p>
 <blockquote>
@@ -35,14 +34,13 @@
 </blockquote>
 <p>The agent creates the epic and tasks, writes the guide, checks it, and updates the docs. Dependencies keep the work in order: the README task becomes ready once the guide task is done. Before closing the epic, the agent checks the overall result.</p>
 <h2 id="review-the-result">Review the result</h2>
-<pre><code class="language-sh">docket task list --all
-docket ready
-</code></pre>
+<pre><code class="language-sh">docket task list --all</code></pre>
+<pre><code class="language-sh">docket ready</code></pre>
 <p>On a successful run, the two tasks and their epic are done. Open the README link, read the guide, and review the checks described in each Outcome and the linked Git commits. If the agent reports an issue it cannot resolve, address it and resume the same epic.</p>
 <p>In a later session, ask “Where did we leave off?” The agent can use the saved task state, docs, and Git history to answer. A written re-entry note may need refreshing; readiness is calculated from current task files.</p>
 <p>To start an existing item yourself, use its actual ID from <code>docket task list</code>:</p>
-<pre><code class="language-sh">docket task start &#x3C;ID> --json
-</code></pre>
+<p>Replace YOUR_TASK_ID with the actual ID of the existing task or epic before running:</p>
+<pre><code class="language-sh">docket task start YOUR_TASK_ID --json</code></pre>
 <p>See the <a href="/demo/README.md">Harbor demonstration</a> for a repeatable scripted CLI run with its task files and checks.</p>
 </main>
     </div>

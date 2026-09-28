@@ -4,7 +4,7 @@ Use an epic when several tasks contribute to one outcome. Start with the [one-ta
 
 ## Try a small epic
 
-Initialize a scratch Git repository with the adapter for your agent:
+From an existing scratch Git repository, initialize GitDocket with the adapter for your agent:
 
 ```sh
 docket init --agent cursor
@@ -22,6 +22,9 @@ The agent creates the epic and tasks, writes the guide, checks it, and updates t
 
 ```sh
 docket task list --all
+```
+
+```sh
 docket ready
 ```
 
@@ -31,8 +34,10 @@ In a later session, ask “Where did we leave off?” The agent can use the save
 
 To start an existing item yourself, use its actual ID from `docket task list`:
 
+Replace YOUR_TASK_ID with the actual ID of the existing task or epic before running:
+
 ```sh
-docket task start <ID> --json
+docket task start YOUR_TASK_ID --json
 ```
 
 See the [Harbor demonstration](../site/demo/README.md) for a repeatable scripted CLI run with its task files and checks.

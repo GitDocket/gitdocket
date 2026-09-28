@@ -26,20 +26,28 @@
 <p>Try GitDocket by asking your coding agent to complete a small task. Review the result, then open a fresh session and see how it uses a decision recorded during that work.</p>
 <h2 id="1-install-and-initialize">1. Install and initialize</h2>
 <p>You need Homebrew, Git, and a coding agent. See <a href="/docs/install/#supported-platforms">supported platforms</a> or the <a href="/docs/install/#npm-alternative">npm alternative</a>.</p>
-<p>Install with Homebrew and create a small practice project:</p>
-<pre><code class="language-sh">brew install gitdocket/tap/gitdocket
-docket --version
-docket-mcp --version
-mkdir docket-playground
-cd docket-playground
-git init
-printf '# Harbor\n\nA synthetic documentation project.\n' > README.md
-docket init --agent codex
-git add .
-git commit -m "Initialize Harbor with Docket"
-</code></pre>
-<p>The example uses Codex. Choose <code>--agent cursor</code> for Cursor or <code>--agent claude</code> for Claude Code; omit the flag for portable <code>AGENTS.md</code> instructions. For Cursor, enable Docket once in Customize → MCPs (Command Palette: Open MCPs).</p>
-<p>Open the initialized repository in a fresh agent session so it discovers the project instructions. If Git asks for an author identity, configure your usual name and email before committing.</p>
+<p>Run each command separately and check that it succeeds before continuing. Install with Homebrew, then create a new practice project:</p>
+<pre><code class="language-sh">brew install gitdocket/tap/gitdocket</code></pre>
+<p>Check the CLI installation:</p>
+<pre><code class="language-sh">docket --version</code></pre>
+<p>Check the MCP server installation:</p>
+<pre><code class="language-sh">docket-mcp --version</code></pre>
+<p>Create a new directory. If docket-playground already exists, choose an unused name here and in the next command:</p>
+<pre><code class="language-sh">mkdir docket-playground</code></pre>
+<p>Enter the directory you just created. Run the remaining setup commands in this same terminal:</p>
+<pre><code class="language-sh">cd docket-playground</code></pre>
+<p>Initialize the practice repository:</p>
+<pre><code class="language-sh">git init</code></pre>
+<p>Create the practice README in this new repository:</p>
+<pre><code class="language-sh">printf '# Harbor\n\nA synthetic documentation project.\n' > README.md</code></pre>
+<p>Initialize GitDocket. This example uses Codex; choose --agent cursor for Cursor, --agent claude for Claude Code, or omit the flag for portable AGENTS.md instructions:</p>
+<pre><code class="language-sh">docket init --agent codex</code></pre>
+<p>Stage the practice project files:</p>
+<pre><code class="language-sh">git add .</code></pre>
+<p>Commit the setup. If Git asks for an author identity, configure your usual name and email, then retry this command:</p>
+<pre><code class="language-sh">git commit -m "Initialize Harbor with Docket"</code></pre>
+<p>For Cursor, enable Docket once in Customize → MCPs (Command Palette: Open MCPs).</p>
+<p>Open the initialized repository in a fresh agent session so it discovers the project instructions.</p>
 <p>In an existing project, run <code>docket init</code> there instead. It leaves your existing files in place and creates a <code>docket/</code> folder for docs and work. You can add existing documentation gradually.</p>
 <h2 id="2-ask-for-one-tracked-change">2. Ask for one tracked change</h2>
 <p>Paste this into your coding agent:</p>
@@ -48,12 +56,12 @@ git commit -m "Initialize Harbor with Docket"
 </blockquote>
 <p>The agent creates a task, writes the guide, checks it, and records the result. It also saves the decision about offline links so the next session can find it. If the agent needs something from you, resolve the issue it names and ask it to resume the same task.</p>
 <h2 id="3-inspect-the-result">3. Inspect the result</h2>
-<pre><code class="language-sh">docket task list --all
-docket ready
-git log -5 --format=full
-git status --short
-docket serve
-</code></pre>
+<pre><code class="language-sh">docket task list --all</code></pre>
+<pre><code class="language-sh">docket ready</code></pre>
+<pre><code class="language-sh">git log -5 --format=full</code></pre>
+<pre><code class="language-sh">git status --short</code></pre>
+<p>Start the local browser interface. Leave this terminal running; press Ctrl+C when you are finished:</p>
+<pre><code class="language-sh">docket serve</code></pre>
 <p>Open the local URL printed by <code>docket serve</code>. Find the completed task on the Board, or read its Markdown file under <code>docket/work/tasks/</code>. Its Outcome should explain the change and the checks performed.</p>
 <p>Open the README link, check the two guide sections, and read the saved documentation decision. Review the Git diff as well. You should have one completed task and no pending work yet.</p>
 <p>You can also edit docs in the browser. Save writes local files; review <code>git diff</code> and commit when ready. The Home briefing is optional—your tasks, docs, and Git history already provide context.</p>
