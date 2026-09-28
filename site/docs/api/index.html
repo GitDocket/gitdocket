@@ -34,9 +34,10 @@
 <tr><td><code>/api/search?q=welcome&amp;page=1&amp;limit=10</code></td><td>Ranked search hits.</td></tr>
 <tr><td><code>/api/source/reference/welcome.md</code></td><td>A bounded Markdown source page.</td></tr>
 </tbody></table></div><p>The source example exists in the Harbor demo. Use an exact path from your own bundle inventory. Source responses include a hash and may include a continuation cursor; unknown paths return 404 and stale cursors return 409.</p></section>
-        <section aria-labelledby="example"><h2 id="example">Try a read</h2><p>Start the local server on an available port, then query it from a second terminal:</p>
-<pre><code>docket serve --port 4111</code></pre>
-<pre><code>curl 'http://127.0.0.1:4111/api/tasks?page=1&amp;limit=20'</code></pre><p>Serve binds to loopback and checks the request host and origin. It has no remote authentication layer; it is intended for same-computer use. This page covers a small read subset. Use the <a href="/docs/cli/">CLI</a> or <a href="/docs/mcp/">MCP operations</a> for documented task mutations.</p></section></main>
+        <section aria-labelledby="example"><h2 id="example">Try a read</h2><p>From an initialized project directory, start the local server on an available port:</p>
+<pre><code class="language-sh">docket serve --port 4111</code></pre>
+<p>Leave that server running. In a second terminal, query the same port:</p>
+<pre><code class="language-sh">curl 'http://127.0.0.1:4111/api/tasks?page=1&amp;limit=20'</code></pre><p>Serve binds to loopback and checks the request host and origin. It has no remote authentication layer; it is intended for same-computer use. This page covers a small read subset. Use the <a href="/docs/cli/">CLI</a> or <a href="/docs/mcp/">MCP operations</a> for documented task mutations.</p></section></main>
     </div>
     <footer class="shell footer"><a class="brand" href="/">GitDocket</a><p>Project knowledge and work, together in Git.</p><a href="https://github.com/GitDocket/gitdocket">Source on GitHub ↗</a></footer>
       <script src="/copy-install.js" defer></script>

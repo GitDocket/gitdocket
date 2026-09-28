@@ -67,11 +67,16 @@
 <tr><td><code>docket upgrade</code></td><td>Merge updates to vendored workflows and regenerate adapters.</td></tr>
 <tr><td><code>docket serve</code></td><td>Open the browser interface on this computer.</td></tr>
 </tbody></table></div><p>After an upgrade, review workflow differences marked <code>review</code>. JSON includes a <code>reviewRequired</code> path list. A current origin stamp does not prove that current instructions arrived; compare retained text with the shipped workflow and preserve confirmed project requirements.</p><p>Use <code>docket --help</code> or <code>docket task create --help</code> for the exact flags in your installed version. Add <code>--json</code> where supported for programmatic output. Check <code>docket --version</code> when using an installed release; its capabilities may differ from this source reference.</p></section>        <section aria-labelledby="telemetry"><h2 id="telemetry">Local telemetry</h2><p>Telemetry is off by default and requires enrollment per checkout. Observations stay outside your repository on this computer; Docket never uploads them. Document contents, prompts, search terms, and file paths are excluded.</p>
-<pre><code>docket telemetry status
-docket telemetry enable
-docket telemetry report
-docket telemetry disable
-docket telemetry delete</code></pre><p><code>report</code> summarizes observed operation counts, latency, errors, and sampled runtime memory. <code>disable</code> stops collection; <code>delete</code> removes this checkout’s enrollment and retained observations. Reports you export yourself remain yours to manage.</p></section>
+<p>Check the current telemetry state:</p>
+<pre><code class="language-sh">docket telemetry status</code></pre>
+<p>Optional: enable local telemetry for this checkout:</p>
+<pre><code class="language-sh">docket telemetry enable</code></pre>
+<p>Inspect the observations collected so far:</p>
+<pre><code class="language-sh">docket telemetry report</code></pre>
+<p>Optional: stop collecting new observations:</p>
+<pre><code class="language-sh">docket telemetry disable</code></pre>
+<p>Only if you intend to remove this checkout’s enrollment and retained observations:</p>
+<pre><code class="language-sh">docket telemetry delete</code></pre><p><code>report</code> summarizes observed operation counts, latency, errors, and sampled runtime memory. <code>disable</code> stops collection; <code>delete</code> removes this checkout’s enrollment and retained observations. Reports you export yourself remain yours to manage.</p></section>
 </main>
     </div>
     <footer class="shell footer"><a class="brand" href="/">GitDocket</a><p>Project knowledge and work, together in Git.</p><a href="https://github.com/GitDocket/gitdocket">Source on GitHub ↗</a></footer>

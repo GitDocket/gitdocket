@@ -28,16 +28,29 @@ In the browser, open **Wiki → New page**. Enter a title, choose Reference, Spe
 
 The `docket-wiki` workflow searches existing knowledge, chooses Reference, Spec or Playbook, and saves a linked page in the configured bundle. A later request such as “Update the cache reference to say keys expire after ten minutes” revises that page with a complete source version. A repeated unchanged request is a no-op. Describing a procedure does not run it or make it project guidance.
 
-CLI-only example: run `docket search cache --json`, review any matches, then save this JSON as `page.json` outside the bundle:
+CLI-only example: run `docket search cache --json`, review any matches, then save this JSON as `page.json` in the project root, outside the bundle:
 
 ```json
 {"path":"reference/cache.md","type":"Reference","title":"Cache architecture","description":"How cache keys expire.","tags":["architecture"],"body":"# Cache architecture\n\nKeys expire after five minutes.\n"}
 ```
 
+After saving page.json in the project root, run this from the initialized project directory. The target reference/cache.md must not already exist:
+
 ```sh
 docket document create --input page.json --json
+```
+
+Read back the page created by the previous command:
+
+```sh
 docket document read reference/cache.md --json
+```
+
+```sh
 docket index
+```
+
+```sh
 docket lint --json
 ```
 
@@ -57,9 +70,17 @@ If a write fails, keep the receipt and use `docket document move-recover <token>
 
 The `docket-task` workflow records the actual choice as an accepted Decision with Context, Decision and Consequences sections. Observations and reference material stay in ordinary wiki pages; saving a decision does not make it project guidance.
 
+This example creates an accepted Decision. Use it in a practice project, or replace the details with a choice your project has actually accepted:
+
 ```sh
 docket decision create --title "Use nightly CSV imports" --context "Considered nightly CSV and real-time events; the upstream system already supplies nightly files." --decision "Use nightly CSV for initial onboarding to avoid delaying launch." --consequences "Onboarding may wait until the next run; revisit events when an upstream feed exists." --json
+```
+
+```sh
 docket index
+```
+
+```sh
 docket lint --json
 ```
 
@@ -93,7 +114,12 @@ Docket reads saved task updates in linked worktrees on this computer, so progres
 
 ```sh
 docket task progress
-docket task progress TASK-42 --json
+```
+
+For one item, replace YOUR_TASK_ID with an actual ID returned by the previous command:
+
+```sh
+docket task progress YOUR_TASK_ID --json
 ```
 
 MCP clients use `task_progress`, optionally with an `id`. Task/ready reads flag observed progress and pickups. A task found only in another branch is read-only here; open that checkout to edit it. A pickup marker says someone picked up the task, not that an agent is running. These reads work equally with Codex, Claude Code, Cursor and ordinary CLI use.

@@ -26,9 +26,10 @@
 <p>Install GitDocket with Homebrew:</p>
 <div class="command-row"><pre><code class="language-sh">brew install gitdocket/tap/gitdocket</code></pre><button type="button" class="copy-command" hidden aria-label="Copy Homebrew install command" aria-describedby="copy-status-install">Copy</button></div>
 <p id="copy-status-install" class="copy-status" role="status"></p>
-<pre><code class="language-sh">docket --version
-docket-mcp --version
-</code></pre>
+<p>After Homebrew installation succeeds, check the CLI:</p>
+<pre><code class="language-sh">docket --version</code></pre>
+<p>Check the MCP server command:</p>
+<pre><code class="language-sh">docket-mcp --version</code></pre>
 <p>This installs <code>docket</code>, the command-line tool, and <code>docket-mcp</code>, which connects your coding agent to the project. Continue with <a href="/docs/">Getting started</a>. If you already use Node 22+, <a href="/docs/install/#npm-alternative">npm</a> is another installation option.</p>
 <h2 id="supported-platforms">Supported platforms</h2>
 <p>You need Git and Homebrew. GitDocket supports:</p>
@@ -41,35 +42,34 @@ docket-mcp --version
 <p>The command uses the project-maintained <code>GitDocket/homebrew-tap</code>. On Homebrew 6 and later, the fully qualified command grants trust to this formula. See <a href="https://docs.brew.sh/Tap-Trust">Homebrew tap trust</a>.</p>
 <h2 id="updating-and-removing">Updating and removing</h2>
 <p>Update the application with:</p>
-<pre><code class="language-sh">brew update
-brew upgrade gitdocket/tap/gitdocket
-</code></pre>
-<p>Then update the supplied instructions in each project:</p>
-<pre><code class="language-sh">docket upgrade --dry-run --json
-docket upgrade
-</code></pre>
-<p>Review the dry-run output first and resolve any reported conflicts with your customizations.</p>
+<pre><code class="language-sh">brew update</code></pre>
+<p>After the package list update succeeds, upgrade GitDocket:</p>
+<pre><code class="language-sh">brew upgrade gitdocket/tap/gitdocket</code></pre>
+<p>From each initialized project directory, preview the supplied-instruction changes:</p>
+<pre><code class="language-sh">docket upgrade --dry-run --json</code></pre>
+<p>Review the dry-run output and resolve any reported conflicts with your customizations before applying the update:</p>
+<pre><code class="language-sh">docket upgrade</code></pre>
 <p>Use <code>brew reinstall gitdocket/tap/gitdocket</code> to repair the installation, or <code>brew uninstall gitdocket/tap/gitdocket</code> to remove it. Your project files and agent configuration stay in place.</p>
 <h2 id="moving-from-npm-or-bun">Moving from npm or Bun</h2>
 <p>Check which commands your shell currently uses:</p>
-<pre><code class="language-sh">type -a docket docket-mcp
-</code></pre>
+<pre><code class="language-sh">type -a docket docket-mcp</code></pre>
 <p>Inspect your previous installation with <code>npm ls -g --depth=0</code> or <code>bun pm ls -g</code>, depending on the installer you used. Install the Homebrew package, then check it directly with <code>$(brew --prefix gitdocket/tap/gitdocket)/bin/docket --version</code> and the corresponding <code>docket-mcp --version</code>.</p>
 <p>If Homebrew reports a link collision, remove the old GitDocket packages with their original installer: <code>npm uninstall -g @gitdocket/cli @gitdocket/mcp</code> or <code>bun remove -g @gitdocket/cli @gitdocket/mcp</code>. Review the named paths before removing anything; avoid force-overwriting unknown executables. Run <code>brew link gitdocket/tap/gitdocket</code>, open a new terminal, and check <code>type -a docket docket-mcp</code> again.</p>
 <p>An agent may still point to the old executable through <code>.mcp.json</code>, <code>.cursor/mcp.json</code>, <code>.codex/config.toml</code> or its host-level MCP settings. Update any old absolute paths and restart the agent. Re-running <code>docket init</code> preserves custom entries, so check those yourself. For a new Cursor registration, enable Docket in Customize → MCPs.</p>
 <h2 id="npm-alternative">npm alternative</h2>
 <p>If you use Node 22 or later, you can install GitDocket with npm:</p>
-<pre><code class="language-sh">npm install -g --include=optional @gitdocket/cli @gitdocket/mcp
-docket --version
-docket-mcp --version
-</code></pre>
+<pre><code class="language-sh">npm install -g --include=optional @gitdocket/cli @gitdocket/mcp</code></pre>
+<p>After npm installation succeeds, check the CLI:</p>
+<pre><code class="language-sh">docket --version</code></pre>
+<p>Check the MCP server command:</p>
+<pre><code class="language-sh">docket-mcp --version</code></pre>
 <p>This installs the command-line tool and the MCP server for your coding agent. Keep optional dependencies enabled: they supply the executable for your platform. The supported platforms are macOS 15+ and glibc Linux on ARM64 or x64; see <a href="/docs/install/#supported-platforms">platform details</a>.</p>
 <p>Continue with <a href="/docs/">Getting started</a>.</p>
 <h2 id="run-with-npx">Run with npx</h2>
 <p>For a temporary invocation:</p>
-<pre><code class="language-sh">npx --yes --package=@gitdocket/cli --package=@gitdocket/mcp docket --version
-npx --yes --package=@gitdocket/cli --package=@gitdocket/mcp docket init --agent cursor --agent claude --agent codex
-</code></pre>
+<pre><code class="language-sh">npx --yes --package=@gitdocket/cli --package=@gitdocket/mcp docket --version</code></pre>
+<p>To initialize a project with npx, first open its Git repository in your terminal. This example enables all three agent adapters; omit any --agent option you do not use:</p>
+<pre><code class="language-sh">npx --yes --package=@gitdocket/cli --package=@gitdocket/mcp docket init --agent cursor --agent claude --agent codex</code></pre>
 <p>Omit <code>--yes</code> if you want npm to ask before downloading packages. Pin both package versions when you need a reproducible invocation.</p>
 <p>npx makes commands available only for that invocation. For an agent that starts MCP later, use a global installation or configure its MCP command as <code>npx --yes --package=@gitdocket/mcp@&#x3C;version> docket-mcp</code>. Restart the agent after changing that command.</p>
 <h2 id="updating-and-removing-npm">Updating and removing</h2>

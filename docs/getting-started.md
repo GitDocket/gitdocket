@@ -6,24 +6,69 @@ Try GitDocket by asking your coding agent to complete a small task. Review the r
 
 You need Homebrew, Git, and a coding agent. See [supported platforms](homebrew.md#supported-platforms) or the [npm alternative](npm.md).
 
-Install with Homebrew and create a small practice project:
+Run each command separately and check that it succeeds before continuing. Install with Homebrew, then create a new practice project:
 
 ```sh
 brew install gitdocket/tap/gitdocket
+```
+
+Check the CLI installation:
+
+```sh
 docket --version
+```
+
+Check the MCP server installation:
+
+```sh
 docket-mcp --version
+```
+
+Create a new directory. If docket-playground already exists, choose an unused name here and in the next command:
+
+```sh
 mkdir docket-playground
+```
+
+Enter the directory you just created. Run the remaining setup commands in this same terminal:
+
+```sh
 cd docket-playground
+```
+
+Initialize the practice repository:
+
+```sh
 git init
+```
+
+Create the practice README in this new repository:
+
+```sh
 printf '# Harbor\n\nA synthetic documentation project.\n' > README.md
+```
+
+Initialize GitDocket. This example uses Codex; choose --agent cursor for Cursor, --agent claude for Claude Code, or omit the flag for portable AGENTS.md instructions:
+
+```sh
 docket init --agent codex
+```
+
+Stage the practice project files:
+
+```sh
 git add .
+```
+
+Commit the setup. If Git asks for an author identity, configure your usual name and email, then retry this command:
+
+```sh
 git commit -m "Initialize Harbor with Docket"
 ```
 
-The example uses Codex. Choose `--agent cursor` for Cursor or `--agent claude` for Claude Code; omit the flag for portable `AGENTS.md` instructions. For Cursor, enable Docket once in Customize → MCPs (Command Palette: Open MCPs).
+For Cursor, enable Docket once in Customize → MCPs (Command Palette: Open MCPs).
 
-Open the initialized repository in a fresh agent session so it discovers the project instructions. If Git asks for an author identity, configure your usual name and email before committing.
+Open the initialized repository in a fresh agent session so it discovers the project instructions.
 
 In an existing project, run `docket init` there instead. It leaves your existing files in place and creates a `docket/` folder for docs and work. You can add existing documentation gradually.
 
@@ -39,9 +84,23 @@ The agent creates a task, writes the guide, checks it, and records the result. I
 
 ```sh
 docket task list --all
+```
+
+```sh
 docket ready
+```
+
+```sh
 git log -5 --format=full
+```
+
+```sh
 git status --short
+```
+
+Start the local browser interface. Leave this terminal running; press Ctrl+C when you are finished:
+
+```sh
 docket serve
 ```
 

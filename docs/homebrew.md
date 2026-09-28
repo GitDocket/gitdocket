@@ -4,7 +4,17 @@ Install GitDocket with Homebrew:
 
 ```sh
 brew install gitdocket/tap/gitdocket
+```
+
+After Homebrew installation succeeds, check the CLI:
+
+```sh
 docket --version
+```
+
+Check the MCP server command:
+
+```sh
 docket-mcp --version
 ```
 
@@ -29,17 +39,25 @@ Update the application with:
 
 ```sh
 brew update
+```
+
+After the package list update succeeds, upgrade GitDocket:
+
+```sh
 brew upgrade gitdocket/tap/gitdocket
 ```
 
-Then update the supplied instructions in each project:
+From each initialized project directory, preview the supplied-instruction changes:
 
 ```sh
 docket upgrade --dry-run --json
-docket upgrade
 ```
 
-Review the dry-run output first and resolve any reported conflicts with your customizations.
+Review the dry-run output and resolve any reported conflicts with your customizations before applying the update:
+
+```sh
+docket upgrade
+```
 
 Use `brew reinstall gitdocket/tap/gitdocket` to repair the installation, or `brew uninstall gitdocket/tap/gitdocket` to remove it. Your project files and agent configuration stay in place.
 

@@ -14,8 +14,13 @@ for (const [index, pre] of [...document.querySelectorAll("pre")].entries()) {
   const button = document.createElement("button");
   button.type = "button";
   button.className = "copy-command";
-  button.textContent = "Copy";
-  button.setAttribute("aria-label", `Copy code block ${index + 1}`);
+  const label = code.classList.contains("language-json")
+    ? "Copy JSON"
+    : code.classList.contains("language-mcp")
+      ? "Copy example"
+      : "Copy";
+  button.textContent = label;
+  button.setAttribute("aria-label", `${label} block ${index + 1}`);
   button.setAttribute("aria-describedby", status.id);
   toolbar.append(status, button);
   pre.before(block);

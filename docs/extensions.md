@@ -16,12 +16,39 @@ Installed content and configuration live under `docket/extensions/` by default. 
 
 Start in a Git repository initialized with `docket init --project DEMO`. For fresh native adapters, use `docket init --project DEMO --agent cursor --agent codex --agent claude --json`; omit any unneeded host. Review a local package directory before enabling it. From the adopter repository, use absolute source paths:
 
+Replace /path/to/examples/extensions/product-delivery with the actual local package directory in each of the next three commands. Inspect it first:
+
 ```sh
-docket extension inspect /path/to/examples/extensions/product-delivery --json
-docket extension install /path/to/examples/extensions/product-delivery --dry-run --json
-docket extension install /path/to/examples/extensions/product-delivery --enable --json
+docket extension inspect "/path/to/examples/extensions/product-delivery" --json
+```
+
+Preview installation without changing the project:
+
+```sh
+docket extension install "/path/to/examples/extensions/product-delivery" --dry-run --json
+```
+
+Review the inspection and dry-run output. Only then install and enable the package:
+
+```sh
+docket extension install "/path/to/examples/extensions/product-delivery" --enable --json
+```
+
+Optional: set the project’s reviewer choice to release owner:
+
+```sh
 docket extension configure product-delivery --set '{"reviewer":"release owner"}' --json
+```
+
+Inspect availability and effective configuration:
+
+```sh
 docket extension show product-delivery --json
+```
+
+Validate the installed package:
+
+```sh
 docket extension validate product-delivery --json
 ```
 
@@ -35,8 +62,15 @@ Configuration accepts declared finite scalar keys with the same JSON types as th
 
 A package capability names a purpose and links its recipe. Bind it only to a tool already exposed by your host:
 
+Replace your_available_issue_tool with the exact name of a tool already available in your agent before running:
+
 ```sh
 docket extension configure product-delivery --bindings '{"issue-read":"your_available_issue_tool"}' --json
+```
+
+Alternative: remove an existing issue-read binding only when you no longer want it:
+
+```sh
 docket extension configure product-delivery --unbind issue-read --json
 ```
 
@@ -46,14 +80,51 @@ An external list is another illustrative read workflow: with an existing authori
 
 ## Update and retire
 
+To update an installed package, replace /path/to/new-product-delivery with the actual candidate directory in each of the next three commands. Validate it first:
+
 ```sh
-docket extension validate product-delivery --candidate /path/to/new-product-delivery --json
-docket extension update product-delivery /path/to/new-product-delivery --dry-run --json
-docket extension update product-delivery /path/to/new-product-delivery --json
+docket extension validate product-delivery --candidate "/path/to/new-product-delivery" --json
+```
+
+Preview the package update:
+
+```sh
+docket extension update product-delivery "/path/to/new-product-delivery" --dry-run --json
+```
+
+Review the preview and resolve conflicts before applying the package update:
+
+```sh
+docket extension update product-delivery "/path/to/new-product-delivery" --json
+```
+
+Separately, after upgrading the GitDocket application, preview updates to its supplied project instructions:
+
+```sh
 docket upgrade --dry-run --json
+```
+
+Review that dry run before applying the project-instruction update:
+
+```sh
 docket upgrade --json
+```
+
+Optional: disable the package when you want its workflows unavailable:
+
+```sh
 docket extension disable product-delivery --json
+```
+
+Alternative: remove the package from discovery while retaining its content and choices:
+
+```sh
 docket extension remove product-delivery --json
+```
+
+To restore a disabled or removed package, review its retained content, then explicitly enable it:
+
+```sh
 docket extension enable product-delivery --json
 ```
 

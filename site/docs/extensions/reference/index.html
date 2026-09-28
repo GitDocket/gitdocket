@@ -31,33 +31,46 @@
 <p>Installed content and configuration live under <code>docket/extensions/</code> by default. Proposals, reviews, decisions and verification records live elsewhere in your bundle and remain available across sessions and package updates. Ordinary task states still apply. Custom UI/statuses, executable package code, connector hosting and background synchronization are outside this version.</p>
 <h2 id="adopt-a-package">Adopt a package</h2>
 <p>Start in a Git repository initialized with <code>docket init --project DEMO</code>. For fresh native adapters, use <code>docket init --project DEMO --agent cursor --agent codex --agent claude --json</code>; omit any unneeded host. Review a local package directory before enabling it. From the adopter repository, use absolute source paths:</p>
-<pre><code class="language-sh">docket extension inspect /path/to/examples/extensions/product-delivery --json
-docket extension install /path/to/examples/extensions/product-delivery --dry-run --json
-docket extension install /path/to/examples/extensions/product-delivery --enable --json
-docket extension configure product-delivery --set '{"reviewer":"release owner"}' --json
-docket extension show product-delivery --json
-docket extension validate product-delivery --json
-</code></pre>
+<p>Replace /path/to/examples/extensions/product-delivery with the actual local package directory in each of the next three commands. Inspect it first:</p>
+<pre><code class="language-sh">docket extension inspect "/path/to/examples/extensions/product-delivery" --json</code></pre>
+<p>Preview installation without changing the project:</p>
+<pre><code class="language-sh">docket extension install "/path/to/examples/extensions/product-delivery" --dry-run --json</code></pre>
+<p>Review the inspection and dry-run output. Only then install and enable the package:</p>
+<pre><code class="language-sh">docket extension install "/path/to/examples/extensions/product-delivery" --enable --json</code></pre>
+<p>Optional: set the project’s reviewer choice to release owner:</p>
+<pre><code class="language-sh">docket extension configure product-delivery --set '{"reviewer":"release owner"}' --json</code></pre>
+<p>Inspect availability and effective configuration:</p>
+<pre><code class="language-sh">docket extension show product-delivery --json</code></pre>
+<p>Validate the installed package:</p>
+<pre><code class="language-sh">docket extension validate product-delivery --json</code></pre>
 <p>Installation without <code>--enable</code> leaves the package disabled. <code>show</code> returns current availability, exact sources and configuration ownership. For example, <code>effectiveConfig.reviewer</code> is <code>{ "value": "release owner", "owner": "project" }</code>; source entries include bundle-relative paths. Read <code>docket source extensions/product-delivery/workflows/delivery.md --json</code>, then pass its exact returned <code>nextCursor</code> as <code>--cursor</code> with the same path until no continuation remains. A stale cursor requires restarting the read. Commit <code>docket/extensions/registry.json</code> and installed content together with generated pointers. A clone works without the original source directory. Completed proposals, decisions, work items and review records belong elsewhere in the project bundle, where extension updates/removal cannot own them. The bundle location follows <code>docket.yaml</code>; <code>docket/</code> is the default.</p>
 <p>Ask your agent to use <code>product-delivery:deliver</code>. Codex and Claude adapters can offer a thin <code>docket-ext-product-delivery-deliver</code> shortcut where their adapter directories exist. The canonical workflow and current <code>show</code>/<code>list</code> result remain authoritative. Package guidance applies within its workflow; project guidance and explicit user instructions retain their scope and precedence. If prose requirements conflict, surface the concrete conflict before the affected action. Human titles may match across packages; qualify ambiguous requests instead of choosing installation order.</p>
 <p>Configuration accepts declared finite scalar keys with the same JSON types as their defaults. Use <code>--reset reviewer</code> to return to the package default. Package commands are readable instructions; the engine never interpolates or executes them. Existing handwritten native files are preserved and reported as adapter conflicts. Valid portable invocation remains available; remove or rename a handwritten collision only after reviewing it, then run <code>docket extension refresh</code>.</p>
 <h2 id="use-host-tools">Use host tools</h2>
 <p>A package capability names a purpose and links its recipe. Bind it only to a tool already exposed by your host:</p>
-<pre><code class="language-sh">docket extension configure product-delivery --bindings '{"issue-read":"your_available_issue_tool"}' --json
-docket extension configure product-delivery --unbind issue-read --json
-</code></pre>
+<p>Replace your_available_issue_tool with the exact name of a tool already available in your agent before running:</p>
+<pre><code class="language-sh">docket extension configure product-delivery --bindings '{"issue-read":"your_available_issue_tool"}' --json</code></pre>
+<p>Alternative: remove an existing issue-read binding only when you no longer want it:</p>
+<pre><code class="language-sh">docket extension configure product-delivery --unbind issue-read --json</code></pre>
 <p>A binding neither provides credentials nor grants authority. The agent checks the actual tool inventory/schema. A missing bound tool is unavailable; multiple plausible unbound tools require selection. Manually supplied issue text is useful when labeled with its actual provenance. Read identity/revision evidence, match checks to the exact code revision, and keep local handoffs reviewable. External writes need explicit authorization for a prepared body and destination. Reconcile an uncertain result by operation identity before retrying; retain actual returned references. The <a href="/docs/extensions/beacon/">Beacon example</a> includes a separately launched synthetic MCP fixture, never a live provider claim.</p>
 <p>An external list is another illustrative read workflow: with an existing authorized Notion connector or MCP tool, a project could bind a list-reading capability, ask the agent to retain links to each source item, and review a planning proposal before explicitly requesting Docket tasks. No Notion extension package or live Notion validation is included. Extensions do not install connectors, manage credentials or synchronize a provider in the background; the <a href="/docs/extensions/beacon/#verified">Beacon verification</a> demonstrates the local synthetic tool boundary and retained project records.</p>
 <h2 id="update-and-retire">Update and retire</h2>
-<pre><code class="language-sh">docket extension validate product-delivery --candidate /path/to/new-product-delivery --json
-docket extension update product-delivery /path/to/new-product-delivery --dry-run --json
-docket extension update product-delivery /path/to/new-product-delivery --json
-docket upgrade --dry-run --json
-docket upgrade --json
-docket extension disable product-delivery --json
-docket extension remove product-delivery --json
-docket extension enable product-delivery --json
-</code></pre>
+<p>To update an installed package, replace /path/to/new-product-delivery with the actual candidate directory in each of the next three commands. Validate it first:</p>
+<pre><code class="language-sh">docket extension validate product-delivery --candidate "/path/to/new-product-delivery" --json</code></pre>
+<p>Preview the package update:</p>
+<pre><code class="language-sh">docket extension update product-delivery "/path/to/new-product-delivery" --dry-run --json</code></pre>
+<p>Review the preview and resolve conflicts before applying the package update:</p>
+<pre><code class="language-sh">docket extension update product-delivery "/path/to/new-product-delivery" --json</code></pre>
+<p>Separately, after upgrading the GitDocket application, preview updates to its supplied project instructions:</p>
+<pre><code class="language-sh">docket upgrade --dry-run --json</code></pre>
+<p>Review that dry run before applying the project-instruction update:</p>
+<pre><code class="language-sh">docket upgrade --json</code></pre>
+<p>Optional: disable the package when you want its workflows unavailable:</p>
+<pre><code class="language-sh">docket extension disable product-delivery --json</code></pre>
+<p>Alternative: remove the package from discovery while retaining its content and choices:</p>
+<pre><code class="language-sh">docket extension remove product-delivery --json</code></pre>
+<p>To restore a disabled or removed package, review its retained content, then explicitly enable it:</p>
+<pre><code class="language-sh">docket extension enable product-delivery --json</code></pre>
 <p>Package updates and core engine upgrades are separate. A clean owned file receives the candidate's new bytes. A local edit survives when its upstream file is unchanged; changes on both sides conflict without applying any candidate changes. Preserve edits in Git and review their reconciliation. After inspecting local content, <code>docket extension reconcile product-delivery --acknowledge-local --dry-run</code> previews acknowledgment and the same command without <code>--dry-run</code> records exact reviewed hashes. Any later edit requires fresh review. Unknown/corrupt bases cannot be acknowledged away. Removal withdraws discovery while retaining content, choices, bases and links; explicit enable reinstates valid reviewed content.</p>
 <p>Interrupted operations leave a recovery journal and withhold availability. Inspect <code>docket extension recover --dry-run</code>, then run <code>docket extension recover</code> when the recorded prior bytes can be restored. Unexpected concurrent edits require manual reconciliation. For version rollback, restore the whole known-good project Git snapshot; do not change a version stamp or recompute a suspect base hash.</p>
 <p><code>validate</code> checks manifest/content/links/ownership and declared engine versions. Its receipt identifies package, source/base, registry and choices and keeps <code>protocol</code> and <code>behavioral</code> as <code>not-run</code>. Scenario descriptions are pointers for separately performed checks; mechanical success never proves agent behavior, a human review, a browser interaction or provider delivery. Retain actual prompts/responses/tool events, exact candidate identities, artifacts and disclosed assistance for those claims.</p>
