@@ -6,52 +6,34 @@ Try GitDocket by asking your coding agent to complete a small task. Review the r
 
 You need Homebrew, Git, and a coding agent. See [supported platforms](homebrew.md#supported-platforms) or the [npm alternative](npm.md).
 
-Run one row at a time, continuing after it succeeds. Install GitDocket and check both commands:
+Install GitDocket and verify both commands:
 
 ```sh
-brew install gitdocket/tap/gitdocket
-```
-
-```sh
-docket --version
-```
-
-```sh
-docket-mcp --version
+brew install gitdocket/tap/gitdocket &&
+  docket --version &&
+  docket-mcp --version
 ```
 
 Create a practice repository in a new directory. If docket-playground already exists, use an unused name in both the mkdir and cd commands. Keep using the same terminal:
 
 ```sh
-mkdir docket-playground
-```
-
-```sh
-cd docket-playground
-```
-
-```sh
-git init
+mkdir docket-playground &&
+  cd docket-playground &&
+  git init
 ```
 
 Add a README and initialize GitDocket. This example uses Codex; replace --agent codex with --agent cursor or --agent claude for your agent, or omit it for portable AGENTS.md instructions:
 
 ```sh
-printf '# Harbor\n\nA synthetic documentation project.\n' > README.md
-```
-
-```sh
-docket init --agent codex
+printf '# Harbor\n\nA synthetic documentation project.\n' > README.md &&
+  docket init --agent codex
 ```
 
 Save the starting point in Git. If Git asks for an author identity, configure your usual name and email, then retry the commit:
 
 ```sh
-git add .
-```
-
-```sh
-git commit -m "Initialize Harbor with Docket"
+git add . &&
+  git commit -m "Initialize Harbor with Docket"
 ```
 
 For Cursor, enable Docket once in Customize → MCPs (Command Palette: Open MCPs).
@@ -71,19 +53,10 @@ The agent creates a task, writes the guide, checks it, and records the result. I
 ## 3. Inspect the result
 
 ```sh
-docket task list --all
-```
-
-```sh
-docket ready
-```
-
-```sh
-git log -5 --format=full
-```
-
-```sh
-git status --short
+docket task list --all &&
+  docket ready &&
+  git --no-pager log -5 --format=full &&
+  git status --short
 ```
 
 Start the local browser interface. Leave this terminal running; press Ctrl+C when you are finished:

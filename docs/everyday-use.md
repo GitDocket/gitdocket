@@ -37,19 +37,10 @@ CLI-only example: run `docket search cache --json`, review any matches, then sav
 After saving page.json in the project root, run this from the initialized project directory. The target reference/cache.md must not already exist:
 
 ```sh
-docket document create --input page.json --json
-```
-
-```sh
-docket document read reference/cache.md --json
-```
-
-```sh
-docket index
-```
-
-```sh
-docket lint --json
+docket document create --input page.json --json &&
+  docket document read reference/cache.md --json &&
+  docket index &&
+  docket lint --json
 ```
 
 For a revision, copy the complete `body` and `version` from the read result, revise the body, and save `{"expectedVersion":"<returned-version>","patch":{"body":"<complete-revised-body>"}}` as `edit.json`. Run `docket document edit reference/cache.md --input edit.json --json`, followed by index and lint. A duplicate path or stale version fails without replacing the newer source; reread and reconcile explicitly. MCP-only clients use `search`, `document_create`, `document_read`, `document_edit`, `index` and `lint` with the same fields. Native skills are generated for Claude, Codex and Cursor; restart an existing session if its skill inventory predates the upgrade.
@@ -71,15 +62,9 @@ The `docket-task` workflow records the actual choice as an accepted Decision wit
 This example creates an accepted Decision. Use it in a practice project, or replace the details with a choice your project has actually accepted:
 
 ```sh
-docket decision create --title "Use nightly CSV imports" --context "Considered nightly CSV and real-time events; the upstream system already supplies nightly files." --decision "Use nightly CSV for initial onboarding to avoid delaying launch." --consequences "Onboarding may wait until the next run; revisit events when an upstream feed exists." --json
-```
-
-```sh
-docket index
-```
-
-```sh
-docket lint --json
+docket decision create --title "Use nightly CSV imports" --context "Considered nightly CSV and real-time events; the upstream system already supplies nightly files." --decision "Use nightly CSV for initial onboarding to avoid delaying launch." --consequences "Onboarding may wait until the next run; revisit events when an upstream feed exists." --json &&
+  docket index &&
+  docket lint --json
 ```
 
 Read back the returned path with `docket document read <path> --json` and add relevant links through a complete versioned edit if needed. The default prefix is `DEC`, configurable with `ids.decision_prefix`; returned IDs are allocated safely across linked worktrees. MCP-only clients call `decision_create` with `title`, `context`, `decision`, `consequences` and optional `description`/`tags`, then `index` and `lint`. Existing task state and guidance remain unchanged.

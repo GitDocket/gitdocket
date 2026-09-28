@@ -21,11 +21,8 @@ The agent creates the epic and tasks, writes the guide, checks it, and updates t
 ## Review the result
 
 ```sh
-docket task list --all
-```
-
-```sh
-docket ready
+docket task list --all &&
+  docket ready
 ```
 
 On a successful run, the two tasks and their epic are done. Open the README link, read the guide, and review the checks described in each Outcome and the linked Git commits. If the agent reports an issue it cannot resolve, address it and resume the same epic.

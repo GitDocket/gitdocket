@@ -11,7 +11,7 @@
     <meta property="og:image" content="https://gitdocket.com/assets/current-home.jpg" />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/styles.css?v=a0d4f1c5fc15" />
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -40,27 +40,24 @@
 <p><strong>Prerequisites:</strong> <a href="/docs/install/">GitDocket 0.6.0 installed with Homebrew or npm</a>, Git and a coding agent. This example app and its scripts also need Bun 1.3.14+. Full verification needs Chrome/Chromium and permission to run a local server. Codex was the host used for the recorded agent tests.</p>
 <p>The download contains the workflow, starting app, checks, and guide. Install GitDocket separately before preparing the example.</p>
 <h3>1. Prepare a disposable project</h3>
-<p><a href="/examples/workflow-examples.tar.gz" download>Download the workflow examples</a> and extract them. From the extracted directory, run the following, replacing both absolute paths. The destination must not already exist.</p>
-<pre><code class="language-sh">bun scripts/extensions/prepare-example.ts --dest="/absolute/new/beacon" --cli="/absolute/installed/docket"</code></pre>
-<p>After preparation succeeds, enter the new project. Replace this path with the destination used above:</p>
-<pre><code class="language-sh">cd "/absolute/new/beacon"</code></pre>
-<p>Inspect the prepared project’s workflow and configuration:</p>
-<pre><code class="language-sh">bun run docket -- extension show product-delivery --json</code></pre>
+<p><a href="/examples/workflow-examples.tar.gz" download>Download the workflow examples</a> and extract them. From the extracted directory, run the following, replacing both absolute paths. Use the same destination in the first two commands; it must not already exist.</p>
+<pre><code class="language-sh">bun scripts/extensions/prepare-example.ts --dest="/absolute/new/beacon" --cli="/absolute/installed/docket" &amp;&amp;
+  cd "/absolute/new/beacon" &amp;&amp;
+  bun run docket -- extension show product-delivery --json</code></pre>
 <p>The helper initializes GitDocket and installs/enables the canonical product-delivery and incident-review packages through that CLI. It creates no proposal, acceptance, implementation tasks or export feature. The synthetic issue text is already saved in <code>docket/requests/BEC-42.md</code>; the default example needs no issue-tracker connection.</p>
 <h3>2. Make one project choice</h3>
-<pre><code class="language-sh">bun run docket -- extension configure product-delivery --set '{"reviewer":"release owner"}' --json</code></pre>
-<p>Inspect the prepared project’s workflow and configuration:</p>
-<pre><code class="language-sh">bun run docket -- extension show product-delivery --json</code></pre>
+<pre><code class="language-sh">bun run docket -- extension configure product-delivery --set '{"reviewer":"release owner"}' --json &amp;&amp;
+  bun run docket -- extension show product-delivery --json</code></pre>
 <p>Check that the effective reviewer is <code>release owner</code>, owned by the project. This names the required reviewer; it does not approve anything. The earlier observed run used the default <code>product owner</code>.</p>
 <h3>3. Ask for a proposal, then review it</h3>
 <p>Open the prepared repository in a fresh coding-agent session and ask:</p>
 <blockquote><p>Use product-delivery:deliver to prepare a proposal for Beacon issue BEC-42. Bring it back for review before planning implementation.</p></blockquote>
 <p>Read the actual proposal and retain its exact hash or commit. The configured reviewer can accept it, request changes or reject it. Any review supplied for a test must be labeled synthetic. Acceptance must identify the proposal revision and state whether planning or implementation is authorized. Ask explicitly for task creation if you want a tracked plan. You can stop after the proposal.</p>
 <h3>4. Deliver the accepted change</h3>
-<p>After authorized implementation, run these checks one at a time from the prepared Beacon project and retain the results. The browser check needs Chrome or Chromium and local-server access; choose an unused receipt path if /tmp/beacon-browser.json already contains evidence you need:</p>
-<pre><code class="language-sh">bun run test:baseline</code></pre>
-<pre><code class="language-sh">bun run test</code></pre>
-<pre><code class="language-sh">bun run test:browser -- --output=/tmp/beacon-browser.json</code></pre>
+<p>After authorized implementation, run these checks from the prepared Beacon project and retain the results. The sequence stops at the first failure. The browser check needs Chrome or Chromium and local-server access; choose an unused receipt path if /tmp/beacon-browser.json already contains evidence you need:</p>
+<pre><code class="language-sh">bun run test:baseline &amp;&amp;
+  bun run test &amp;&amp;
+  bun run test:browser -- --output=/tmp/beacon-browser.json</code></pre>
 <p>The starting app intentionally fails export checks. After implementation, all required checks must pass, including actual completed browser downloads. A missing browser, denied local server or failed assertion leaves delivery unresolved. The local handoff links the reviewed proposal, implementation, verification and decision. Sending it or publishing a release is a separate action.</p>
 <h3>5. Let the next session use the decision</h3>
 <p>After the verified handoff, open another fresh session in the same repository:</p>
@@ -79,6 +76,6 @@
 </main>
     </div>
     <footer class="shell footer"><a class="brand" href="/">GitDocket</a><p>Project knowledge and work, together in Git.</p><a href="https://github.com/GitDocket/gitdocket">Source on GitHub ↗</a></footer>
-      <script src="/copy-install.js" defer></script>
+      <script src="/copy-install.js?v=b002106b2d67" defer></script>
   </body>
 </html>
