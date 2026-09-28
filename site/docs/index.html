@@ -52,7 +52,7 @@
 <h2 id="3-inspect-the-result">3. Inspect the result</h2>
 <pre><code class="language-sh">docket task list --all &amp;&amp;
   docket ready &amp;&amp;
-  git log -5 --format=full &amp;&amp;
+  git --no-pager log -5 --format=full &amp;&amp;
   git status --short</code></pre>
 <p>Start the local browser interface. Leave this terminal running; press Ctrl+C when you are finished:</p>
 <pre><code class="language-sh">docket serve</code></pre>

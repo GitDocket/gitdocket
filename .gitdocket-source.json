@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "sourceCommit": "9b9d69bf751210974ea78a18dc22fc238d6a730a",
+  "sourceCommit": "c30c341dd76b2a8b8bb054a35fd69f92092b1795",
   "manifestPath": "release/public-export.json",
   "files": {
     ".github/workflows/ci.yml": "b88bae19ba84f61a69ec3cc5ffea21e01f1cc8d0d74990e0f4014fa2e80c66cc",
@@ -20,7 +20,7 @@
     "docs/epics.md": "61f8d6ae2d7da89e631e0001c07fa1f11f3033bdf611108dbedf4f6d4923dd9a",
     "docs/everyday-use.md": "7ebb41b5ad6764bbfe5ff8674e2fcd75368a5af37b78c827ea8a43091a609e71",
     "docs/extensions.md": "3701306a55781bba6d1ee0540dfdf63868a3eb69210ba45c6be7c6cc99b69bc2",
-    "docs/getting-started.md": "b3cd1bb2aeab91946093089932eb642d13dadb78e9f1c851434968524e5be80f",
+    "docs/getting-started.md": "25bab93b2b6174d1fbef19a6a3b7cca054806f514401a6366f76b7ab64cc7b37",
     "docs/homebrew.md": "b675ea59196d1e4c5d7d75b4854b2edf0e00bab669ec3e61f2cbffcbba412aae",
     "docs/npm.md": "951073f19dbc02617e69d59d054dd4029e875f9bf60e07b42250ab02639241a5",
     "docs/releases/v0.1.1.md": "76b43ff48bbfc4ce689aada0abcd52d76d1ffd8a78aaa53caf55fc282a98392b",
@@ -392,7 +392,7 @@
     "site/docs/extensions/beacon/index.html": "86a46f98d57e383082372a47d3bf5c062e0f9bd94725770c2a1bee2876fb58d1",
     "site/docs/extensions/index.html": "0ad9c663b449c5d1e4a4c43042f03ed3a2a44c84b98710f5a93f30d3c6823fb0",
     "site/docs/extensions/reference/index.html": "6b2f4699261f4f23c5ad2f02033b3ca84d22d3901c54935a85a761adbb4751a6",
-    "site/docs/index.html": "46847c76fa8324867e065750039ac96e604c131c36112497191c32f472c39409",
+    "site/docs/index.html": "36b44c48caaf6d4220d612d258910516aa28ea110018b192702138f7e18d7e9b",
     "site/docs/install/index.html": "cb350d18ec70951034f496b4794eaf0a9f4445c3b325ace7fdfb6f82ab4bfe4f",
     "site/docs/mcp/index.html": "1a4a3e81b307c6173e6d617202f5c5327139f8454cdf06fb084010d7c7f2b0dc",
     "site/docs/mcp/tools.json": "efc0fa2ae2267024e72ec5e8f479175f8c97b75fc13427f16bfbe89739a2d02e",

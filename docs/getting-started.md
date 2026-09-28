@@ -55,7 +55,7 @@ The agent creates a task, writes the guide, checks it, and records the result. I
 ```sh
 docket task list --all &&
   docket ready &&
-  git log -5 --format=full &&
+  git --no-pager log -5 --format=full &&
   git status --short
 ```
 
