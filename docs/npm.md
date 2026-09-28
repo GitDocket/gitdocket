@@ -6,13 +6,11 @@ If you use Node 22 or later, you can install GitDocket with npm:
 npm install -g --include=optional @gitdocket/cli @gitdocket/mcp
 ```
 
-After npm installation succeeds, check the CLI:
+After installation, verify both commands:
 
 ```sh
 docket --version
 ```
-
-Check the MCP server command:
 
 ```sh
 docket-mcp --version

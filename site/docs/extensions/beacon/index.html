@@ -57,12 +57,9 @@
 <blockquote><p>Use product-delivery:deliver to prepare a proposal for Beacon issue BEC-42. Bring it back for review before planning implementation.</p></blockquote>
 <p>Read the actual proposal and retain its exact hash or commit. The configured reviewer can accept it, request changes or reject it. Any review supplied for a test must be labeled synthetic. Acceptance must identify the proposal revision and state whether planning or implementation is authorized. Ask explicitly for task creation if you want a tracked plan. You can stop after the proposal.</p>
 <h3>4. Deliver the accepted change</h3>
-<p>After authorized implementation, the agent runs these supplied checks and retains the results:</p>
-<p>From the prepared Beacon project, check the starting application behavior:</p>
+<p>After authorized implementation, run these checks one at a time from the prepared Beacon project and retain the results. The browser check needs Chrome or Chromium and local-server access; choose an unused receipt path if /tmp/beacon-browser.json already contains evidence you need:</p>
 <pre><code class="language-sh">bun run test:baseline</code></pre>
-<p>Check the implemented export contract:</p>
 <pre><code class="language-sh">bun run test</code></pre>
-<p>With Chrome or Chromium installed and local-server access allowed, check actual downloads. Choose an unused receipt path if /tmp/beacon-browser.json already contains evidence you need:</p>
 <pre><code class="language-sh">bun run test:browser -- --output=/tmp/beacon-browser.json</code></pre>
 <p>The starting app intentionally fails export checks. After implementation, all required checks must pass, including actual completed browser downloads. A missing browser, denied local server or failed assertion leaves delivery unresolved. The local handoff links the reviewed proposal, implementation, verification and decision. Sending it or publishing a release is a separate action.</p>
 <h3>5. Let the next session use the decision</h3>

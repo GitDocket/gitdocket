@@ -6,13 +6,11 @@ Install GitDocket with Homebrew:
 brew install gitdocket/tap/gitdocket
 ```
 
-After Homebrew installation succeeds, check the CLI:
+After installation, verify both commands:
 
 ```sh
 docket --version
 ```
-
-Check the MCP server command:
 
 ```sh
 docket-mcp --version

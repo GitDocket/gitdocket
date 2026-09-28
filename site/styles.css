@@ -501,6 +501,53 @@ td code {
   margin: 0;
   padding-top: 0;
 }
+.command-block {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 12px;
+  padding: 8px 12px 8px 20px;
+}
+.command-block pre {
+  min-width: 0;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  line-height: 1.6;
+}
+.command-block > .copy-command {
+  min-width: 64px;
+}
+.example-block > .copy-command {
+  min-width: 112px;
+}
+.command-block:has(+ .command-block) {
+  margin-bottom: 0;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.command-block + .command-block {
+  margin-top: 0;
+  border-top: 1px solid #39443b;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+.command-block > .copy-status:not(.copy-error) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  min-height: 0;
+  margin: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.command-block > .copy-error {
+  grid-column: 1 / -1;
+  margin: 4px 0;
+  color: #afd1b8;
+  font-size: 13px;
+}
 .hero-next {
   margin-top: 8px;
 }

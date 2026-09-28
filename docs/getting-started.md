@@ -6,61 +6,49 @@ Try GitDocket by asking your coding agent to complete a small task. Review the r
 
 You need Homebrew, Git, and a coding agent. See [supported platforms](homebrew.md#supported-platforms) or the [npm alternative](npm.md).
 
-Run each command separately and check that it succeeds before continuing. Install with Homebrew, then create a new practice project:
+Run one row at a time, continuing after it succeeds. Install GitDocket and check both commands:
 
 ```sh
 brew install gitdocket/tap/gitdocket
 ```
 
-Check the CLI installation:
-
 ```sh
 docket --version
 ```
-
-Check the MCP server installation:
 
 ```sh
 docket-mcp --version
 ```
 
-Create a new directory. If docket-playground already exists, choose an unused name here and in the next command:
+Create a practice repository in a new directory. If docket-playground already exists, use an unused name in both the mkdir and cd commands. Keep using the same terminal:
 
 ```sh
 mkdir docket-playground
 ```
 
-Enter the directory you just created. Run the remaining setup commands in this same terminal:
-
 ```sh
 cd docket-playground
 ```
-
-Initialize the practice repository:
 
 ```sh
 git init
 ```
 
-Create the practice README in this new repository:
+Add a README and initialize GitDocket. This example uses Codex; replace --agent codex with --agent cursor or --agent claude for your agent, or omit it for portable AGENTS.md instructions:
 
 ```sh
 printf '# Harbor\n\nA synthetic documentation project.\n' > README.md
 ```
 
-Initialize GitDocket. This example uses Codex; choose --agent cursor for Cursor, --agent claude for Claude Code, or omit the flag for portable AGENTS.md instructions:
-
 ```sh
 docket init --agent codex
 ```
 
-Stage the practice project files:
+Save the starting point in Git. If Git asks for an author identity, configure your usual name and email, then retry the commit:
 
 ```sh
 git add .
 ```
-
-Commit the setup. If Git asks for an author identity, configure your usual name and email, then retry this command:
 
 ```sh
 git commit -m "Initialize Harbor with Docket"
