@@ -40,13 +40,9 @@ Optional: set the project’s reviewer choice to release owner:
 docket extension configure product-delivery --set '{"reviewer":"release owner"}' --json
 ```
 
-Inspect availability and effective configuration:
-
 ```sh
 docket extension show product-delivery --json
 ```
-
-Validate the installed package:
 
 ```sh
 docket extension validate product-delivery --json

@@ -40,8 +40,6 @@ After saving page.json in the project root, run this from the initialized projec
 docket document create --input page.json --json
 ```
 
-Read back the page created by the previous command:
-
 ```sh
 docket document read reference/cache.md --json
 ```

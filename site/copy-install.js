@@ -5,6 +5,8 @@ for (const [index, pre] of [...document.querySelectorAll("pre")].entries()) {
 
   const block = document.createElement("div");
   block.className = "code-block";
+  const isCommand = !code.classList.contains("language-json");
+  if (isCommand) block.classList.add("command-block");
   const toolbar = document.createElement("div");
   toolbar.className = "code-toolbar";
   const status = document.createElement("span");
@@ -22,9 +24,14 @@ for (const [index, pre] of [...document.querySelectorAll("pre")].entries()) {
   button.textContent = label;
   button.setAttribute("aria-label", `${label} block ${index + 1}`);
   button.setAttribute("aria-describedby", status.id);
-  toolbar.append(status, button);
   pre.before(block);
-  block.append(toolbar, pre);
+  if (isCommand) {
+    if (label === "Copy example") block.classList.add("example-block");
+    block.append(pre, button, status);
+  } else {
+    toolbar.append(status, button);
+    block.append(toolbar, pre);
+  }
 }
 
 for (const button of document.querySelectorAll("button.copy-command")) {
@@ -36,14 +43,25 @@ for (const button of document.querySelectorAll("button.copy-command")) {
   );
   if (!code || !status) continue;
   button.hidden = false;
+  const label = button.textContent;
+  let resetTimer;
   button.addEventListener("click", async () => {
+    clearTimeout(resetTimer);
+    status.classList.remove("copy-error");
     status.textContent = "Copying…";
     try {
       if (!navigator.clipboard?.writeText)
         throw new Error("clipboard unavailable");
       await navigator.clipboard.writeText(code.textContent);
       status.textContent = "Copied";
+      if (button.closest(".command-block")) button.textContent = "Copied";
+      resetTimer = setTimeout(() => {
+        button.textContent = label;
+        status.textContent = "";
+      }, 2000);
     } catch {
+      button.textContent = label;
+      status.classList.add("copy-error");
       status.textContent = "Could not copy. Select the text and copy manually.";
     }
   });

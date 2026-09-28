@@ -26,25 +26,19 @@
 <p>Try GitDocket by asking your coding agent to complete a small task. Review the result, then open a fresh session and see how it uses a decision recorded during that work.</p>
 <h2 id="1-install-and-initialize">1. Install and initialize</h2>
 <p>You need Homebrew, Git, and a coding agent. See <a href="/docs/install/#supported-platforms">supported platforms</a> or the <a href="/docs/install/#npm-alternative">npm alternative</a>.</p>
-<p>Run each command separately and check that it succeeds before continuing. Install with Homebrew, then create a new practice project:</p>
+<p>Run one row at a time, continuing after it succeeds. Install GitDocket and check both commands:</p>
 <pre><code class="language-sh">brew install gitdocket/tap/gitdocket</code></pre>
-<p>Check the CLI installation:</p>
 <pre><code class="language-sh">docket --version</code></pre>
-<p>Check the MCP server installation:</p>
 <pre><code class="language-sh">docket-mcp --version</code></pre>
-<p>Create a new directory. If docket-playground already exists, choose an unused name here and in the next command:</p>
+<p>Create a practice repository in a new directory. If docket-playground already exists, use an unused name in both the mkdir and cd commands. Keep using the same terminal:</p>
 <pre><code class="language-sh">mkdir docket-playground</code></pre>
-<p>Enter the directory you just created. Run the remaining setup commands in this same terminal:</p>
 <pre><code class="language-sh">cd docket-playground</code></pre>
-<p>Initialize the practice repository:</p>
 <pre><code class="language-sh">git init</code></pre>
-<p>Create the practice README in this new repository:</p>
+<p>Add a README and initialize GitDocket. This example uses Codex; replace --agent codex with --agent cursor or --agent claude for your agent, or omit it for portable AGENTS.md instructions:</p>
 <pre><code class="language-sh">printf '# Harbor\n\nA synthetic documentation project.\n' > README.md</code></pre>
-<p>Initialize GitDocket. This example uses Codex; choose --agent cursor for Cursor, --agent claude for Claude Code, or omit the flag for portable AGENTS.md instructions:</p>
 <pre><code class="language-sh">docket init --agent codex</code></pre>
-<p>Stage the practice project files:</p>
+<p>Save the starting point in Git. If Git asks for an author identity, configure your usual name and email, then retry the commit:</p>
 <pre><code class="language-sh">git add .</code></pre>
-<p>Commit the setup. If Git asks for an author identity, configure your usual name and email, then retry this command:</p>
 <pre><code class="language-sh">git commit -m "Initialize Harbor with Docket"</code></pre>
 <p>For Cursor, enable Docket once in Customize → MCPs (Command Palette: Open MCPs).</p>
 <p>Open the initialized repository in a fresh agent session so it discovers the project instructions.</p>
