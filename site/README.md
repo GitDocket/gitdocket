@@ -1,6 +1,6 @@
 # Website deployment
 
-The site is static: no package install, build step, server runtime, analytics, cookies, or third-party requests. The homepage and installation page load one local script, `site/copy-install.js`, so the Homebrew command can be copied. That script is the only script the content security policy allows, and only from this site.
+The site is static: no package install, build step, server runtime, analytics, cookies, or third-party requests. All HTML pages load one local script, `site/copy-install.js`, which adds a Copy button to every code block and powers the existing Homebrew controls. Each control copies only its associated code text, preserving indentation and line breaks, with keyboard access and success/failure feedback. Without JavaScript, code remains selectable and copy controls stay hidden. Keep the shared script on new pages so new code blocks receive the same behavior. The content security policy allows scripts only from this site.
 
 For Cloudflare Pages:
 
