@@ -243,7 +243,7 @@ describe("docket overview", () => {
     repo = undefined;
   });
 
-  test("emits the core model verbatim as JSON without writing repo state", async () => {
+  test("emits the full compatibility model verbatim as JSON without writing repo state", async () => {
     repo = await mkdtemp(join(tmpdir(), "docket-overview-"));
     await mkdir(join(repo, "docket", "work", "epics"), { recursive: true });
     await mkdir(join(repo, "docket", "work", "tasks"), { recursive: true });
@@ -264,7 +264,7 @@ describe("docket overview", () => {
       "---\ntype: Task\ntitle: Next\nid: DKT-3\nstatus: todo\nepic: /work/epics/DKT-1-main.md\npriority: p2\n---\n",
     );
 
-    const result = Bun.spawnSync(["bun", CLI, "overview", "--json"], {
+    const result = Bun.spawnSync(["bun", CLI, "overview", "--json", "--full"], {
       cwd: repo,
       stdout: "pipe",
       stderr: "pipe",
@@ -320,6 +320,19 @@ describe("docket overview", () => {
         recentOnly: [],
       },
       loose: null,
+      coordination: {
+        authority: "advisory",
+        observedAt: null,
+        complete: false,
+        items: [],
+        observedTotal: 0,
+        omitted: 0,
+        warning: {
+          code: "evidence-incomplete",
+          message:
+            "Coordination evidence is incomplete or unavailable; absence of a warning does not prove absence of another writer.",
+        },
+      },
       git: {
         status: "history-unavailable",
         historyComplete: false,
@@ -429,7 +442,7 @@ describe("docket overview", () => {
     expect(git("add", ".").exitCode).toBe(0);
     expect(git("commit", "-qm", "state of play").exitCode).toBe(0);
 
-    const json = Bun.spawnSync(["bun", CLI, "overview", "--json"], {
+    const json = Bun.spawnSync(["bun", CLI, "overview", "--json", "--full"], {
       cwd: repo,
       stdout: "pipe",
       stderr: "pipe",

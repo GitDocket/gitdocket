@@ -1,5 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseConfig } from "./config";
@@ -7,6 +14,7 @@ import {
   createDocument,
   DOCUMENT_EDIT_MAX_BYTES,
   editDocument,
+  readDocumentSection,
   readEditableDocument,
 } from "./document-edit";
 import { InMemoryFileStore, LocalFileStore } from "./filestore";
@@ -328,6 +336,237 @@ describe("ordinary wiki creation", () => {
       expect(
         results.filter((result) => result.status === "rejected"),
       ).toHaveLength(1);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("versioned named sections", () => {
+  const other =
+    "# Context\n\nKeep context.\n\n# Acceptance Criteria\n\n- [ ] Preserve evidence.\n\n# Log\n\n**2026-09-30** — Useful decision.\n\n# Outcome\n\nKeep final result.\n";
+  for (const type of ["Task", "Epic"])
+    test(`${type} checkpoint replacement preserves all other source and lifecycle bytes`, async () => {
+      const original = `---\ntype: ${type}\nid: DKT-1\nstatus: in-progress\n# authored comment\ncustom: [retain]\ntimestamp: old\n---\n\n${other}`;
+      const store = seed(original);
+      let draft = await readDocumentSection(
+        store,
+        config,
+        path,
+        "Current state",
+      );
+      expect(draft.section).toEqual({
+        heading: "Current state",
+        exists: false,
+        body: null,
+      });
+      expect(draft).not.toHaveProperty("body");
+      await editDocument(store, config, path, {
+        expectedVersion: draft.version,
+        patch: {
+          section: {
+            heading: "Current state",
+            body: "Verified core. Next: integration.",
+          },
+        },
+      });
+      const inserted = await store.read(path);
+      expect(inserted.endsWith(other)).toBe(true);
+      expect(inserted.slice(0, inserted.indexOf("# Current state"))).toBe(
+        original.slice(0, original.indexOf("# Context")),
+      );
+      draft = await readDocumentSection(store, config, path, "current state");
+      const saved = await editDocument(store, config, path, {
+        expectedVersion: draft.version,
+        patch: {
+          section: {
+            heading: "CURRENT STATE",
+            body: "Integration verified. Next: review.",
+          },
+        },
+      });
+      expect(saved.changed).toBe(true);
+      expect(await store.read(path)).not.toContain("Verified core.");
+      expect((await store.read(path)).endsWith(other)).toBe(true);
+      const stable = await store.read(path);
+      const noop = await save(store, {
+        section: {
+          heading: "Current state",
+          body: "Integration verified. Next: review.",
+        },
+      });
+      expect(noop.changed).toBe(false);
+      expect(noop.paths).toEqual([]);
+      expect(await store.read(path)).toBe(stable);
+      expect([...store.files.keys()]).toEqual([path]);
+      await expect(
+        editDocument(store, config, path, {
+          expectedVersion: draft.version,
+          patch: { section: { heading: "Current state", body: "stale" } },
+        }),
+      ).rejects.toMatchObject({ code: "conflict" });
+      await save(store, { section: { heading: "Current state", body: null } });
+      expect(await store.read(path)).toBe(original);
+      expect(
+        (await save(store, { section: { heading: "Missing", body: null } }))
+          .changed,
+      ).toBe(false);
+    });
+  test("canonical Markdown boundaries preserve code, comments, HTML and setext neighbors", async () => {
+    const before =
+      "\n# Context\n\n```md\n<!-- a code sample\n# Current state\n```\n\n<!--\n# Current state\n-->\n\n<div>\n# Current state\n</div>\n\n";
+    const after =
+      "Acceptance Criteria\n===================\n\n- [ ] Untouched.\n";
+    const store = seed(
+      `${source.slice(0, source.indexOf("\n# Body"))}${before}# Current state ###\n\nOld.\n\n${after}`,
+    );
+    await save(store, {
+      section: {
+        heading: "Current state",
+        body: "    # Indented code\n\n```md\n# Fenced heading\n```",
+      },
+    });
+    const updated = await store.read(path);
+    expect(updated).toContain(
+      `${before}# Current state ###\n\n    # Indented code`,
+    );
+    expect(updated.endsWith(after)).toBe(true);
+    expect(
+      (await readDocumentSection(store, config, path, "Current state")).section
+        .body,
+    ).toStartWith("    # Indented code");
+    expect(updated.slice(0, updated.indexOf("# Current state ###"))).toBe(
+      source.slice(0, source.indexOf("\n# Body")) + before,
+    );
+  });
+  test("duplicate or unsafe section requests fail without writing", async () => {
+    for (const body of [
+      "# Intrusion\ntext",
+      "---\n# Hidden intrusion\n---\n",
+      "New section\n===========",
+      "```md\nunclosed",
+      "<!-- unclosed",
+      "\0",
+    ]) {
+      const store = seed();
+      await expect(
+        save(store, { section: { heading: "Current state", body } }),
+      ).rejects.toMatchObject({ code: "invalid" });
+      expect(await store.read(path)).toBe(source);
+    }
+    for (const patch of [
+      { body: "all", section: { heading: "State", body: "one" } },
+      { section: { heading: "State ###", body: "one" } },
+      { section: { heading: " ", body: "one" } },
+      { section: { heading: "State", body: "one", status: "done" } },
+    ]) {
+      const store = seed();
+      await expect(save(store, patch)).rejects.toMatchObject({
+        code: "invalid",
+      });
+      expect(await store.read(path)).toBe(source);
+    }
+    const store = seed(`${source}\n# State\n\nOne.\n\nState\n=====\n\nTwo.\n`);
+    const original = await store.read(path);
+    await expect(
+      save(store, { section: { heading: "State", body: "ambiguous" } }),
+    ).rejects.toMatchObject({ code: "unsupported" });
+    await expect(
+      readDocumentSection(store, config, path, "State"),
+    ).rejects.toMatchObject({ code: "unsupported" });
+    expect(await store.read(path)).toBe(original);
+  });
+  test("CRLF, a heading at EOF and concurrent section writers retain version semantics", async () => {
+    const store = seed(`${source.replaceAll("\n", "\r\n")}\r\n# Current state`);
+    await save(store, {
+      section: { heading: "Current state", body: "One.\n\nNext: two." },
+    });
+    const draft = await readDocumentSection(
+      store,
+      config,
+      path,
+      "Current state",
+    );
+    expect(draft.section.body).toBe("One.\r\n\r\nNext: two.");
+    const competing = await Promise.allSettled(
+      ["A", "B"].map((body) =>
+        editDocument(store, config, path, {
+          expectedVersion: draft.version,
+          patch: { section: { heading: "Current state", body } },
+        }),
+      ),
+    );
+    expect(competing.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    expect(await store.read(path)).toContain(
+      "custom:\r\n  unknown: [one, two] # exact",
+    );
+  });
+  test("CLI section read/edit returns bounded receipts and no-op does not refresh discovery or log", async () => {
+    const root = await mkdtemp(join(tmpdir(), "docket-section-cli-"));
+    try {
+      await mkdir(join(root, "docket"));
+      await writeFile(
+        join(root, "docket.yaml"),
+        "project: DKT\nbundle: docket\n",
+      );
+      await writeFile(
+        join(root, "docket/task.md"),
+        "---\ntype: Task\nid: DKT-1\nstatus: todo\n---\n\n# Context\n\nKeep.\n",
+      );
+      const call = (...args: string[]) => {
+        const p = Bun.spawnSync(
+          [
+            process.execPath,
+            join(import.meta.dir, "../../cli/src/index.ts"),
+            ...args,
+            "--json",
+          ],
+          { cwd: root, stdout: "pipe", stderr: "pipe" },
+        );
+        expect(p.exitCode).toBe(0);
+        return JSON.parse(p.stdout.toString());
+      };
+      const draft = call(
+        "document",
+        "read",
+        "task.md",
+        "--section",
+        "Current state",
+      );
+      expect(draft).not.toHaveProperty("body");
+      const input = join(root, "patch.json");
+      const patch = {
+        section: { heading: "Current state", body: "Review next." },
+      };
+      await writeFile(
+        input,
+        JSON.stringify({ expectedVersion: draft.version, patch }),
+      );
+      const saved = call(
+        "document",
+        "edit",
+        "task.md",
+        "--input",
+        input,
+        "--compact",
+      );
+      expect(saved.changed).toBe(true);
+      expect(saved.document).not.toHaveProperty("body");
+      expect(
+        Buffer.byteLength(JSON.stringify(saved, null, 2)),
+      ).toBeLessThanOrEqual(8192);
+      await writeFile(
+        input,
+        JSON.stringify({ expectedVersion: saved.version, patch }),
+      );
+      expect(
+        call("document", "edit", "task.md", "--input", input, "--compact")
+          .changed,
+      ).toBe(false);
+      const text = await readFile(join(root, "docket/task.md"), "utf8");
+      expect(text).toContain("status: todo");
+      expect(text).not.toContain("# Log");
+      expect(call("document", "read", "task.md").body).toContain("# Context");
     } finally {
       await rm(root, { recursive: true, force: true });
     }

@@ -36,6 +36,8 @@ function event(overrides: Partial<OperationEvent> = {}): OperationEvent {
     resultCount: null,
     resultTotal: null,
     responseBytes: null,
+    driftState: null,
+    driftWarnings: null,
     truncated: null,
     failureReason: null,
     saveState: null,
@@ -347,4 +349,42 @@ test("current-state windows keep 24h, 7d and full-sample bounds beside the selec
   expect(windows.selected.coverage.observedOperations).toBe(2);
   expect(windows.hours24.window.since).toBe(now - 86400000);
   expect(renderUsageWindows(windows)).toContain("Last 24 hours:");
+});
+
+test("coordination categories remain content-free and missing historical coverage stays unknown", () => {
+  const report = usageReport(
+    [
+      event({
+        operation: "overview",
+        driftState: "advisory",
+        driftWarnings: 1,
+      }),
+      event({
+        operation: "task_edit",
+        driftState: "conflict",
+        driftWarnings: 2,
+      }),
+      event({
+        operation: "document_edit",
+        driftState: "incomplete",
+        driftWarnings: 1,
+      }),
+      event({ operation: "task_start", driftState: "none", driftWarnings: 0 }),
+      event({ operation: "overview", driftState: null, driftWarnings: null }),
+    ],
+    { until: 20000 },
+  );
+  expect(report.outcomes.drift).toMatchObject({
+    observed: 4,
+    notObserved: 1,
+    advisory: 1,
+    conflict: 1,
+    incomplete: 1,
+    none: 1,
+    warnings: 4,
+  });
+  expect(renderUsageReport(report)).toContain(
+    "Coordination: 1 advisory, 1 conflict, 1 incomplete",
+  );
+  expect(renderUsageReport(report)).toContain("1 not observed");
 });

@@ -9,6 +9,8 @@ import {
 } from "./telemetry";
 import { TELEMETRY_COVERAGE } from "./telemetry-coverage";
 
+export { analyzeDocketTrace, renderDocketTrace } from "./telemetry-trace";
+
 const ADMIN = new Set<Operation>([
   "task_create",
   "task_start",
@@ -334,6 +336,20 @@ export function usageReport(input: unknown[], options: ReportOptions = {}) {
     results: operations.filter((e) => e.truncated === "results").length,
     response: operations.filter((e) => e.truncated === "response").length,
   };
+  const drift = {
+    observed: operations.filter((e) => e.driftState != null).length,
+    notObserved: operations.filter((e) => e.driftState == null).length,
+    advisory: operations.filter((e) => e.driftState === "advisory").length,
+    conflict: operations.filter((e) => e.driftState === "conflict").length,
+    incomplete: operations.filter((e) => e.driftState === "incomplete").length,
+    none: operations.filter((e) => e.driftState === "none").length,
+    warnings: operations.reduce(
+      (total, e) => total + (e.driftWarnings ?? 0),
+      0,
+    ),
+    interpretation:
+      "Categories from already-computed CLI/MCP advisories; unknown coverage, foreign completion and a later success do not prove no drift, integrated closure or recovery.",
+  };
   const saveStates = {
     unchanged: operations.filter((e) => e.saveState === "unchanged").length,
     savedLocally: operations.filter((e) => e.saveState === "saved_locally")
@@ -497,6 +513,7 @@ export function usageReport(input: unknown[], options: ReportOptions = {}) {
       supported: [...inventory.values()].sort((a, b) => a.n - b.n),
     },
     outcomes: {
+      drift,
       emptySearch,
       nonemptySearch,
       unknownSearchCount,
@@ -551,6 +568,7 @@ export function compactUsageWindow(report: UsageReport) {
       nonemptySearch: report.outcomes.nonemptySearch,
       unknownSearchCount: report.outcomes.unknownSearchCount,
       truncated: report.outcomes.truncated,
+      drift: report.outcomes.drift,
       saveStates: report.outcomes.saveStates,
       failureReasons: report.outcomes.failureReasons,
       possibleRecovery: report.outcomes.possibleRecovery.length,
@@ -625,6 +643,7 @@ export function renderUsageReport(report: UsageReport): string {
     `Local usage: ${report.coverage.observedOperations} operations, ${report.coverage.resourceSamples} resource samples, ${report.coverage.projects.length} projects`,
     `Window: ${new Date(report.window.since).toISOString()} through ${new Date(report.window.until).toISOString()}`,
     `Coverage: ${report.coverage.reportedDrops} reported drops; ${report.coverage.knownActor}/${report.coverage.observedOperations} known actor; ${report.coverage.knownHost} known host; ${report.coverage.correlated} correlated / ${report.coverage.uncorrelated} uncorrelated. Missing activity/retention gaps are unknown.`,
+    `Coordination: ${report.outcomes.drift.advisory} advisory, ${report.outcomes.drift.conflict} conflict, ${report.outcomes.drift.incomplete} incomplete; ${report.outcomes.drift.warnings} warnings across ${report.outcomes.drift.observed} observed operations, ${report.outcomes.drift.notObserved} not observed. Categories do not prove integration or recovery.`,
     "",
     "Candidates for manual review (owner flag, then total observed wait):",
   ];

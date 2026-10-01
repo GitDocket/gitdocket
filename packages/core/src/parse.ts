@@ -2,6 +2,7 @@
 // link graph. Reserved OKF filenames (index.md, log.md, overview.md) are structural, not
 // concepts, and skip frontmatter validation entirely.
 
+import { createHash } from "node:crypto";
 import remarkFrontmatter from "remark-frontmatter";
 import remarkParse from "remark-parse";
 import { unified } from "unified";
@@ -27,6 +28,10 @@ export interface Diagnostic {
   line?: number;
   message: string;
   severity: "error" | "warning";
+  code?: string;
+  category?: string;
+  /** Stable evidence identity when source location can move independently. */
+  fingerprint?: string;
 }
 
 interface ConceptBase {
@@ -36,9 +41,13 @@ interface ConceptBase {
 
 export interface WorkItem extends ConceptBase {
   kind: "work";
+  /** Complete source identity for drift comparison, independent of stat cache tokens. */
+  sourceVersion?: string;
   fm: WorkItemFrontmatter;
   /** Authored close result, when the conventional `# Outcome` section exists. */
   outcome?: string;
+  /** Optional authored checkpoint; never overrides stored status or readiness. */
+  currentState?: string;
 }
 
 export interface Decision extends ConceptBase {
@@ -66,30 +75,110 @@ export function isReserved(path: string): boolean {
 
 const processor = unified().use(remarkParse).use(remarkFrontmatter, ["yaml"]);
 
-/** Extract one conventional level-one section without making it mandatory. */
+/** Canonical top-level ranges for section reads and writes, including setext headings. */
+export function markdownSections(source: string) {
+  const sections: {
+    heading: string;
+    start: number;
+    contentStart: number;
+    end: number;
+  }[] = [];
+  for (const node of processor.parse(source).children) {
+    if (node.type !== "heading" || node.depth !== 1) continue;
+    const start = node.position?.start.offset;
+    const end = node.position?.end.offset;
+    if (start === undefined || end === undefined) continue;
+    const heading = source
+      .slice(start, end)
+      .replace(/^#[ \t]+/, "")
+      .replace(/[ \t]+#+$/, "")
+      .replace(/\r?\n=+[ \t]*$/, "")
+      .trim();
+    const previous = sections.at(-1);
+    if (previous) previous.end = start;
+    sections.push({
+      heading,
+      start,
+      contentStart:
+        end +
+        (source.slice(end, end + 2) === "\r\n"
+          ? 2
+          : source[end] === "\n"
+            ? 1
+            : 0),
+      end: source.length,
+    });
+  }
+  return sections;
+}
+
+/** Lightweight conventional ATX projection; metadata reads never build a body AST. */
+function conventionalSections(source: string) {
+  const sections: {
+    heading: string;
+    start: number;
+    contentStart: number;
+    end: number;
+  }[] = [];
+  const frontmatter = /^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/.exec(source);
+  let fence: string | undefined;
+  let comment = false;
+  for (const line of source.matchAll(/^.+(?:\n|$)|^\n/gm)) {
+    const start = line.index;
+    if (start < (frontmatter?.[0].length ?? 0)) continue;
+    const text = line[0].replace(/\r?\n$/, "");
+    const marker = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(text);
+    if (fence) {
+      if (
+        marker?.[1] &&
+        marker[1][0] === fence[0] &&
+        marker[1].length >= fence.length &&
+        !marker[2]?.trim()
+      )
+        fence = undefined;
+      continue;
+    }
+    if (comment) {
+      if (text.includes("-->")) comment = false;
+      continue;
+    }
+    if (/^\s*<!--/.test(text)) {
+      comment = !text.includes("-->");
+      continue;
+    }
+    if (marker && !(marker[1]?.[0] === "`" && marker[2]?.includes("`"))) {
+      fence = marker[1];
+      continue;
+    }
+    const heading = /^ {0,3}#[ \t]+(.+?)[ \t]*$/
+      .exec(text)?.[1]
+      ?.replace(/[ \t]+#+$/, "")
+      .trim();
+    if (!heading) continue;
+    const previous = sections.at(-1);
+    if (previous) previous.end = start;
+    sections.push({
+      heading,
+      start,
+      contentStart: start + line[0].length,
+      end: source.length,
+    });
+  }
+  return sections;
+}
+
+/** Extract authored text without interpreting its meaning or making it mandatory. */
 export function markdownSection(
   source: string,
   heading: string,
 ): string | undefined {
-  const lines = source.split(/\r?\n/);
-  const wanted = heading.trim().toLowerCase();
-  const start = lines.findIndex((line) => {
-    const match = /^#\s+(.+?)\s*$/.exec(line);
-    return match?.[1]?.trim().toLowerCase() === wanted;
-  });
-  if (start < 0) return undefined;
-  let end = lines.length;
-  for (let index = start + 1; index < lines.length; index += 1) {
-    if (/^#\s+/.test(lines[index] ?? "")) {
-      end = index;
-      break;
-    }
-  }
-  const body = lines
-    .slice(start + 1, end)
-    .join("\n")
-    .trim();
-  return body || undefined;
+  if (!source.toLowerCase().includes(heading.toLowerCase())) return undefined;
+  const section = conventionalSections(source).find(
+    (s) => s.heading.toLowerCase() === heading.trim().toLowerCase(),
+  );
+  return section
+    ? source.slice(section.contentStart, section.end).trim() || undefined
+    : undefined;
 }
 
 function extractLinks(tree: ReturnType<typeof processor.parse>): Link[] {
@@ -206,6 +295,8 @@ function parse(
       diagnostics.push({
         path,
         message: `${issue.path.join(".") || "frontmatter"}: ${issue.message}`,
+        code: "frontmatter.schema",
+        category: "structure",
         severity: "error",
       });
     }
@@ -214,7 +305,10 @@ function parse(
 
   const sections =
     kind === "work"
-      ? { outcome: markdownSection(source, "Outcome") }
+      ? {
+          outcome: markdownSection(source, "Outcome"),
+          currentState: markdownSection(source, "Current state"),
+        }
       : kind === "decision"
         ? {
             context: markdownSection(source, "Context"),
@@ -232,6 +326,9 @@ function parse(
       links,
       kind,
       fm: result.data,
+      ...(kind === "work"
+        ? { sourceVersion: createHash("sha256").update(source).digest("hex") }
+        : {}),
       ...presentSections,
     } as Concept,
     diagnostics,

@@ -3,7 +3,14 @@
 // frontmatter block, never a full YAML re-serialize, so hand-authored
 // formatting and comments survive.
 
-import { stringify as stringifyYaml } from "yaml";
+import { createHash } from "node:crypto";
+import {
+  isMap,
+  isScalar,
+  parseDocument,
+  stringify as stringifyYaml,
+} from "yaml";
+import { z } from "zod";
 import { type Bundle, loadMetadataBundle } from "./bundle";
 import { numberedIdPattern, reservedConceptIds } from "./concept-ids";
 import type { DocketConfig } from "./config";
@@ -33,7 +40,25 @@ export interface CreateInput {
   assignee?: string;
   tags?: string[];
   slug?: string;
+  /** Complete authored Markdown body; omission retains the legacy skeleton. */
+  body?: string;
 }
+
+const creationInput = z
+  .object({
+    title: z.string().trim().min(1).max(8192),
+    type: z.enum(["Task", "Epic"]).optional(),
+    description: z.string().max(65536).optional(),
+    epic: z.string().max(2048).optional(),
+    dependsOn: z.array(z.string().min(1).max(256)).max(128).optional(),
+    priority: z.enum(["p0", "p1", "p2", "p3"]).optional(),
+    rank: z.number().finite().optional(),
+    assignee: z.string().max(2048).optional(),
+    tags: z.array(z.string().min(1).max(1024)).max(128).optional(),
+    slug: z.string().optional(),
+    body: z.string().min(1).max(65536).optional(),
+  })
+  .strict();
 
 export function slugify(title: string): string {
   return (
@@ -118,7 +143,7 @@ export const createDecision = (
   config: DocketConfig,
   input: CreateDecisionInput,
   coordinator?: WorkItemIdCoordinator,
-): Promise<{ id: string; path: string }> =>
+): Promise<{ id: string; path: string; version: string }> =>
   mutate(store, async () => {
     const slug = creationSlug(input.title, input.slug);
     const create = async (knownIds: ReadonlySet<string>) => {
@@ -128,7 +153,7 @@ export const createDecision = (
       const path = `decisions/${id}-${slug}.md`;
       const source = `---\n${stringifyYaml({ type: "Decision", title: input.title, ...(input.description ? { description: input.description } : {}), id, status: "accepted", ...(input.tags?.length ? { tags: input.tags } : {}), timestamp: new Date().toISOString().replace(/\.\d{3}Z$/, "Z") }, { lineWidth: 0 }).trimEnd()}\n---\n\n# Context\n\n${input.context ?? "(context, relevant links and alternatives considered)"}\n\n# Decision\n\n${input.decision ?? "(the accepted choice and why)"}\n\n# Consequences\n\n${input.consequences ?? "(tradeoffs and follow-up effects)"}\n`;
       await writeNew(store, path, source);
-      return { id, path };
+      return { id, path, version: sourceVersion(source) };
     };
     return coordinator
       ? coordinator.allocate(config.ids.decision_prefix, create)
@@ -147,19 +172,56 @@ async function createWorkItemUnlocked(
   config: DocketConfig,
   input: CreateInput,
   coordinator?: WorkItemIdCoordinator,
-): Promise<{ id: string; path: string }> {
+): Promise<{ id: string; path: string; version: string }> {
+  if (!input || typeof input !== "object" || Array.isArray(input))
+    throw new TaskEditError(
+      "invalid-request",
+      "Work creation requires a structured input object.",
+    );
   if (
     input.type !== undefined &&
     input.type !== "Task" &&
     input.type !== "Epic"
   )
-    throw new Error(
+    throw new TaskEditError(
+      "invalid-request",
       `unsupported work type "${input.type}"; use Task or Epic, or decision create for a Decision`,
+    );
+  const checked = creationInput.safeParse(input);
+  if (!checked.success)
+    throw new TaskEditError(
+      "invalid-request",
+      "Invalid bounded work creation input.",
+    );
+  input = checked.data;
+  if (
+    input.body !== undefined &&
+    (!input.body.trim() ||
+      input.body.includes("\0") ||
+      Buffer.byteLength(input.body) > 65536)
+  )
+    throw new TaskEditError(
+      "invalid-request",
+      "Authored body must be nonblank Markdown without NUL and at most 64 KiB.",
+    );
+  // Validate every authored field before calling the shared allocator. Actual
+  // identity, inventory and exclusive destination checks remain inside it.
+  const fields = {
+    ...input,
+    type: input.type ?? "Task",
+    id: `${config.project}-1`,
+    status: "todo",
+    tags: input.tags ?? [],
+  };
+  if (!buildSchemas(config).workItem.safeParse(fields).success)
+    throw new TaskEditError(
+      "invalid-request",
+      "Invalid work creation metadata.",
     );
   const slug = creationSlug(input.title, input.slug);
   const create = async (
     knownIds: ReadonlySet<string>,
-  ): Promise<{ id: string; path: string }> => {
+  ): Promise<{ id: string; path: string; version: string }> => {
     // Load inside the coordination boundary: another caller may have created
     // an item while this process waited for the shared lock.
     const bundle = await loadMetadataBundle(store, config);
@@ -184,22 +246,31 @@ async function createWorkItemUnlocked(
       yamlLine("status", "todo"),
       ...(input.epic ? [yamlLine("epic", input.epic)] : []),
       ...(input.dependsOn?.length
-        ? [`depends_on: [${input.dependsOn.join(", ")}]`]
+        ? [
+            `depends_on: ${stringifyYaml(input.dependsOn, { collectionStyle: "flow", flowCollectionPadding: false, lineWidth: 0 }).trimEnd()}`,
+          ]
         : []),
       yamlLine("priority", input.priority ?? "p2"),
       ...(input.rank !== undefined ? [yamlLine("rank", input.rank)] : []),
       ...(input.assignee ? [yamlLine("assignee", input.assignee)] : []),
-      ...(input.tags?.length ? [`tags: [${input.tags.join(", ")}]`] : []),
+      ...(input.tags?.length
+        ? [
+            `tags: ${stringifyYaml(input.tags, { collectionStyle: "flow", flowCollectionPadding: false, lineWidth: 0 }).trimEnd()}`,
+          ]
+        : []),
       yamlLine("timestamp", new Date().toISOString().replace(/\.\d{3}Z$/, "Z")),
     ];
 
     const context = input.epic
       ? `See [epic](${input.epic}).`
       : "(links to specs/docs here)";
-    const body = `# Context\n\n${context}\n\n# Acceptance Criteria\n\n- [ ] …\n`;
+    const body =
+      input.body ??
+      `# Context\n\n${context}\n\n# Acceptance Criteria\n\n- [ ] …\n`;
 
-    await writeNew(store, path, `---\n${lines.join("\n")}\n---\n\n${body}`);
-    return { id, path };
+    const source = `---\n${lines.join("\n")}\n---\n\n${body}`;
+    await writeNew(store, path, source);
+    return { id, path, version: sourceVersion(source) };
   };
 
   return coordinator
@@ -246,7 +317,13 @@ async function setStatusUnlocked(
   id: string,
   to: string,
   opts: { note?: string } = {},
-): Promise<{ id: string; path: string; from: Status; to: Status }> {
+): Promise<{
+  id: string;
+  path: string;
+  from: Status;
+  to: Status;
+  version: string;
+}> {
   if (!isStatus(to)) throw new Error(`unknown status "${to}"`);
   if (to === "closed" && !opts.note?.trim()) {
     throw new Error("closing without completion requires a disposition note");
@@ -272,11 +349,17 @@ async function setStatusUnlocked(
     updated = updated.replace(/^timestamp:.*$/m, `timestamp: ${stamp}`);
   }
   const content = updated + rest;
-  await store.write(
-    item.path,
-    opts.note?.trim() ? withLogEntry(content, opts.note.trim()) : content,
-  );
-  return { id: item.fm.id, path: item.path, from, to };
+  const saved = opts.note?.trim()
+    ? withLogEntry(content, opts.note.trim())
+    : content;
+  await store.write(item.path, saved);
+  return {
+    id: item.fm.id,
+    path: item.path,
+    from,
+    to,
+    version: sourceVersion(saved),
+  };
 }
 
 // Replace (or remove, line = null) a frontmatter field in place; when the
@@ -303,6 +386,313 @@ function upsertFmLine(
     }
   }
   throw new Error(`no anchor line to place ${key}: after`);
+}
+
+export interface TaskFieldPatch {
+  priority?: string;
+  rank?: number | null;
+  epic?: string | null;
+}
+export type TaskEditMutation = "unchanged" | "applied" | "unknown";
+export class TaskEditError extends Error {
+  constructor(
+    readonly code:
+      | "invalid-request"
+      | "source-conflict"
+      | "write-failed"
+      | "unavailable",
+    message: string,
+    readonly mutation: TaskEditMutation = "unchanged",
+    readonly version?: string,
+  ) {
+    super(message);
+  }
+  receipt() {
+    return {
+      schema: "task-edit/v1",
+      error: { code: this.code, message: this.message.slice(0, 512) },
+      mutation: this.mutation,
+      ...(this.version ? { version: this.version } : {}),
+      recovery:
+        this.mutation === "unchanged"
+          ? "Correct the request or reconcile the current source before retrying."
+          : "Review the current source before retrying; no rollback is claimed.",
+    };
+  }
+}
+const sourceVersion = (source: string) =>
+  createHash("sha256").update(source).digest("hex");
+
+/** Preserve source slices and value quoting, including inline field comments. */
+function patchFmField(
+  fm: string,
+  key: string,
+  value: string | number | null,
+  anchors: readonly RegExp[],
+) {
+  const offset = fm.startsWith("---\r\n") ? 5 : 4;
+  const eol = offset === 5 ? "\r\n" : "\n";
+  const inner = fm.slice(offset, fm.lastIndexOf("\n---")).replace(/\r$/, "");
+  const doc = parseDocument(inner);
+  if (doc.errors.length || !isMap(doc.contents))
+    throw new Error("Invalid editable frontmatter");
+  const node = doc.contents.get(key, true);
+  if (!node) {
+    if (value === null) return fm;
+    for (const anchor of anchors) {
+      const match = fm.match(anchor);
+      if (match?.index !== undefined) {
+        const at = match.index + match[0].replace(/\r$/, "").length;
+        return fm.slice(0, at) + eol + yamlLine(key, value) + fm.slice(at);
+      }
+    }
+    throw new Error(`No anchor line to place ${key}`);
+  }
+  if (!isScalar(node) || !node.range)
+    throw new Error(`Unsupported ${key} source shape`);
+  const start = offset + node.range[0];
+  const end = offset + node.range[1];
+  const block = node.type === "BLOCK_LITERAL" || node.type === "BLOCK_FOLDED";
+  const blockComment = block
+    ? (fm
+        .slice(start, fm.indexOf("\n", start))
+        .replace(/\r$/, "")
+        .match(/[ \t]+#.*$/)?.[0] ?? "")
+    : "";
+  if (value === null) {
+    const lineStart = fm.lastIndexOf("\n", start) + 1;
+    const lineEnd = fm[end - 1] === "\n" ? end - 1 : fm.indexOf("\n", end);
+    const suffix =
+      blockComment || fm.slice(end, lineEnd < 0 ? fm.length : lineEnd);
+    return (
+      fm.slice(0, lineStart) +
+      (suffix.trimStart().startsWith("#")
+        ? `${suffix.trimStart().replace(/\r$/, "")}${eol}`
+        : "") +
+      fm.slice(lineEnd < 0 ? fm.length : lineEnd + 1)
+    );
+  }
+  const next =
+    typeof value === "string" && node.type === "QUOTE_DOUBLE"
+      ? JSON.stringify(value)
+      : typeof value === "string" && node.type === "QUOTE_SINGLE"
+        ? `'${value.replaceAll("'", "''")}'`
+        : yamlLine(key, value).slice(key.length + 2);
+  return (
+    fm.slice(0, start) +
+    next +
+    blockComment +
+    (fm.slice(start, end).endsWith("\n") ? eol : "") +
+    fm.slice(end)
+  );
+}
+
+/** Validate every field against one source and serialize one coordinated write. */
+export async function editWorkItem(
+  store: FileStore,
+  config: DocketConfig,
+  id: string,
+  patch: TaskFieldPatch,
+  expectedVersion?: string,
+) {
+  let disposition: TaskEditMutation = "unchanged";
+  let lastVersion: string | undefined;
+  try {
+    return await mutate(store, async () => {
+      if (
+        !patch ||
+        typeof patch !== "object" ||
+        Array.isArray(patch) ||
+        !Object.keys(patch).length ||
+        Object.keys(patch).some(
+          (key) => !["priority", "rank", "epic"].includes(key),
+        )
+      )
+        throw new TaskEditError(
+          "invalid-request",
+          "Provide priority, rank or epic fields only.",
+        );
+      if (
+        "priority" in patch &&
+        (typeof patch.priority !== "string" || !isPriority(patch.priority))
+      )
+        throw new TaskEditError("invalid-request", "Priority must be p0..p3.");
+      if (
+        "rank" in patch &&
+        patch.rank !== null &&
+        (typeof patch.rank !== "number" || !Number.isFinite(patch.rank))
+      )
+        throw new TaskEditError(
+          "invalid-request",
+          "Rank must be a finite number or null.",
+        );
+      if (
+        "epic" in patch &&
+        patch.epic !== null &&
+        (typeof patch.epic !== "string" || !patch.epic.trim())
+      )
+        throw new TaskEditError(
+          "invalid-request",
+          "Epic must be a nonempty bundle link or null.",
+        );
+      if (
+        expectedVersion !== undefined &&
+        (typeof expectedVersion !== "string" ||
+          !/^[a-f0-9]{64}$/.test(expectedVersion))
+      )
+        throw new TaskEditError(
+          "invalid-request",
+          "Expected version must be a complete source content version.",
+        );
+      const { bundle, item, source } = await readResolved(store, config, id);
+      if (item?.kind !== "work")
+        throw new TaskEditError(
+          "invalid-request",
+          `No work item with id ${id}`,
+        );
+      const version = sourceVersion(source);
+      if (expectedVersion && expectedVersion !== version)
+        throw new TaskEditError(
+          "source-conflict",
+          "Source changed since the supplied version; no requested fields were written.",
+          "unchanged",
+          version,
+        );
+      if (item.fm.type === "Epic" && ("rank" in patch || "epic" in patch))
+        throw new TaskEditError(
+          "invalid-request",
+          "Epics cannot have task rank or a parent epic.",
+        );
+      const fields: Record<
+        string,
+        { from: string | number | null; to: string | number | null }
+      > = {};
+      if (patch.priority !== undefined)
+        fields.priority = { from: item.fm.priority, to: patch.priority };
+      if (patch.rank !== undefined)
+        fields.rank = { from: item.fm.rank ?? null, to: patch.rank };
+      if (patch.epic !== undefined) {
+        const link =
+          patch.epic === null
+            ? null
+            : patch.epic.startsWith("/")
+              ? patch.epic
+              : `/${patch.epic}`;
+        if (link) {
+          const path = resolveLink(item.path, link);
+          const target = bundle.concepts.find((c) => c.path === path);
+          if (target?.kind !== "work" || target.fm.type !== "Epic")
+            throw new TaskEditError("invalid-request", `No epic at ${link}`);
+          // Revalidate the referenced target while the same mutation lock is held.
+          const current = parseMetadataConcept(
+            target.path,
+            await store.read(target.path),
+            buildSchemas(config),
+          ).concept;
+          if (
+            current?.kind !== "work" ||
+            current.fm.type !== "Epic" ||
+            current.fm.id !== target.fm.id
+          )
+            throw new TaskEditError(
+              "source-conflict",
+              "Epic target changed; no requested fields were written.",
+            );
+        }
+        fields.epic = { from: item.fm.epic ?? null, to: link };
+      }
+      const match = source.match(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n)?/);
+      if (!match)
+        throw new TaskEditError(
+          "invalid-request",
+          "File has no editable frontmatter block.",
+        );
+      const fm = match[0];
+      const rest = source.slice(fm.length);
+      let updated = fm;
+      for (const key of ["priority", "rank", "epic"] as const) {
+        const change = fields[key];
+        if (change && change.from !== change.to)
+          updated = patchFmField(
+            updated,
+            key,
+            change.to,
+            key === "epic"
+              ? [/^status:.*$/m]
+              : [
+                  /^priority:.*$/m,
+                  /^depends_on: \[.*$/m,
+                  /^epic:.*$/m,
+                  /^status:.*$/m,
+                ],
+          );
+      }
+      const content = updated + rest;
+      const parsed = parseMetadataConcept(
+        item.path,
+        content,
+        buildSchemas(config),
+      );
+      if (
+        parsed.diagnostics.some((d) => d.severity === "error") ||
+        parsed.concept?.kind !== "work"
+      )
+        throw new TaskEditError(
+          "invalid-request",
+          "The requested patch does not produce valid task metadata.",
+        );
+      if (sourceVersion(await store.read(item.path)) !== version)
+        throw new TaskEditError(
+          "source-conflict",
+          "Source changed during edit; no requested fields were written.",
+        );
+      const changed = content !== source;
+      if (changed) {
+        disposition = "unknown";
+        try {
+          await store.write(item.path, content);
+          disposition = "applied";
+          lastVersion = sourceVersion(content);
+        } catch {
+          let mutation: TaskEditMutation = "unknown";
+          let observedVersion: string | undefined;
+          try {
+            const observed = await store.read(item.path);
+            observedVersion = sourceVersion(observed);
+            mutation =
+              observed === source
+                ? "unchanged"
+                : observed === content
+                  ? "applied"
+                  : "unknown";
+          } catch {}
+          throw new TaskEditError(
+            "write-failed",
+            "Task source write failed; mutation disposition reflects the observed readback, not a rollback.",
+            mutation,
+            observedVersion,
+          );
+        }
+      }
+      return {
+        schema: "task-edit/v1",
+        id: item.fm.id,
+        path: item.path,
+        changed,
+        mutation: changed ? "applied" : "unchanged",
+        version: sourceVersion(content),
+        ...fields,
+      };
+    });
+  } catch (error) {
+    if (error instanceof TaskEditError) throw error;
+    throw new TaskEditError(
+      "unavailable",
+      error instanceof Error ? error.message : "Task edit unavailable.",
+      disposition,
+      lastVersion,
+    );
+  }
 }
 
 export const setPriority = (...args: Parameters<typeof setPriorityUnlocked>) =>
@@ -428,12 +818,13 @@ async function appendLogUnlocked(
   config: DocketConfig,
   id: string,
   entry: string,
-): Promise<{ path: string }> {
+): Promise<{ path: string; version: string }> {
   const { item, source } = await readResolved(store, config, id);
   if (!item) throw new Error(`no item with id ${id}`);
 
-  await store.write(item.path, withLogEntry(source, entry));
-  return { path: item.path };
+  const saved = withLogEntry(source, entry);
+  await store.write(item.path, saved);
+  return { path: item.path, version: sourceVersion(saved) };
 }
 
 function withLogEntry(source: string, entry: string): string {

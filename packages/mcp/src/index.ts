@@ -20,7 +20,15 @@ if (process.argv.length === 3 && process.argv[2] === "--version") {
   process.exit(0);
 }
 
-const root = await findRepoRoot(process.cwd());
+const args = process.argv.slice(2);
+if (args.length && (args.length !== 2 || args[0] !== "--repo")) {
+  console.error(
+    "docket-mcp: use --repo <checkout> for a deliberate server pin, or no arguments for client-root routing with launch fallback",
+  );
+  process.exit(1);
+}
+const pin = args[1];
+const root = await findRepoRoot(pin ?? process.cwd());
 if (!root) {
   console.error(
     "docket-mcp: no docket.yaml found here or in any parent directory",
@@ -38,7 +46,13 @@ const resolve = async () => {
   return { config, store };
 };
 const initial = await resolve();
-const server = createDocketServer(initial.store, initial.config, root, resolve);
+const server = createDocketServer(
+  initial.store,
+  initial.config,
+  root,
+  resolve,
+  { pin: pin ? root : undefined },
+);
 let closing: Promise<void> | undefined;
 const close = () => {
   closing ??= server.close();

@@ -1,6 +1,6 @@
 {
   "name": "@gitdocket/bin-darwin-x64",
-  "version": "0.6.1",
+  "version": "0.6.3",
   "description": "GitDocket standalone commands for darwin-x64.",
   "license": "Apache-2.0",
   "repository": {

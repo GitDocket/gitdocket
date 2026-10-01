@@ -63,14 +63,15 @@ const call = async (
     .map((c) => c.text)
     .join("");
   const isError = result.isError === true;
-  // Error results carry the message as plain text, not JSON.
+  // Existing assertions inspect error messages; structured errors remain text content.
   return { isError, data: isError ? text : JSON.parse(text) };
 };
 
 describe("tool surface", () => {
   test("MCP-only agents receive the writing rule and source-level lint warnings", async () => {
     const { client, store } = await connect();
-    expect(client.getInstructions()).toBe(MARKDOWN_AUTHORING_RULE);
+    expect(client.getInstructions()).toContain(MARKDOWN_AUTHORING_RULE);
+    expect(client.getInstructions()).toContain("docket/target");
     const description =
       "A long description that must never be folded at a column limit. "
         .repeat(6)
@@ -118,6 +119,10 @@ describe("tool surface", () => {
       document_move_plan: true,
       document_move_apply: false,
       document_move_recover: false,
+      reconcile_plan: true,
+      reconcile_source: true,
+      reconcile_apply: false,
+      reconcile_recover: false,
       document_edit: false,
       index: false,
       task_create: false,
@@ -215,6 +220,18 @@ describe("read tools", () => {
     const before = new Map(store.files);
     const { data } = await call(client, "overview");
     expect(data.upNext.id).toBe("DKT-2");
+    expect(data.format).toBe("agent-overview/v1");
+    expect(data).not.toHaveProperty("execution");
+    expect(data.context).toBeNull();
+    expect((await call(client, "overview", { view: "brief" })).data).toEqual(
+      data,
+    );
+    const full = (await call(client, "overview", { view: "full" })).data;
+    expect(full).toHaveProperty("execution");
+    expect(full).not.toHaveProperty("format");
+    expect((await call(client, "overview", { view: "invalid" })).isError).toBe(
+      true,
+    );
     expect(store.files).toEqual(before);
 
     const { tools } = await client.listTools();
@@ -266,6 +283,116 @@ describe("read tools", () => {
 });
 
 describe("write tools", () => {
+  test("explicit compact writes preserve full defaults and return reusable versions and typed errors", async () => {
+    const { client } = await connect();
+    const body = "Private authored paragraph. ".repeat(450);
+    const made = await call(client, "document_create", {
+      path: "reference/compact.md",
+      type: "Reference",
+      title: "Compact",
+      body,
+      response: "compact",
+    });
+    expect(made.data).toMatchObject({
+      schema: "docket-receipt/v1",
+      operation: "document_create",
+      changed: true,
+    });
+    expect(made.data.version).toMatch(/^[a-f0-9]{64}$/);
+    expect(JSON.stringify(made.data)).not.toContain(body);
+    expect(Buffer.byteLength(JSON.stringify(made.data, null, 2))).toBeLessThan(
+      1000,
+    );
+    const saved = await call(client, "document_edit", {
+      path: made.data.path,
+      expectedVersion: made.data.version,
+      patch: { body: `${body} Changed.` },
+      response: "compact",
+    });
+    if (saved.isError) throw new Error(saved.data);
+    expect(saved.data).toMatchObject({ mutation: "applied", changed: true });
+    const noop = await call(client, "document_edit", {
+      path: made.data.path,
+      expectedVersion: saved.data.version,
+      patch: { body: `${body} Changed.` },
+      response: "compact",
+    });
+    expect(noop.data).toMatchObject({
+      mutation: "unchanged",
+      changed: false,
+      paths: [],
+      version: saved.data.version,
+    });
+    const stale = await call(client, "document_edit", {
+      path: made.data.path,
+      expectedVersion: made.data.version,
+      patch: { body: "stale" },
+      response: "compact",
+    });
+    expect(stale.isError).toBe(true);
+    expect(JSON.parse(stale.data)).toMatchObject({
+      error: { code: "conflict" },
+      mutation: "unchanged",
+    });
+    const full = await call(client, "document_edit", {
+      path: made.data.path,
+      expectedVersion: saved.data.version,
+      patch: { body: `${body} Changed.` },
+    });
+    expect(full.data.document.body).toBe(`${body} Changed.`);
+    const work = await call(client, "task_create", {
+      title: "Compact work",
+      response: "compact",
+    });
+    expect(work.data.version).toMatch(/^[a-f0-9]{64}$/);
+    const status = await call(client, "set_status", {
+      id: work.data.id,
+      to: "in-progress",
+      response: "compact",
+    });
+    expect(status.data).toMatchObject({
+      operation: "set_status",
+      from: "todo",
+      to: "in-progress",
+      version: expect.any(String),
+    });
+    expect(
+      (
+        await call(client, "append_log", {
+          id: work.data.id,
+          entry: "Private log entry",
+          response: "compact",
+        })
+      ).data,
+    ).toMatchObject({ operation: "append_log", version: expect.any(String) });
+    const index = await call(client, "index", { response: "compact" });
+    expect(index.data).toMatchObject({
+      operation: "index",
+      cache: "unsupported",
+    });
+    expect(
+      (await call(client, "index", { response: "compact" })).data,
+    ).toMatchObject({ mutation: "unchanged", changed: false });
+    const invalid = await call(client, "task_create", {
+      title: "Bad",
+      priority: "p9",
+      response: "compact",
+    });
+    expect(invalid.isError).toBe(true);
+    expect(JSON.parse(invalid.data)).toMatchObject({
+      schema: "docket-receipt/v1",
+      operation: "task_create",
+      ok: false,
+    });
+    const { tools } = await client.listTools();
+    expect(
+      tools.some((tool) =>
+        ["task_start", "task_stop", "task_close", "task_edit"].includes(
+          tool.name,
+        ),
+      ),
+    ).toBe(false);
+  });
   test("task_create writes a conformant file with the next id", async () => {
     const { client, store } = await connect();
     const { data } = await call(client, "task_create", {
@@ -486,4 +613,61 @@ test("MCP plans and applies wiki moves with immediate source/search discovery", 
     ).data.state,
   ).toBe("complete");
   expect(await store.read("work/tasks/DKT-1-a.md")).toBe(task("DKT-1", "done"));
+});
+
+test("MCP named section edits preserve history and expose whole-source concurrency with compact no-op receipts", async () => {
+  const { client, store } = await connect();
+  const path = "work/tasks/DKT-2-b.md";
+  const original = await store.read(path);
+  const draft = await call(client, "document_read", {
+    path,
+    section: "Current state",
+  });
+  expect(draft.data.section.exists).toBe(false);
+  expect(draft.data).not.toHaveProperty("body");
+  const patch = {
+    section: {
+      heading: "Current state",
+      body: "Core verified. Next: owner review.",
+    },
+  };
+  const result = await call(client, "document_edit", {
+    path,
+    expectedVersion: draft.data.version,
+    patch,
+    response: "compact",
+  });
+  expect(result.isError).toBe(false);
+  expect(result.data.changed).toBe(true);
+  expect(result.data.version).toMatch(/^[a-f0-9]{64}$/);
+  expect(JSON.stringify(result.data)).not.toContain(patch.section.body);
+  expect(
+    (await call(client, "document_read", { path, section: "Current state" }))
+      .data.section.body,
+  ).toBe(patch.section.body);
+  expect(
+    (
+      await call(client, "document_edit", {
+        path,
+        expectedVersion: result.data.version,
+        patch,
+        response: "compact",
+      })
+    ).data,
+  ).toMatchObject({ changed: false, mutation: "unchanged", paths: [] });
+  expect(
+    (
+      await call(client, "document_edit", {
+        path,
+        expectedVersion: draft.data.version,
+        patch,
+        response: "compact",
+      })
+    ).isError,
+  ).toBe(true);
+  expect(await store.read(path)).toContain(
+    original.slice(original.indexOf("# Context")),
+  );
+  expect(await store.read(path)).toContain("status: todo");
+  expect(await store.read(path)).not.toContain("# Log");
 });

@@ -373,8 +373,9 @@ test("no-extension projects retain all existing bytes and receive accurate porta
   expect(report.steps).toEqual([]);
   expect(await snapshot(root)).toEqual(before);
   const agents = await readFile(join(root, "AGENTS.md"), "utf8");
+  expect(agents).toContain("including `index` and `task stop [ID]`");
   expect(agents).toContain(
-    "`index` and `task stop` currently return human output",
+    "Named stop can guard the expected workflow token and closure commit",
   );
   expect(agents).not.toContain("(all support `--json`)");
   expect(agents).toContain(

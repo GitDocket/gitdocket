@@ -1,0 +1,53 @@
+{
+  "schema": "gitdocket-owner-test-exception/v1",
+  "version": "0.6.3",
+  "sourceCommit": "bd7bf94a7f9245ccf1bf10d5ca29c2d3d1ee5828",
+  "exportSha256": "88eea88283cb21d7e8c5be662b9a463ff6068b90ce68767d9501a900514e2367",
+  "checks": "SKIPPED_BY_OWNER_REQUEST",
+  "authorization": {
+    "testInstruction": "skip all the tests, this was a minor change, let's just get to the release stage asap",
+    "publicationInstruction": "let's go",
+    "scope": "0.6.3 npm and GitHub publication; tap and website excluded"
+  },
+  "sourceMeaning": "Product archives and tarballs retain their unchanged bd7bf94 source identity. The public release commit also carries this explicitly hashed publication-only overlay. This does not claim the overlay belonged to the product build.",
+  "publicationOverlay": {
+    ".github/workflows/publish.yml": "0ed7f1c1480ee6c3009de1aba7b9dbb8b28859c8bcd155b8937facc191203613",
+    "scripts/release-publication.ts": "02b72e57790903e291facf58940134f29f4342dc2910f283b00b04c3c408a9d0",
+    "scripts/release-operator.ts": "7eba7d68100e50a14219e7f5a8a6d41ad8e61e55008f9e655b80b96813710aa2",
+    "scripts/release-owner-exception.ts": "a8288047c24ef38f6f94139d2915f22174736321c530ade9e95c738391d97abb",
+    "release/public-export.json": "c58a46d2672400788aed4d38b73bdd22289bafdfedea67a02c80b4d558e94a47",
+    "scripts/release-publication.test.ts": "2110897fccd4167ac4229c8122094d44f0e41401c7635343b652e988380b68d1"
+  },
+  "assets": {
+    "release/standalone/darwin-arm64.json": "675f63c72521b027463618f6298f1db2993a050e8f89f25ffad6e3176379c499",
+    "release/standalone/darwin-x64.json": "7b6e8ef59ecf5a3c4efc3f955befc722bfde37e687dabb71f71ffd0fd9317fef",
+    "release/standalone/gitdocket-0.6.3-darwin-arm64.tar.gz": "e32546297230ca3e376fb875a7ffcfc300637559f3a7740ca734c63f0f7e091f",
+    "release/standalone/gitdocket-0.6.3-darwin-arm64.tar.gz.sha256": "e8c051a2a4f69cfa0f73f0c4d0226631a7e38da53bcc03e5b5d38e1fa468bf3c",
+    "release/standalone/gitdocket-0.6.3-darwin-x64.tar.gz": "19d4eb6837f44e3070f8f3049f804c0162fbc296c9c5dfc7c7a4c8d0f5acdf06",
+    "release/standalone/gitdocket-0.6.3-darwin-x64.tar.gz.sha256": "d14b7cc329fcc6c2212a53978157789bf19ddfd3f9aaa51ad8159c0071ecd82a",
+    "release/standalone/gitdocket-0.6.3-linux-arm64.tar.gz": "dfa74912a711e019c7fe279eb8d1318fb0188d9526c94c12d6e9d940d564d301",
+    "release/standalone/gitdocket-0.6.3-linux-arm64.tar.gz.sha256": "88af5ea8cae9472fb2ed8bc163da464bcd85a39cf7de025c0344d1c24638e44d",
+    "release/standalone/gitdocket-0.6.3-linux-x64.tar.gz": "2872f378dac1f75ecb0c93cc3bc0a293f3d354a5eee3f5ebaebdbd8189bfc66e",
+    "release/standalone/gitdocket-0.6.3-linux-x64.tar.gz.sha256": "5af71a9819950f3537babcf62aeffffa1350b62b7095f1ae03e8d9b32916492c",
+    "release/standalone/linux-arm64.json": "468d9a85e55cd40447ccd35c27833b55487d9b9069abeec0fa804f2d463d2292",
+    "release/standalone/linux-x64.json": "6955f46328256ddc8d3f4d83fccfde66826b6d94b2dbe7e24ed634b30c877b23",
+    "release/tarballs/gitdocket-bin-darwin-arm64-0.6.3.tgz": "a2694b62f322c59ed9d7ec4d693dac3ffdac570f2d5aed671b3f2043b2a77c1c",
+    "release/tarballs/gitdocket-bin-darwin-x64-0.6.3.tgz": "94e18c4d4d3f2324c719cf451a472f75d01932d9f9048fcd1c8a1902a2922326",
+    "release/tarballs/gitdocket-bin-linux-arm64-0.6.3.tgz": "c4ce7cc3b33f065c7f67792479340a615c29a1493a3099e5ac8c0dd0e749045e",
+    "release/tarballs/gitdocket-bin-linux-x64-0.6.3.tgz": "771a0f1688d5d2cc65988f8e2d0f716e31a76d94d821fd8d8246b7a4abf83b50",
+    "release/tarballs/gitdocket-cli-0.6.3.tgz": "74b437c75d55b4c46b4893b754ffc33faa0ab46a82bcd1c8dc6c88fb746a3128",
+    "release/tarballs/gitdocket-core-0.6.3.tgz": "4575749e87d82e4d8ea7329ed5c984e5a260e0ace78fd2166fa91b6569bd1de1",
+    "release/tarballs/gitdocket-mcp-0.6.3.tgz": "c423a73e4f73e0bfc71274d48417ff5fc093614ba38b32ed275099193e686246",
+    "release/tarballs/gitdocket-web-0.6.3.tgz": "3c8b81274e2669d0d382a45182ff2356095a66b70cfaf0bd936f2580ea9cb302"
+  },
+  "packageIntegrities": {
+    "@gitdocket/bin-linux-arm64": "sha512-ESqYDqdxt1D+fql/8L5U05MM+rVBrU/PwNLEiTaASfblXLxaRvRQ+VlEJrLyD0QyO1V2ML3GVrK1HUBo3BBAgA==",
+    "@gitdocket/bin-darwin-x64": "sha512-9X4uRQo6K067Tz+Pp8QD/kLvDQrFR9D50raqf8lY5T2j/+lq7WEN1qXaaptpIRgEV1N2EQUlfa3cn0hqWnBsgg==",
+    "@gitdocket/mcp": "sha512-dG49KLarw99q1o+gJ8xiT4I71NcaPsj4BSmMjhiV2s2qcHsgmbU0WXcJktJtEf8iUpdAdvHvgP0yyG2kQdz3dg==",
+    "@gitdocket/bin-linux-x64": "sha512-Pdnu8ZxMgiYJpbefqnYc3B8VtOD3iEBHMeos2BCSxszL3mlvLlpM5cCR5leMpqN2mgXqBYnKNfUMORJll02UPw==",
+    "@gitdocket/core": "sha512-tZV8U9NS6Q02ktRVuDhNBEENhW0DMDjrKOpWrmYAnLcDm5DRSaM4qRDG1+fIQkWJaYTYrx6sZX2NegbL3iu2Gw==",
+    "@gitdocket/web": "sha512-kPCIrjrneJEkVXR274H6QfwSL4xpmYo6lm9Xgoq77bNz6Z5uExDkA9We1W2gPxqrXo/OFR4RfmBkn+COxQpXFA==",
+    "@gitdocket/bin-darwin-arm64": "sha512-x3XVUTZqEezg0de60rfOOuxvG81rSEoNFhTE5YmOhtroTH9ZRqiyDBNVO5pL3gTpXQZ++wNCawE7zhf4/tCCiA==",
+    "@gitdocket/cli": "sha512-dCFECKJytxfRZMXpXYJ5KaBevBg+rhhlFOnLGc4KHXtIdOU6KzTmUyRSMpfIyVVg6Mio/o6DvB4wekEC0ZZP2g=="
+  }
+}

@@ -1,6 +1,12 @@
+import { DRIFT_MESSAGES, taskDriftCodes, taskDriftReceipt } from "./task-drift";
 import type { TaskProgress, TaskProgressEvidence } from "./task-observations";
 
 export function taskProgressLabel(progress: TaskProgress): string {
+  const closeout = taskDriftCodes(progress).includes(
+    "terminal-closeout-unmerged",
+  )
+    ? `${DRIFT_MESSAGES["terminal-closeout-unmerged"]} `
+    : "";
   if (!progress.observations.length)
     return `${progress.state === "conflict" ? "Multiple pickups" : "Picked up elsewhere"} · task state unavailable · ${progress.pickupSources?.join(", ") ?? "unknown source"}`;
   const labels = [
@@ -20,7 +26,7 @@ export function taskProgressLabel(progress: TaskProgress): string {
       }),
     ),
   ];
-  return `${progress.state === "conflict" ? "Conflicting observations · " : ""}${labels.join("; ")}`;
+  return `${closeout}${progress.state === "conflict" ? "Conflicting observations · " : ""}${labels.join("; ")}`;
 }
 
 export function withTaskProgress<T extends { id: string }>(
@@ -31,6 +37,9 @@ export function withTaskProgress<T extends { id: string }>(
   return {
     ...item,
     ...(progress ? { progress, progressObservedAt: evidence?.observedAt } : {}),
+    ...(progress || (evidence && !evidence.complete)
+      ? { drift: taskDriftReceipt(item.id, evidence) }
+      : {}),
     ...(evidence && !evidence.complete ? { progressIncomplete: true } : {}),
   };
 }
@@ -61,6 +70,8 @@ export function previewTaskProgress(
   const tasks = [...evidence.tasks]
     .sort(
       (a, b) =>
+        Number(taskDriftCodes(b).includes("terminal-closeout-unmerged")) -
+          Number(taskDriftCodes(a).includes("terminal-closeout-unmerged")) ||
         Number(b.pickedUpElsewhere) - Number(a.pickedUpElsewhere) ||
         Number(b.state === "conflict") - Number(a.state === "conflict"),
     )

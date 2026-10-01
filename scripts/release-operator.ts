@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { matchesOwnerException } from "./release-owner-exception";
 import {
   classifyRegistry,
   PACKAGE_IDS,
@@ -121,26 +122,30 @@ export async function promoteOwner(options: {
 }): Promise<Observation> {
   const { receipt, registry } = options;
   const candidate = validateCandidate(receipt.candidate);
-  if (
-    receipt.schema !== 1 ||
-    receipt.smoke?.packageVersions?.["@gitdocket/cli"] !== candidate.version ||
-    receipt.smoke?.packageVersions?.["@gitdocket/mcp"] !== candidate.version ||
-    !candidate.packages.some(
+  const ownerException = await matchesOwnerException(candidate);
+  const installedSmokePassed =
+    receipt.smoke !== null &&
+    receipt.smoke?.packageVersions?.["@gitdocket/cli"] === candidate.version &&
+    receipt.smoke?.packageVersions?.["@gitdocket/mcp"] === candidate.version &&
+    candidate.packages.some(
       (item) =>
         item.id.startsWith("bin-") &&
         receipt.smoke?.packageVersions?.[item.name] === candidate.version,
-    ) ||
-    Object.values(receipt.smoke?.packageVersions ?? {}).some(
-      (version) => version !== candidate.version,
-    ) ||
-    receipt.smoke.serveStatus !== 200 ||
-    !receipt.smoke.mcpTools?.length ||
+    ) &&
+    Object.values(receipt.smoke?.packageVersions ?? {}).every(
+      (version) => version === candidate.version,
+    ) &&
+    receipt.smoke?.serveStatus === 200 &&
+    Boolean(receipt.smoke?.mcpTools?.length);
+  if (
+    receipt.schema !== 1 ||
+    !(installedSmokePassed || (ownerException && receipt.smoke === null)) ||
     receipt.final?.classification !== "complete" ||
     receipt.final.holding !== "complete" ||
     receipt.initial?.packages?.length !== candidate.packages.length
   ) {
     throw new Error(
-      "promotion requires the exact staged registry receipt with successful installed smoke",
+      "promotion requires exact staged evidence with successful smoke or the recorded owner exception",
     );
   }
   await ownerLogin(options.owner, options.user, true);

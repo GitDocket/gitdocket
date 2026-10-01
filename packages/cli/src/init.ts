@@ -4,7 +4,14 @@
 // init reports "skip" for everything already in place.
 
 import { execFileSync } from "node:child_process";
-import { chmod, mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  mkdir,
+  readFile,
+  stat,
+  unlink,
+  writeFile,
+} from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join } from "node:path";
 import {
@@ -21,7 +28,6 @@ import {
   type InitAction,
   isReserved,
   LocalFileStore,
-  loadBundle,
   mergeClaudeSettings,
   mergeCodexConfig,
   mergeMcpJson,
@@ -37,6 +43,8 @@ import {
   AGENT_ADAPTERS,
   AGENT_TARGETS,
   type AgentTarget,
+  canRetireCloseSkill,
+  hasNativeSkill,
   renderTargetSkillStub,
 } from "./agent-adapters";
 import {
@@ -248,6 +256,25 @@ export async function runInit(
       const rel = join(adapter.skillsRoot, w.slug, "SKILL.md");
       const stubPath = join(root, rel);
       const existing = await readIfPresent(stubPath);
+      if (!hasNativeSkill(w)) {
+        if (existing === undefined) continue;
+        if (canRetireCloseSkill(existing, config.bundle)) {
+          await unlink(stubPath);
+          record(
+            "skills",
+            rel,
+            "remove",
+            "retired generated close adapter; use the canonical workflow from repository instructions",
+          );
+        } else
+          record(
+            "skills",
+            rel,
+            "skip",
+            "retired close adapter has custom or unrecognized content; preserved for manual review",
+          );
+        continue;
+      }
       const stub = renderTargetSkillStub(adapter, w, config.bundle);
       if (existing === stub) {
         record("skills", rel, "skip", "up to date");
@@ -360,17 +387,14 @@ export async function runInit(
   // awaiting type frontmatter remain in the adoption worklist and are simply
   // absent until a later index pass.
   {
-    const result = await refreshIndex(
-      root,
-      store,
-      config,
-      await loadBundle(store, config),
-    );
+    const result = await refreshIndex(root, store, config);
     record(
       "index",
       join(config.bundle, "index.md"),
       result.indexChanged ? "update" : "skip",
-      result.indexChanged ? undefined : "index unchanged; cache rebuilt",
+      result.indexChanged
+        ? undefined
+        : `index unchanged; cache ${result.cache}`,
     );
   }
 

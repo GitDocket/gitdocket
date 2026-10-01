@@ -328,7 +328,13 @@ broken: [
     "Decision",
   ]);
   expect(invalid.code).not.toBe(0);
-  expect(invalid.stderr).toContain("unsupported work type");
+  expect(JSON.parse(invalid.stdout)).toMatchObject({
+    mutation: "unchanged",
+    error: {
+      code: "invalid-request",
+      message: expect.stringContaining("unsupported work type"),
+    },
+  });
   expect(await readFile(join(root, ".docket/active-task"), "utf8")).toBe(
     before,
   );

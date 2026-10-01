@@ -85,6 +85,26 @@ describe("shipped-history ledger", () => {
     ).toBe("06cc67f9b3bdc0b0637fd8bf2bc61969ca61584386fdaa1ee2f91a62260df546");
   });
 
+  test("published 0.6.1 bodies remain the exact upgrade merge base", () => {
+    const released = LEDGER.find((entry) => entry.version === "0.6.1");
+    expect(released).toBeDefined();
+    expect(
+      new Bun.CryptoHasher("sha256")
+        .update(JSON.stringify(released?.bodies))
+        .digest("hex"),
+    ).toBe("25323a6a5c2fc0b21c33037cdff0023795c11ef256a81698abfa8b9e3e1c76bd");
+  });
+
+  test("assigned 0.6.2 bodies remain the exact upgrade merge base", () => {
+    const released = LEDGER.find((entry) => entry.version === "0.6.2");
+    expect(released).toBeDefined();
+    expect(
+      new Bun.CryptoHasher("sha256")
+        .update(JSON.stringify(released?.bodies))
+        .digest("hex"),
+    ).toBe("372aa2dbdfcdbba916cecd4391136866a056a66e0a7e26c2ac47d9a3d7c463db");
+  });
+
   test("versions are unique", () => {
     const versions = LEDGER.map((h) => h.version);
     expect(new Set(versions).size).toBe(versions.length);

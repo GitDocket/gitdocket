@@ -10,6 +10,12 @@ import { type ProjectGuidance, readProjectGuidance } from "./guidance";
 import { resolveLink } from "./lint";
 import { parseConcept } from "./parse";
 import { buildSchemas, type WorkItemFrontmatter } from "./schema";
+import { taskDriftReceipt } from "./task-drift";
+import type { TaskProgressEvidence } from "./task-observations";
+import {
+  readWorkflowFreshness,
+  type WorkflowFreshness,
+} from "./workflow-freshness";
 
 /** A commit carrying the task's trailer; the caller derives these from git. */
 export interface CommitRef {
@@ -37,19 +43,31 @@ export interface PacketLink {
 export interface ContextPacket {
   /** Canonical host-neutral title intent for the current agent session. */
   suggestedSessionTitle: string;
-  task: { path: string; fm: WorkItemFrontmatter; body: string };
+  task: {
+    path: string;
+    fm: WorkItemFrontmatter;
+    body: string;
+    version?: string;
+  };
   epic?: { path: string; id?: string; title?: string; status?: string };
   deps: PacketDep[];
   linked: PacketLink[];
   commits: CommitRef[];
   guidance: ProjectGuidance;
+  drift?: ReturnType<typeof taskDriftReceipt>;
+  instructions?: WorkflowFreshness;
 }
 
 export interface EpicSupervisionRoute {
   outcome: "route";
   route: { intent: "epic-supervision"; workflow: "docket-epic" };
   suggestedSessionTitle: string;
-  epic: { path: string; fm: WorkItemFrontmatter; body: string };
+  epic: {
+    path: string;
+    fm: WorkItemFrontmatter;
+    body: string;
+    version?: string;
+  };
 }
 
 const bodyWithoutFrontmatter = (source: string): string =>
@@ -80,6 +98,7 @@ export async function buildEpicSupervisionRoute(
     suggestedSessionTitle: `Epic ${item.fm.id} — ${item.fm.title ?? ""}`,
     epic: {
       path: item.path,
+      version: parsed.concept.sourceVersion,
       fm: item.fm,
       body: bodyWithoutFrontmatter(source),
     },
@@ -96,6 +115,7 @@ export async function buildContextPacket(
   bundle: Bundle,
   id: string,
   commits: CommitRef[] = [],
+  progress?: TaskProgressEvidence,
 ): Promise<ContextPacket> {
   const item = bundle.byId(id);
   if (item?.kind !== "work") throw new Error(`no work item with id ${id}`);
@@ -162,11 +182,18 @@ export async function buildContextPacket(
 
   return {
     suggestedSessionTitle: `${item.fm.id} — ${item.fm.title ?? ""}`,
-    task: { path: item.path, fm: item.fm, body },
+    task: {
+      path: item.path,
+      fm: item.fm,
+      body,
+      version: parsed.concept.sourceVersion,
+    },
     epic,
     deps,
     linked,
     commits,
     guidance: await readProjectGuidance(store, bundle.config),
+    ...(progress ? { drift: taskDriftReceipt(item.fm.id, progress) } : {}),
+    instructions: await readWorkflowFreshness(store),
   };
 }

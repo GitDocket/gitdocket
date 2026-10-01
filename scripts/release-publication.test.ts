@@ -321,7 +321,7 @@ describe("resumable registry publication", () => {
     expect(
       registry.actions.some((action) => action.endsWith(":latest")),
     ).toBeFalse();
-    expect(result.smoke.serveStatus).toBe(200);
+    expect(result.smoke?.serveStatus).toBe(200);
   });
   test("a missing platform cannot promote launchers, and retry never republishes existing binaries", async () => {
     const candidate = candidateFixture();

@@ -5,8 +5,8 @@ import { isDeepStrictEqual } from "node:util";
 import { isMap, isScalar, parseDocument, stringify } from "yaml";
 import type { DocketConfig } from "./config";
 import { type FileStore, LocalFileStore } from "./filestore";
-import { mutate } from "./ops";
-import { isReserved, parseMetadataConcept } from "./parse";
+import { mutate, TaskEditError } from "./ops";
+import { isReserved, markdownSections, parseMetadataConcept } from "./parse";
 import { buildSchemas } from "./schema";
 
 export const DOCUMENT_EDIT_MAX_BYTES = 262_144;
@@ -29,6 +29,7 @@ export interface DocumentPatch {
   title?: string | null;
   description?: string | null;
   body?: string;
+  section?: { heading: string; body: string | null };
 }
 export interface EditableDocument {
   path: string;
@@ -40,6 +41,16 @@ export interface EditableDocument {
 }
 const hash = (source: string) =>
   createHash("sha256").update(source).digest("hex");
+const sectionContent = (text: string) =>
+  text.replace(/^(?:[ \t]*\r?\n)+/, "").replace(/(?:\r?\n[ \t]*)+$/, "");
+const validSectionContent = (body: string) => {
+  const sections = markdownSections(
+    `# Docket edited section\n\n${body}\n\n# Docket section boundary\n`,
+  );
+  return (
+    sections.length === 2 && sections[1]?.heading === "Docket section boundary"
+  );
+};
 
 export function validateDocumentPath(path: string): void {
   if (
@@ -149,17 +160,75 @@ export async function readEditableDocument(
   return projection(path, await readSource(store, path), config);
 }
 
+/** A section read is not a complete body draft; its version still pins the whole source. */
+export async function readDocumentSection(
+  store: FileStore,
+  config: DocketConfig,
+  path: string,
+  heading: string,
+) {
+  validatePatch({ section: { heading, body: null } });
+  const source = await readSource(store, path);
+  const parsed = inspect(path, source, config);
+  const matches = markdownSections(parsed.body).filter(
+    (s) => s.heading.toLowerCase() === heading.trim().toLowerCase(),
+  );
+  if (matches.length > 1)
+    throw new DocumentEditError(
+      "unsupported",
+      "The heading is duplicated; read the complete source to resolve it.",
+    );
+  const section = matches[0];
+  return {
+    path,
+    version: hash(source),
+    section: {
+      heading: section?.heading ?? heading.trim(),
+      exists: Boolean(section),
+      body: section
+        ? sectionContent(parsed.body.slice(section.contentStart, section.end))
+        : null,
+    },
+    maxBytes: DOCUMENT_EDIT_MAX_BYTES,
+  };
+}
+
 function validatePatch(value: unknown): DocumentPatch {
   if (!value || typeof value !== "object" || Array.isArray(value))
     throw new DocumentEditError("invalid", "Provide an editable-fields patch.");
   for (const [key, field] of Object.entries(value)) {
+    if (key === "section") {
+      if (!field || typeof field !== "object" || Array.isArray(field))
+        throw new DocumentEditError(
+          "invalid",
+          "Provide a section heading and body.",
+        );
+      const section = field as DocumentPatch["section"];
+      if (
+        Object.keys(field).some((k) => !["heading", "body"].includes(k)) ||
+        typeof section?.heading !== "string" ||
+        !section.heading.trim() ||
+        section.heading.length > DOCUMENT_PROPERTY_MAX_LENGTH ||
+        /[\r\n\0]/.test(section.heading) ||
+        markdownSections(`# ${section.heading.trim()}\n`)[0]?.heading !==
+          section.heading.trim() ||
+        !(typeof section.body === "string" || section.body === null) ||
+        (typeof section.body === "string" &&
+          (section.body.includes("\0") || !validSectionContent(section.body)))
+      )
+        throw new DocumentEditError(
+          "invalid",
+          "Use one nonblank level-one heading and its content, without another level-one section; null removes the section.",
+        );
+      continue;
+    }
     if (
       !["title", "description", "body"].includes(key) ||
       (typeof field !== "string" && !(key !== "body" && field === null))
     )
       throw new DocumentEditError(
         "invalid",
-        "Only body, title and description may be edited; properties may be removed with null.",
+        "Only body, section, title and description may be edited; properties may be removed with null.",
       );
     if (
       typeof field === "string" &&
@@ -172,7 +241,54 @@ function validatePatch(value: unknown): DocumentPatch {
         "Use a nonblank title and properties up to 4,096 characters, without NUL characters.",
       );
   }
+  if ("body" in value && "section" in value)
+    throw new DocumentEditError(
+      "invalid",
+      "Supply a complete body or one section, not both.",
+    );
   return value as DocumentPatch;
+}
+
+function patchSection(
+  body: string,
+  section: NonNullable<DocumentPatch["section"]>,
+  newline: string,
+): string {
+  const heading = section.heading.trim();
+  const matches = markdownSections(body).filter(
+    (s) => s.heading.toLowerCase() === heading.toLowerCase(),
+  );
+  if (matches.length > 1)
+    throw new DocumentEditError(
+      "unsupported",
+      "The heading is duplicated; resolve the complete source before editing this section.",
+    );
+  const existing = matches[0];
+  if (section.body === null)
+    return existing
+      ? body.slice(0, existing.start) + body.slice(existing.end)
+      : body;
+  const content = sectionContent(section.body).replace(/\r?\n/g, newline);
+  if (existing) {
+    if (
+      sectionContent(body.slice(existing.contentStart, existing.end)) ===
+      content
+    )
+      return body;
+    const header = body.slice(existing.start, existing.contentStart);
+    return (
+      body.slice(0, existing.start) +
+      header +
+      (header.endsWith("\n") ? "" : newline) +
+      newline +
+      content +
+      newline +
+      newline +
+      body.slice(existing.end)
+    );
+  }
+  const prefix = /^(?:[ \t]*\r?\n)+/.exec(body)?.[0] ?? "";
+  return `${prefix || newline}# ${heading}${newline}${newline}${content}${newline}${newline}${body.slice(prefix.length)}`;
 }
 
 /** Replace scalar spans, never reserialize the mapping or untouched values. */
@@ -239,7 +355,10 @@ function patchSource(
       ending +
       yaml.slice(end);
   }
-  const updated = `${original.match[1]}${yaml}${original.match[3]}${patch.body ?? original.body}`;
+  const body = patch.section
+    ? patchSection(original.body, patch.section, original.newline)
+    : (patch.body ?? original.body);
+  const updated = `${original.match[1]}${yaml}${original.match[3]}${body}`;
   const after = inspect(path, updated, config);
   const unowned = (fields: Record<string, unknown>) =>
     Object.fromEntries(
@@ -300,7 +419,28 @@ export async function editDocument(
         "Source changed during save. Your draft has not been written.",
       );
     const changed = updated !== source;
-    if (changed) await store.write(path, updated);
+    if (changed) {
+      try {
+        await store.write(path, updated);
+      } catch {
+        let observed: string | undefined;
+        try {
+          observed = await store.read(path);
+        } catch {
+          /* Unreadable source cannot establish disposition. */
+        }
+        throw new TaskEditError(
+          "write-failed",
+          "Source save failed. Inspect the current source before retrying.",
+          observed === source
+            ? "unchanged"
+            : observed === updated
+              ? "applied"
+              : "unknown",
+          observed === undefined ? undefined : hash(observed),
+        );
+      }
+    }
     const concept = inspect(path, updated, config).concept;
     return {
       document: projection(path, updated, config),

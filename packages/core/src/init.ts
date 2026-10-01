@@ -8,7 +8,7 @@ import { INDEX_MARKER } from "./indexmd";
 import { findFreshnessWatermark } from "./lint";
 import { DOCKET_VERSION } from "./version";
 
-export type InitAction = "create" | "update" | "skip";
+export type InitAction = "create" | "update" | "skip" | "remove";
 
 export interface InitResult {
   action: InitAction;
