@@ -52,6 +52,16 @@ const V1 = "0.4.1";
 const NEXT = "0.5.0";
 
 export const TELEMETRY_COVERAGE: SurfaceCoverage[] = [
+  ...(["plan", "source", "apply", "recover"] as const).flatMap((command) => [
+    supported("cli", `reconcile ${command}`, `reconcile_${command}`, NEXT),
+    supported("mcp", `reconcile_${command}`, `reconcile_${command}`, NEXT),
+  ]),
+  excluded(
+    "cli",
+    "reconcile",
+    NEXT,
+    "Parent group; reviewed reconciliation operations are counted.",
+  ),
   supported("cli", "document move-plan", "document_move_plan", "0.5.1"),
   supported("cli", "document move-apply", "document_move_apply", "0.5.1"),
   supported("cli", "document move-recover", "document_move_recover", "0.5.1"),
@@ -218,6 +228,7 @@ export function cliOperation(args: string[]): Operation | undefined {
     args[0] === "task" ||
     args[0] === "decision" ||
     args[0] === "document" ||
+    args[0] === "reconcile" ||
     args[0] === "extension" ||
     args[0] === "telemetry" ||
     (args[0] === "verify" && args[1])

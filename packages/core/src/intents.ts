@@ -165,7 +165,7 @@ export const DOCKET_INTENTS = {
     id: "epic-supervision",
     title: "Supervise an epic",
     discovery:
-      "Run a named epic to completion — supervise ready child work through isolated workers or the mandatory serial fallback, verify integration, and return one completion or blocker receipt.",
+      "Run a named epic to completion — supervise ready child work through isolated workers or the mandatory serial fallback, verify integration, consolidate owner-accepted closure, and return one brief completion or blocker receipt.",
     defaultEntrypoint: { kind: "workflow", value: "docket-epic" },
     mode: "state-changing",
     authority:

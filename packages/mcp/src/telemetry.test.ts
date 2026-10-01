@@ -57,9 +57,9 @@ test("MCP observations preserve responses, catch validation, isolate concurrent 
         })
       ).isError,
     ).toBe(true);
-    await client.callTool({
+    const statusResult = await client.callTool({
       name: "set_status",
-      arguments: { id: "DKT-1", to: "in-progress" },
+      arguments: { id: "DKT-1", to: "in-progress", response: "compact" },
     });
     const events = observations.events().filter((e) => e.kind === "operation");
     expect(events).toHaveLength(6);
@@ -70,6 +70,14 @@ test("MCP observations preserve responses, catch validation, isolate concurrent 
     expect(search?.resultCount).toBeGreaterThan(0);
     expect(search?.responseBytes).toBeGreaterThan(0);
     expect(search?.after.indexState).toBe("search");
+    expect(
+      events.find((e) => e.operation === "set_status")?.responseBytes,
+    ).toBe(
+      (statusResult.content as { text: string }[]).reduce(
+        (bytes, item) => bytes + Buffer.byteLength(item.text),
+        0,
+      ),
+    );
     expect(
       new Set(events.filter((e) => e.workflow).map((e) => e.workflow)).size,
     ).toBe(2);

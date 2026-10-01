@@ -161,6 +161,8 @@ export interface OverviewExecutionSummary {
 }
 
 export interface OverviewOptions {
+  /** Internal candidates for the bounded agent projection; full-view defaults stay compatible. */
+  agentCandidates?: boolean;
   /** Injectable wall clock for deterministic activity-window tests. */
   now?: Date;
   /** Current repository checkpoint supplied by the Git-aware caller. */
@@ -321,7 +323,11 @@ export function deriveOverview(
 
   const groupFor = (members: WorkItem[]): OverviewGroup => {
     const nowTasks = members
-      .filter((task) => task.fm.status === "in-progress")
+      .filter(
+        (task) =>
+          task.fm.status === "in-progress" ||
+          (options.agentCandidates && task.fm.status === "in-review"),
+      )
       .sort((a, z) => byManualOrder(a.fm, z.fm));
     const readyMembers = ready.filter((task) => members.includes(task));
     const nextTasks = readyMembers.slice(0, OVERVIEW_NEXT_LIMIT);
@@ -459,7 +465,9 @@ export function deriveOverview(
         a.id.localeCompare(z.id, undefined, { numeric: true }),
     );
   const bounded = <T>(items: T[]): T[] =>
-    items.slice(0, OVERVIEW_EXECUTION_GROUP_LIMIT);
+    options.agentCandidates
+      ? items
+      : items.slice(0, OVERVIEW_EXECUTION_GROUP_LIMIT);
   const movedInScope = (item: WorkItem): boolean =>
     Number.isFinite(scopeAfter) &&
     inScope(

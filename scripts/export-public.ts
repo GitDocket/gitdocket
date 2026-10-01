@@ -117,7 +117,12 @@ function scanPublicContent(path: string, bytes: Uint8Array): void {
     ["a machine-local home path", /(?:\/Users\/|[A-Za-z]:\\Users\\)/],
     [
       "the private canonical repository name",
-      new RegExp(["docket", "context"].join("-"), "i"),
+      // These two exact public schema identifiers share the private repo prefix.
+      // Keep bare repository names, URLs and undeclared suffixes forbidden.
+      new RegExp(
+        `${["docket", "context"].join("-")}(?!(?:-volume|-observation)/v1(?![A-Za-z0-9_/-]))`,
+        "i",
+      ),
     ],
     [
       "private cross-project evidence",

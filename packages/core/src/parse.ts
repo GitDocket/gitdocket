@@ -2,6 +2,7 @@
 // link graph. Reserved OKF filenames (index.md, log.md, overview.md) are structural, not
 // concepts, and skip frontmatter validation entirely.
 
+import { createHash } from "node:crypto";
 import remarkFrontmatter from "remark-frontmatter";
 import remarkParse from "remark-parse";
 import { unified } from "unified";
@@ -27,6 +28,10 @@ export interface Diagnostic {
   line?: number;
   message: string;
   severity: "error" | "warning";
+  code?: string;
+  category?: string;
+  /** Stable evidence identity when source location can move independently. */
+  fingerprint?: string;
 }
 
 interface ConceptBase {
@@ -36,6 +41,8 @@ interface ConceptBase {
 
 export interface WorkItem extends ConceptBase {
   kind: "work";
+  /** Complete source identity for drift comparison, independent of stat cache tokens. */
+  sourceVersion?: string;
   fm: WorkItemFrontmatter;
   /** Authored close result, when the conventional `# Outcome` section exists. */
   outcome?: string;
@@ -206,6 +213,8 @@ function parse(
       diagnostics.push({
         path,
         message: `${issue.path.join(".") || "frontmatter"}: ${issue.message}`,
+        code: "frontmatter.schema",
+        category: "structure",
         severity: "error",
       });
     }
@@ -232,6 +241,9 @@ function parse(
       links,
       kind,
       fm: result.data,
+      ...(kind === "work"
+        ? { sourceVersion: createHash("sha256").update(source).digest("hex") }
+        : {}),
       ...presentSections,
     } as Concept,
     diagnostics,

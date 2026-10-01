@@ -17,6 +17,7 @@ import { DOCKET_VERSION } from "./version";
 import { hasAdapterMarker } from "./workflows";
 
 export type UpgradeAction =
+  | "removed"
   | "regenerated"
   | "replaced"
   | "merged"

@@ -185,6 +185,42 @@ describe("public export", () => {
     expect(await git(destination, "status", "--porcelain")).toBe("");
   });
 
+  test("permits exact public context schemas without exempting private repo references", async () => {
+    const prefix = ["docket", "context"].join("-");
+    const source = await makeRepo();
+    const destination = await makeRepo();
+    const content = `Schemas: \`${prefix}-volume/v1\`, \`${prefix}-observation/v1\`.\n`;
+    await put(source, "README.md", content);
+    await writeManifest(source, ["README.md"]);
+    await exportPublicSnapshot({
+      sourceRoot: source,
+      sourceCommit: await commit(source),
+      destination,
+    });
+    expect(await readFile(join(destination, "README.md"), "utf8")).toBe(
+      content,
+    );
+
+    for (const reference of [
+      prefix,
+      `https://github.com/owner/${prefix}`,
+      `${prefix}-volume/v2`,
+      `${prefix}-observation/v1/private`,
+      `${prefix}-volume/v1extra`,
+    ]) {
+      const blockedDestination = await makeRepo();
+      await put(source, "README.md", `${content}Source: ${reference}\n`);
+      await expect(
+        exportPublicSnapshot({
+          sourceRoot: source,
+          sourceCommit: await commit(source),
+          destination: blockedDestination,
+        }),
+      ).rejects.toThrow("private canonical repository name");
+      expect(await git(blockedDestination, "status", "--porcelain")).toBe("");
+    }
+  });
+
   test("live allowlist includes every package source file", async () => {
     const root = join(import.meta.dir, "..");
     const manifest = JSON.parse(

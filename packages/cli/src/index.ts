@@ -4,16 +4,22 @@ import { GitEvidenceIndex } from "@gitdocket/core/cache";
 // docket — first thin client over @gitdocket/core. Every command is a core
 // call plus formatting; agents pass --json, humans get columns.
 
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
+import { readFile, realpath } from "node:fs/promises";
 import { join } from "node:path";
 import {
   appendLog,
   applyDocumentMove,
   applyIndex,
+  applyReconciliation,
   type Bundle,
+  BundleIndex,
   buildContextPacket,
   buildEpicSupervisionRoute,
   type ContextPacket,
+  compactContextPacket,
+  compactEpicRoute,
+  compactWriteReceipt,
   createDecision,
   createDocument,
   createWorkItem,
@@ -22,36 +28,52 @@ import {
   type DocketConfig,
   docketIntent,
   editDocument,
+  editWorkItem,
+  errorReceipt,
   findFreshnessWatermark,
   findRepoRoot,
   GitWorktreeIdCoordinator,
+  InMemoryFileStore,
   isTerminalStatus,
+  type LintOptions,
   LocalFileStore,
   lintBundle,
+  lintSummary,
   loadBundle,
   loadMetadataBundle,
+  makeLintReport,
+  overviewDriftOutcome,
   type Priority,
   parseConfig,
   parseStateOfPlay,
   planDocumentMove,
+  planReconciliation,
   READY_QUEUE_DESCRIPTION,
   readEditableDocument,
+  readLintBaseline,
   readProjectGuidance,
+  readReconciliationSource,
+  readWorkflowFreshness,
   readyWorkItems,
   recoverDocumentMove,
+  recoverReconciliation,
   renderIndex,
   STATE_OF_PLAY_PATH,
   searchFresh,
-  setEpic,
-  setPriority,
-  setRank,
   setStatus,
   sourcePage,
+  stopActiveTask,
+  TaskEditError,
+  taskDriftOutcome,
+  taskDriftReceipt,
   taskProgressLabel,
+  validateLintSummaryOptions,
   verifyStatus,
   type WorkItem,
   type WorkItemType,
+  withActiveTaskLock,
   withTaskProgress,
+  writeLintReport,
 } from "@gitdocket/core";
 import { scanActivity, taskLinkedCommitsSince } from "@gitdocket/core/cache";
 import { deriveRepositoryOverview } from "@gitdocket/core/orientation";
@@ -61,6 +83,7 @@ import {
   createWorkflowToken,
   type Dimensions,
   environmentAttribution,
+  errorCategory,
   observeOperation,
   recordOperationOutcome,
   resolveAttribution,
@@ -90,6 +113,7 @@ interface Ctx {
 
 let usageDimensions: Partial<Dimensions> = { indexState: "uninitialized" };
 let usageRoot: string | null | undefined;
+let usageResponseBytes = 0;
 const measuredBundle = async (load: () => Promise<Bundle>) => {
   const bundle = await load();
   usageDimensions = {
@@ -126,6 +150,8 @@ const print = async (value: string): Promise<void> => {
       );
     });
   }
+  usageResponseBytes += bytes.length;
+  recordOperationOutcome({ responseBytes: usageResponseBytes });
 };
 
 const integer = (value: string): number => {
@@ -159,10 +185,77 @@ const fail = (error: unknown): never => {
   throw error;
 };
 
-const activeTaskPath = (root: string): string =>
-  join(root, ".docket", "active-task");
-const workflowTokenPath = (root: string): string =>
-  join(root, ".docket", "workflow-token");
+async function closureCommit(
+  root: string,
+  store: LocalFileStore,
+  config: DocketConfig,
+  id: string,
+  revision: string,
+) {
+  if (!/^[a-f0-9]{7,64}$/.test(revision))
+    throw new Error("Expected a closure commit hash.");
+  const git = (...args: string[]) =>
+    execFileSync("git", ["-C", root, ...args], {
+      encoding: "utf8",
+      maxBuffer: 1024 * 1024,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+  const commit = git("rev-parse", "--verify", `${revision}^{commit}`).trim();
+  git("merge-base", "--is-ancestor", commit, "HEAD");
+  const bundle = await loadMetadataBundle(store, config);
+  const item = bundle.byId(id);
+  if (
+    item?.kind !== "work" ||
+    item.fm.type !== "Task" ||
+    !isTerminalStatus(item.fm.status)
+  )
+    throw new Error("Task is not terminal.");
+  const trailer = `${config.git.trailer}: ${id}`;
+  const trailers = git("show", "-s", "--format=%(trailers:only,unfold)", commit)
+    .trim()
+    .split(/\r?\n/);
+  if (!trailers.includes(trailer))
+    throw new Error("Closure task trailer missing.");
+  const path = join(config.bundle, item.path).replaceAll("\\", "/");
+  if (git("show", `${commit}:${path}`) !== (await store.read(item.path)))
+    throw new Error("Task source differs from the closure commit.");
+}
+
+async function closureFeedback(root: string, id: string) {
+  const base = {
+    narrative: "must precede close",
+    activeTaskRetained: null as boolean | null,
+    cleanup: { state: "unavailable" } as object,
+  };
+  try {
+    return await withActiveTaskLock(root, async ({ state }) => ({
+      ...base,
+      activeTaskRetained: state.id === id,
+      cleanup:
+        state.id === id
+          ? {
+              state: "matching-active-task",
+              after: "closure commit",
+              surface: "cli",
+              args: [
+                "task",
+                "stop",
+                id,
+                ...(state.token ? ["--workflow-token", state.token] : []),
+                "--after-commit",
+                "<closure-commit-sha>",
+                "--json",
+              ],
+            }
+          : {
+              state: state.id ? "different-active-task" : "no-active-marker",
+              action: "leave unrelated lifecycle state untouched",
+            },
+    }));
+  } catch {
+    return base;
+  }
+}
 
 // One screenful: header lines for the structure, then the body verbatim.
 async function printPacket(packet: ContextPacket): Promise<void> {
@@ -176,6 +269,16 @@ async function printPacket(packet: ContextPacket): Promise<void> {
   if (deps.length > 0)
     await print(
       `deps: ${deps.map((d) => `${d.id} ${d.status ?? "missing!"}`).join(" · ")}`,
+    );
+  for (const warning of packet.drift?.warnings ?? [])
+    await print(`warning (${warning.code}): ${warning.message}`);
+  if (
+    packet.instructions &&
+    packet.instructions.status !== "current" &&
+    packet.instructions.status !== "absent"
+  )
+    await print(
+      `instructions ${packet.instructions.status}: ${packet.instructions.reason}`,
     );
   await print(`\n${task.body}`);
   if (linked.length > 0) {
@@ -215,6 +318,13 @@ async function readTaskProgress(b: Bundle, root: string, config: DocketConfig) {
 }
 
 const program = new Command();
+program.exitOverride();
+program.configureOutput({
+  writeErr: (value) => {
+    if (!process.argv.includes("--json") && !process.argv.includes("--compact"))
+      process.stderr.write(value);
+  },
+});
 registerTelemetry(program, print);
 registerExtensions(program, async () => (await ctx()).store.root, print);
 
@@ -260,15 +370,30 @@ program
   .command("overview")
   .description(docketIntent("orientation").discovery)
   .option("--json", "machine-readable output")
-  .action(async (opts: { json?: boolean }) => {
+  .option("--full", "return the compatibility evidence model (requires --json)")
+  .action(async (opts: { json?: boolean; full?: boolean }) => {
+    if (opts.full && !opts.json) throw new Error("--full requires --json");
     const { root, store, config, metadata } = await ctx();
     const b = await metadata();
+    if (opts.json && !opts.full) {
+      const brief = await deriveRepositoryOverview({
+        root,
+        store,
+        config,
+        bundle: b,
+        view: "brief",
+      });
+      recordOperationOutcome(overviewDriftOutcome(brief.coordination));
+      await print(JSON.stringify(brief, null, 2));
+      return;
+    }
     const result = await deriveRepositoryOverview({
       root,
       store,
       config,
       bundle: b,
     });
+    recordOperationOutcome(overviewDriftOutcome(result.coordination));
     const { narrative, git, ...model } = result;
     await print(
       opts.json
@@ -304,68 +429,203 @@ program
 
 program
   .command("lint")
-  .description("conformance errors + PM-101 warnings")
-  .option("--json", "machine-readable output")
-  .option("--strict", "exit nonzero on warnings too")
-  .action(async (opts: { json?: boolean; strict?: boolean }) => {
-    const { root, store, config, bundle } = await ctx();
-    const logSource = await store.read("log.md").catch(() => undefined);
-    const watermark = logSource && findFreshnessWatermark(logSource);
-    const stateOfPlaySource = await store
-      .read(STATE_OF_PLAY_PATH)
-      .catch(() => undefined);
-    const stateOfPlay = stateOfPlaySource
-      ? parseStateOfPlay(stateOfPlaySource).note
-      : undefined;
-    const b = await bundle();
-    const diags = await lintBundle(store, b, {
-      trailerlessCommits: watermark
-        ? trailerlessSince(root, watermark.sha, config.git.trailer)
-        : undefined,
-      stateOfPlayCommitsAgo: stateOfPlay
-        ? taskLinkedCommitsSince(root, config.git.trailer, stateOfPlay.asOf)
-        : undefined,
-      verifyMarkers: await scanRepoMarkers(root, config, b),
-    });
-    const errors = diags.filter((d) => d.severity === "error").length;
-    if (opts.json) await print(JSON.stringify(diags, null, 2));
-    else if (diags.length === 0) await print("clean");
-    else
-      for (const d of diags)
-        await print(`${d.severity.padEnd(8)} ${d.path} — ${d.message}`);
-    if (errors > 0 || (opts.strict && diags.length > 0)) process.exitCode = 1;
-  });
+  .description(
+    "complete global validation with optional bounded summary and saved evidence",
+  )
+  .option(
+    "--json",
+    "machine-readable output; default retains the complete diagnostic array",
+  )
+  .option(
+    "--strict",
+    "exit nonzero on any global warning, including hidden warnings",
+  )
+  .option("--summary", "bounded counts and prioritized source references")
+  .option(
+    "--changed-path <path>",
+    "present warnings on this exact bundle/repo diagnostic path; all errors remain selected",
+    (value: string, values: string[]) => [...values, value],
+    [],
+  )
+  .option(
+    "--baseline <file>",
+    "compare a complete saved lint report; unavailable evidence remains explicit",
+  )
+  .option(
+    "--report <file>",
+    "atomically save complete versioned evidence to an owned file",
+  )
+  .option("--offset <n>", "summary continuation offset", integer, 0)
+  .option("--limit <n>", "summary detail bound (1–32)", integer, 8)
+  .action(
+    async (opts: {
+      json?: boolean;
+      strict?: boolean;
+      summary?: boolean;
+      changedPath: string[];
+      baseline?: string;
+      report?: string;
+      offset: number;
+      limit: number;
+    }) => {
+      validateLintSummaryOptions({
+        paths: opts.changedPath,
+        offset: opts.offset,
+        limit: opts.limit,
+      });
+      const { root, store, config } = await ctx();
+      const now = new Date();
+      const snapshot = await new BundleIndex(store).refresh(config);
+      const lintStore = new InMemoryFileStore(new Map(snapshot.sources));
+      const b = snapshot.bundle;
+      usageDimensions = { indexState: "metadata", concepts: b.concepts.length };
+      const logSource = snapshot.sources.get("log.md");
+      const watermark = logSource && findFreshnessWatermark(logSource);
+      const stateOfPlaySource = snapshot.sources.get(STATE_OF_PLAY_PATH);
+      const stateOfPlay = stateOfPlaySource
+        ? parseStateOfPlay(stateOfPlaySource).note
+        : undefined;
+      const inputs: LintOptions = {
+        now,
+        trailerlessCommits: watermark
+          ? trailerlessSince(root, watermark.sha, config.git.trailer)
+          : undefined,
+        stateOfPlayCommitsAgo: stateOfPlay
+          ? taskLinkedCommitsSince(root, config.git.trailer, stateOfPlay.asOf)
+          : undefined,
+        verifyMarkers: await scanRepoMarkers(root, config, b),
+      };
+      const diags = await lintBundle(lintStore, b, inputs);
+      const errors = diags.filter((d) => d.severity === "error").length;
+      const summaryRequested =
+        opts.summary ||
+        opts.changedPath.length > 0 ||
+        opts.baseline !== undefined ||
+        opts.offset > 0;
+      if (summaryRequested || opts.report !== undefined) {
+        const report = makeLintReport(
+          diags,
+          snapshot.sources,
+          config,
+          inputs,
+          await realpath(root),
+          now,
+        );
+        const baseline =
+          opts.baseline !== undefined
+            ? await readLintBaseline(opts.baseline)
+            : undefined;
+        const artifact =
+          opts.report !== undefined
+            ? await writeLintReport(opts.report, report)
+            : undefined;
+        if (summaryRequested) {
+          const result = lintSummary(report, baseline, {
+            paths: opts.changedPath,
+            offset: opts.offset,
+            limit: opts.limit,
+            artifact,
+          });
+          if (opts.json) await print(JSON.stringify(result, null, 2));
+          else {
+            await print(
+              `${result.global.error} errors, ${result.global.warning} warnings globally; ${result.selection.shown}/${result.selection.total} selected findings shown (${result.selection.omitted} omitted). Baseline: ${result.baseline.status}.`,
+            );
+            await print(
+              `Delta: ${result.delta.introduced ?? "unknown"} introduced, ${result.delta.preExisting ?? "unknown"} pre-existing, ${result.delta.resolved ?? "unknown"} resolved. Complete details: docket lint --json${artifact ? `; saved report: ${artifact.path}` : ""}`,
+            );
+            for (const d of result.diagnostics)
+              await print(
+                `${d.severity} [${d.code}; ${d.state}] ${d.path}${d.line ? `:${d.line}` : ""} — ${d.message}`,
+              );
+          }
+        } else if (opts.json) await print(JSON.stringify(diags, null, 2));
+        else
+          for (const d of diags)
+            await print(`${d.severity} [${d.code}] ${d.path} — ${d.message}`);
+      } else if (opts.json) await print(JSON.stringify(diags, null, 2));
+      else if (!diags.length) await print("clean");
+      else
+        for (const d of diags)
+          await print(`${d.severity} [${d.code}] ${d.path} — ${d.message}`);
+      if (errors > 0 || (opts.strict && diags.length > 0)) process.exitCode = 1;
+    },
+  );
 
 program
   .command("index")
   .description(
-    "regenerate index.md below its marker (lockfile pattern) and rebuild the .docket cache",
+    "refresh index.md and the derived cache; reuse only matching fresh inputs and cache bytes",
   )
   .option("--check", "fail if index.md is stale, write nothing (CI)")
-  .action(async (opts: { check?: boolean }) => {
-    const { root, store, config, bundle } = await ctx();
-    const b = await bundle();
-    const current = await store.read("index.md").catch(() => "");
-    const next = applyIndex(current, renderIndex(b));
+  .option("--json", "machine-readable index and cache outcome")
+  .option("--rebuild", "force a complete derived-cache rebuild")
+  .action(
+    async (opts: { check?: boolean; json?: boolean; rebuild?: boolean }) => {
+      const { root, store, config, bundle } = await ctx();
 
-    if (opts.check) {
-      if (next !== current) {
-        console.error("index.md is stale — run `docket index`");
-        process.exitCode = 1;
+      if (opts.check) {
+        if (opts.rebuild)
+          throw new TaskEditError(
+            "invalid-request",
+            "--check cannot be combined with --rebuild.",
+          );
+        const b = await bundle();
+        const current = await store.read("index.md").catch(() => "");
+        const next = applyIndex(current, renderIndex(b));
+        if (opts.json) {
+          await print(
+            JSON.stringify(
+              {
+                schema: "docket-receipt/v1",
+                operation: "index",
+                ok: next === current,
+                changed: false,
+                mutation: "unchanged",
+                paths: [],
+                indexChanged: false,
+                cache: "not-requested",
+                stale: next !== current,
+              },
+              null,
+              2,
+            ),
+          );
+          if (next !== current) process.exitCode = 1;
+          return;
+        }
+        if (next !== current) {
+          console.error("index.md is stale — run `docket index`");
+          process.exitCode = 1;
+          return;
+        }
+        await print("index.md up to date");
         return;
       }
-      await print("index.md up to date");
-      return;
-    }
 
-    const result = await refreshIndex(root, store, config, b);
-    const verifyNote = config.verify
-      ? `; ${result.verifyMarkerCount} verify marker(s)`
-      : "";
-    await print(
-      `${result.indexChanged ? "index.md regenerated" : "index.md unchanged"}; cache rebuilt at .docket/cache.sqlite${verifyNote}`,
-    );
-  });
+      const result = await refreshIndex(root, store, config, {
+        rebuild: opts.rebuild,
+      });
+      if (opts.json) {
+        await print(
+          JSON.stringify(
+            compactWriteReceipt("index", {
+              ...result,
+            }),
+            null,
+            2,
+          ),
+        );
+        return;
+      }
+      const verifyNote = config.verify
+        ? `; ${result.verifyMarkerCount} verify marker(s)`
+        : "";
+      await print(
+        `${result.indexChanged ? "index.md regenerated" : "index.md unchanged"}; cache ${result.cache}${verifyNote}`,
+      );
+    },
+  );
 
 const verify = program
   .command("verify")
@@ -571,7 +831,7 @@ program
           }
           if (report.reviewRequired.length > 0) {
             await print(
-              `\n${report.reviewRequired.length} workflow(s) require review — retained differences may be stale instructions. Compare with the current shipped workflow; a current origin stamp does not certify its contents.`,
+              `\n${report.reviewRequired.length} item(s) require review — retained differences may be stale or customized instructions. Compare with the current shipped workflow; a current origin stamp does not certify its contents.`,
             );
           }
           if (report.dryRun) await print("\ndry run — nothing written");
@@ -628,6 +888,107 @@ program
   });
 
 const task = program.command("task").description("work item operations");
+
+const reconcile = program
+  .command("reconcile")
+  .description(
+    "Review and reconcile selected Docket records from local Git evidence",
+  );
+reconcile
+  .command("plan")
+  .requiredOption(
+    "--input <file>",
+    "JSON selection: sourceRef, optional sourceRoot/saved/baseRef, and paths",
+  )
+  .option("--offset <n>", "Plan page offset", "0")
+  .option("--json", "Bounded source-bound review plan")
+  .action(async (opts: { input: string; offset: string }) => {
+    const { store, config, root } = await ctx();
+    const result = await planReconciliation(
+      store,
+      config,
+      root,
+      JSON.parse(await readFile(opts.input, "utf8")),
+      Number(opts.offset),
+    );
+    recordOperationOutcome({
+      resultCount: result.items.length,
+      resultTotal: result.total,
+      truncated: result.omitted ? "results" : "none",
+    });
+    await print(JSON.stringify(result, null, 2));
+  });
+reconcile
+  .command("source <path> <side>")
+  .requiredOption("--input <file>", "The reviewed JSON selection")
+  .requiredOption("--version <sha>", "Expected plan version")
+  .option("--offset <n>", "Exact source page offset", "0")
+  .option("--json", "Bounded exact source page")
+  .action(
+    async (
+      path: string,
+      side: string,
+      opts: { input: string; version: string; offset: string },
+    ) => {
+      if (!["base", "local", "incoming", "proposed"].includes(side))
+        throw new Error("invalid source side");
+      const { store, config, root } = await ctx();
+      const result = await readReconciliationSource(
+        store,
+        config,
+        root,
+        JSON.parse(await readFile(opts.input, "utf8")),
+        opts.version,
+        path,
+        side as "base" | "local" | "incoming" | "proposed",
+        Number(opts.offset),
+      );
+      await print(JSON.stringify(result, null, 2));
+    },
+  );
+reconcile
+  .command("apply")
+  .requiredOption(
+    "--input <file>",
+    "JSON selection, expectedVersion and one reviewed choice per path",
+  )
+  .option("--json", "Compact application/recovery receipt")
+  .action(async (opts: { input: string }) => {
+    const { store, config, root } = await ctx();
+    const result = await applyReconciliation(
+      store,
+      config,
+      root,
+      JSON.parse(await readFile(opts.input, "utf8")),
+    );
+    recordOperationOutcome({
+      resultCount: result.writes,
+      resultTotal: result.changedPaths,
+      saveState: result.state === "noop" ? "unchanged" : "saved_locally",
+      ...("error" in result && result.error?.code === "source-conflict"
+        ? { failureReason: "source_changed" as const }
+        : {}),
+    });
+    await print(JSON.stringify(result, null, 2));
+    if (result.state === "recovery_required") process.exitCode = 1;
+  });
+reconcile
+  .command("recover <token>")
+  .option("--json", "Compact recovery/no-op receipt")
+  .action(async (token: string) => {
+    const { store, config, root } = await ctx();
+    const result = await recoverReconciliation(store, config, root, token);
+    recordOperationOutcome({
+      resultCount: result.writes,
+      resultTotal: result.changedPaths,
+      saveState: result.state === "noop" ? "unchanged" : "saved_locally",
+      ...("error" in result && result.error?.code === "source-conflict"
+        ? { failureReason: "source_changed" as const }
+        : {}),
+    });
+    await print(JSON.stringify(result, null, 2));
+    if (result.state === "recovery_required") process.exitCode = 1;
+  });
 
 program
   .command("guidance")
@@ -714,19 +1075,31 @@ document
     "JSON containing path, type, title, body and optional description/tags",
   )
   .option("--json", "machine-readable result")
-  .action(async (opts: { input: string; json?: boolean }) => {
-    const { store, config } = await ctx();
-    const result = await createDocument(
-      store,
-      config,
-      JSON.parse(await readFile(opts.input, "utf8")),
-    );
-    await print(
-      opts.json
-        ? JSON.stringify(result, null, 2)
-        : `Created ${result.document.path}. Run docket index to refresh discovery.`,
-    );
-  });
+  .option(
+    "--compact",
+    "versioned write receipt without the authored body; document read returns complete content",
+  )
+  .action(
+    async (opts: { input: string; json?: boolean; compact?: boolean }) => {
+      const { store, config } = await ctx();
+      const result = await createDocument(
+        store,
+        config,
+        JSON.parse(await readFile(opts.input, "utf8")),
+      );
+      await print(
+        opts.json || opts.compact
+          ? JSON.stringify(
+              opts.compact
+                ? compactWriteReceipt("document_create", result)
+                : result,
+              null,
+              2,
+            )
+          : `Created ${result.document.path}. Run docket index to refresh discovery.`,
+      );
+    },
+  );
 document
   .command("read <path>")
   .description("Read complete editable source and its concurrency version")
@@ -744,16 +1117,39 @@ document
   )
   .requiredOption("--input <file>", "JSON containing expectedVersion and patch")
   .option("--json", "machine-readable result")
-  .action(async (path: string, opts: { input: string }) => {
-    const { store, config } = await ctx();
+  .option(
+    "--compact",
+    "versioned write receipt without the authored body; document read returns complete content",
+  )
+  .action(async (path: string, opts: { input: string; compact?: boolean }) => {
+    const { root, store, config, metadata } = await ctx();
+    const b = await metadata(true);
+    const item = b.workItems.find(
+      (item) => item.path === path && item.fm.type === "Task",
+    );
+    const advisory = item
+      ? {
+          drift: taskDriftReceipt(
+            item.fm.id,
+            await readTaskProgress(b, root, config),
+          ),
+          instructions: await readWorkflowFreshness(store),
+        }
+      : {};
+    if (advisory.drift)
+      recordOperationOutcome(taskDriftOutcome(advisory.drift));
+    const result = {
+      ...(await editDocument(
+        store,
+        config,
+        path,
+        JSON.parse(await readFile(opts.input, "utf8")),
+      )),
+      ...advisory,
+    };
     await print(
       JSON.stringify(
-        await editDocument(
-          store,
-          config,
-          path,
-          JSON.parse(await readFile(opts.input, "utf8")),
-        ),
+        opts.compact ? compactWriteReceipt("document_edit", result) : result,
         null,
         2,
       ),
@@ -925,7 +1321,11 @@ task
 task
   .command("create")
   .description("create a work item with the next numbered id")
-  .requiredOption("--title <title>", "item title")
+  .option("--title <title>", "item title for the legacy skeleton route")
+  .option(
+    "--input <file>",
+    "Complete JSON CreateInput, including optional authored body; cannot mix with creation flags",
+  )
   .option("--type <type>", "Task or Epic", "Task")
   .option("--description <text>", "one-sentence description")
   .option("--epic <link>", "bundle-absolute link to the epic")
@@ -935,29 +1335,74 @@ task
   .option("--assignee <who>")
   .option("--tags <tags>", "comma-separated tags")
   .option("--json", "machine-readable output")
+  .option(
+    "--compact",
+    "versioned write receipt; complete content remains available through document read",
+  )
   .action(
-    async (opts: Record<string, string | undefined> & { json?: boolean }) => {
+    async (
+      opts: Record<string, string | undefined> & {
+        json?: boolean;
+        compact?: boolean;
+      },
+      command: Command,
+    ) => {
+      if (!opts.input && opts.title === undefined)
+        command.error("required option '--title <title>' not specified", {
+          code: "commander.missingMandatoryOptionValue",
+        });
       const { store, idCoordinator, config } = await ctx();
       if (opts.rank !== undefined && Number.isNaN(Number(opts.rank)))
         fail(new Error(`rank must be a number, got "${opts.rank}"`));
       try {
+        const fields = [
+          "title",
+          "type",
+          "description",
+          "epic",
+          "deps",
+          "priority",
+          "rank",
+          "assignee",
+          "tags",
+        ];
+        if (
+          opts.input &&
+          fields.some((field) => command.getOptionValueSource(field) === "cli")
+        )
+          throw new TaskEditError(
+            "invalid-request",
+            "Use structured input or creation flags, without mixing them.",
+          );
+        const input = opts.input
+          ? JSON.parse(await readFile(opts.input, "utf8"))
+          : {
+              title: opts.title as string,
+              type: opts.type as WorkItemType,
+              description: opts.description,
+              epic: opts.epic,
+              dependsOn: opts.deps?.split(",").map((s) => s.trim()),
+              priority: opts.priority as Priority,
+              rank: opts.rank === undefined ? undefined : Number(opts.rank),
+              assignee: opts.assignee,
+              tags: opts.tags?.split(",").map((s) => s.trim()),
+            };
         const result = await createWorkItem(
           store,
           config,
-          {
-            title: opts.title as string,
-            type: opts.type as WorkItemType,
-            description: opts.description,
-            epic: opts.epic,
-            dependsOn: opts.deps?.split(",").map((s) => s.trim()),
-            priority: opts.priority as Priority,
-            rank: opts.rank === undefined ? undefined : Number(opts.rank),
-            assignee: opts.assignee,
-            tags: opts.tags?.split(",").map((s) => s.trim()),
-          },
+          input,
           idCoordinator,
         );
-        if (opts.json) await print(JSON.stringify(result, null, 2));
+        if (opts.json || opts.compact)
+          await print(
+            JSON.stringify(
+              opts.compact
+                ? compactWriteReceipt("task_create", result)
+                : result,
+              null,
+              2,
+            ),
+          );
         else await print(`created ${result.id} at ${result.path}`);
       } catch (error) {
         fail(error);
@@ -982,6 +1427,10 @@ program
   .option("--consequences <text>", "tradeoffs and follow-up effects")
   .option("--tags <tags>", "comma-separated tags")
   .option("--json", "machine-readable output")
+  .option(
+    "--compact",
+    "versioned decision creation receipt with source version",
+  )
   .action(async (opts) => {
     const { store, config, idCoordinator } = await ctx();
     try {
@@ -991,7 +1440,16 @@ program
         { ...opts, tags: opts.tags?.split(",").map((s: string) => s.trim()) },
         idCoordinator,
       );
-      if (opts.json) await print(JSON.stringify(result, null, 2));
+      if (opts.json || opts.compact)
+        await print(
+          JSON.stringify(
+            opts.compact
+              ? compactWriteReceipt("decision_create", result)
+              : result,
+            null,
+            2,
+          ),
+        );
       else await print(`created ${result.id} at ${result.path}`);
     } catch (error) {
       fail(error);
@@ -1004,153 +1462,235 @@ task
     "begin work: set the active task, move to in-progress, print the context packet (no id: top ready task)",
   )
   .option("--json", "machine-readable output")
-  .action(async (given: string | undefined, opts: { json?: boolean }) => {
-    const { root, store, config, metadata } = await ctx();
-    const b = await metadata(true);
-    let picked = false;
-    let id = given;
-    if (!id) {
-      const top = readyWorkItems(b)[0];
-      if (!top) {
-        console.error(
-          "nothing ready — no todo task has every dependency done; `docket task list` shows what's in flight or blocked",
-        );
-        process.exitCode = 1;
-        return;
-      }
-      id = top.fm.id;
-      picked = true;
-    }
-    const item = b.byId(id);
-    if (item?.kind !== "work")
-      return fail(new Error(`no work item with id ${id}`));
-    if (item.fm.type === "Epic") {
-      try {
-        const route = await buildEpicSupervisionRoute(store, b, item.fm.id);
-        if (opts.json) await print(JSON.stringify(route, null, 2));
-        else {
-          await print(
-            `${item.fm.id} is an epic — route to the docket-epic workflow`,
-          );
-          await print(
-            `no status or active task changed; supervise ready child tasks under ${route.suggestedSessionTitle}`,
+  .option(
+    "--compact",
+    "bounded versioned pickup packet with explicit source continuations",
+  )
+  .action(
+    async (
+      given: string | undefined,
+      opts: { json?: boolean; compact?: boolean },
+    ) => {
+      const { root, store, config, metadata } = await ctx();
+      const b = await metadata(true);
+      let picked = false;
+      let id = given;
+      if (!id) {
+        const top = readyWorkItems(b)[0];
+        if (!top) {
+          throw new TaskEditError(
+            "invalid-request",
+            "Nothing ready: no todo task has every dependency done; task list shows unfinished work.",
           );
         }
-      } catch (error) {
-        fail(error);
+        id = top.fm.id;
+        picked = true;
       }
-      return;
-    }
-    const active = (
-      await readFile(activeTaskPath(root), "utf8").catch(
-        (error: NodeJS.ErrnoException) => {
-          if (error.code === "ENOENT") return "";
-          throw error;
-        },
-      )
-    ).trim();
-    if (active && active !== item.fm.id) {
-      const conflict = pickupConflict(root, config.bundle, active, item);
-      if (opts.json) await print(JSON.stringify({ error: conflict }, null, 2));
-      else {
-        await print(conflict.message);
-        await print(
-          `For an explicitly authorized hand-off: ${conflict.handoff.command}, then ${conflict.handoff.nextCommand}`,
+      const item = b.byId(id);
+      if (item?.kind !== "work")
+        return fail(
+          new TaskEditError("invalid-request", `no work item with id ${id}`),
         );
-        await print(
-          "For parallel tracked work, propose a separate linked worktree and confirm before creating it unless isolation is already explicitly authorized.",
-        );
-        await print(`Suggested path: ${conflict.isolation.path}`);
-        await print(
-          `Suggested branch: ${conflict.isolation.branch} (adapt to project branch guidance)`,
-        );
-        await print(
-          `Starting point: ${conflict.isolation.startingPoint}; later integrate the separate branch explicitly.`,
-        );
-        for (const issue of conflict.isolation.issues)
-          await print(`Resolve first: ${issue}`);
-        await print(
-          `Git recipe: ${conflict.isolation.command ?? conflict.isolation.commandTemplate}`,
-        );
-        await print(`Agent prompt: ${conflict.isolation.agentPrompt}`);
-      }
-      process.exitCode = 1;
-      return;
-    }
-    try {
-      const from = item.fm.status;
-      const already = from === "in-progress";
-      if (!already) await setStatus(store, config, item.fm.id, "in-progress");
-      await mkdir(join(root, ".docket"), { recursive: true });
-      await writeFile(activeTaskPath(root), `${item.fm.id}\n`, "utf8");
-      let telemetryWorkflow = already ? checkoutWorkflowToken(root) : undefined;
-      if (!telemetryWorkflow) {
-        telemetryWorkflow = createWorkflowToken();
-        await writeFile(
-          workflowTokenPath(root),
-          `${telemetryWorkflow}\n`,
-          "utf8",
-        );
-      }
-
-      const fresh = await metadata(true);
-      const commits = scanActivity(root, config.git.trailer, fresh.byId)
-        .filter((a) => a.taskId === item.fm.id)
-        .map(({ sha, date, subject }) => ({ sha, date, subject }));
-      const packet = await buildContextPacket(
-        store,
-        fresh,
-        item.fm.id,
-        commits,
-      );
-
-      if (opts.json) {
-        await print(
-          JSON.stringify(
-            {
-              picked,
-              started: already ? null : { from, to: "in-progress" },
-              telemetryWorkflow,
-              ...packet,
-            },
-            null,
-            2,
-          ),
-        );
+      if (item.fm.type === "Epic") {
+        try {
+          const route = await buildEpicSupervisionRoute(store, b, item.fm.id);
+          if (opts.json || opts.compact)
+            await print(
+              JSON.stringify(
+                opts.compact ? compactEpicRoute(route) : route,
+                null,
+                2,
+              ),
+            );
+          else {
+            await print(
+              `${item.fm.id} is an epic — route to the docket-epic workflow`,
+            );
+            await print(
+              `no status or active task changed; supervise ready child tasks under ${route.suggestedSessionTitle}`,
+            );
+          }
+        } catch (error) {
+          fail(error);
+        }
         return;
       }
-      if (picked) await print(`picked ${item.fm.id} — top of the ready list`);
-      await print(
-        already
-          ? `${item.fm.id} is already in-progress — resuming (active task set)`
-          : `${item.fm.id}: ${from} → in-progress (active task set)`,
-      );
-      await printPacket(packet);
-    } catch (error) {
-      fail(error);
-    }
-  });
+      const progress = await readTaskProgress(b, root, config);
+      const drift = taskDriftReceipt(item.fm.id, progress);
+      recordOperationOutcome(taskDriftOutcome(drift));
+      await withActiveTaskLock(root, async (lease) => {
+        const active = lease.state.id;
+        if (active && active !== item.fm.id) {
+          const conflict = pickupConflict(root, config.bundle, active, item);
+          if (opts.json)
+            await print(
+              JSON.stringify(
+                {
+                  error: conflict,
+                  drift,
+                  instructions: await readWorkflowFreshness(store),
+                },
+                null,
+                2,
+              ),
+            );
+          else {
+            await print(conflict.message);
+            await print(
+              `For an explicitly authorized hand-off: ${conflict.handoff.command}, then ${conflict.handoff.nextCommand}`,
+            );
+            await print(
+              "For parallel tracked work, propose a separate linked worktree and confirm before creating it unless isolation is already explicitly authorized.",
+            );
+            await print(`Suggested path: ${conflict.isolation.path}`);
+            await print(
+              `Suggested branch: ${conflict.isolation.branch} (adapt to project branch guidance)`,
+            );
+            await print(
+              `Starting point: ${conflict.isolation.startingPoint}; later integrate the separate branch explicitly.`,
+            );
+            for (const issue of conflict.isolation.issues)
+              await print(`Resolve first: ${issue}`);
+            await print(
+              `Git recipe: ${conflict.isolation.command ?? conflict.isolation.commandTemplate}`,
+            );
+            await print(`Agent prompt: ${conflict.isolation.agentPrompt}`);
+          }
+          process.exitCode = 1;
+          return;
+        }
+        if (!lease.state.id && lease.state.token)
+          throw new TaskEditError(
+            "source-conflict",
+            "An orphan workflow token requires review before pickup; no status or marker changed.",
+          );
+        try {
+          const from = item.fm.status;
+          const already = from === "in-progress";
+          if (!already)
+            await setStatus(store, config, item.fm.id, "in-progress");
+          const telemetryWorkflow =
+            (already ? lease.state.token : null) ?? createWorkflowToken();
+          await lease.write(item.fm.id, telemetryWorkflow);
+
+          const fresh = await metadata(true);
+          const commits = scanActivity(root, config.git.trailer, fresh.byId)
+            .filter((a) => a.taskId === item.fm.id)
+            .map(({ sha, date, subject }) => ({ sha, date, subject }));
+          const packet = await buildContextPacket(
+            store,
+            fresh,
+            item.fm.id,
+            commits,
+            progress,
+          );
+
+          if (opts.json || opts.compact) {
+            await print(
+              JSON.stringify(
+                opts.compact
+                  ? compactContextPacket(packet, {
+                      picked,
+                      started: already ? null : { from, to: "in-progress" },
+                      telemetryWorkflow,
+                    })
+                  : {
+                      picked,
+                      started: already ? null : { from, to: "in-progress" },
+                      telemetryWorkflow,
+                      ...packet,
+                    },
+                null,
+                2,
+              ),
+            );
+            return;
+          }
+          if (picked)
+            await print(`picked ${item.fm.id} — top of the ready list`);
+          await print(
+            already
+              ? `${item.fm.id} is already in-progress — resuming (active task set)`
+              : `${item.fm.id}: ${from} → in-progress (active task set)`,
+          );
+          await printPacket(packet);
+        } catch (error) {
+          fail(error);
+        }
+      });
+    },
+  );
 
 task
-  .command("stop")
-  .description("pause work: clear the active task (status untouched)")
-  .action(async () => {
-    const { root } = await ctx();
-    const path = activeTaskPath(root);
-    const current = await readFile(path, "utf8").catch(() => undefined);
-    if (current === undefined) {
-      await print("no active task");
-      return;
-    }
-    await rm(path);
-    await rm(workflowTokenPath(root), { force: true });
-    const id = current.trim();
-    await print(
-      id
-        ? `stopped ${id} — active task cleared, status untouched (finishing is \`docket task close\`)`
-        : "active task cleared",
-    );
-  });
+  .command("stop [id]")
+  .description(
+    "clear a matching active task without changing status; bare stop remains compatible",
+  )
+  .option(
+    "--workflow-token <token>",
+    "guard against another pickup of the same task",
+  )
+  .option(
+    "--after-commit <sha>",
+    "require the committed terminal task source and trailer before cleanup (requires id)",
+  )
+  .option("--json", "machine-readable scoped cleanup receipt")
+  .action(
+    async (
+      id: string | undefined,
+      opts: { json?: boolean; workflowToken?: string; afterCommit?: string },
+    ) => {
+      const { root, store, config } = await ctx();
+      if (opts.afterCommit !== undefined && !id)
+        throw new TaskEditError(
+          "invalid-request",
+          "--after-commit requires a named task.",
+        );
+      const result = await stopActiveTask(root, {
+        id,
+        workflowToken: opts.workflowToken,
+        ...(opts.afterCommit !== undefined
+          ? {
+              verifyCommit: () =>
+                closureCommit(
+                  root,
+                  store,
+                  config,
+                  id as string,
+                  opts.afterCommit as string,
+                ),
+            }
+          : {}),
+      });
+      if (!result.ok) {
+        process.exitCode = 1;
+        usageError = new TaskEditError(
+          ["marker-mismatch", "workflow-mismatch"].includes(
+            result.cleanup.disposition,
+          )
+            ? "source-conflict"
+            : [
+                  "state-unavailable",
+                  "cleanup-failed",
+                  "cleared-with-error",
+                ].includes(result.cleanup.disposition)
+              ? "unavailable"
+              : "invalid-request",
+          result.error?.message ?? "Lifecycle cleanup refused.",
+          result.mutation === "partial" || result.mutation === "unknown"
+            ? "unknown"
+            : "unchanged",
+        );
+      }
+      await print(
+        opts.json
+          ? JSON.stringify(compactWriteReceipt("task_stop", result), null, 2)
+          : result.ok
+            ? `${result.cleanup.disposition}${result.activeTaskId ? ` ${result.activeTaskId}` : ""} — status untouched`
+            : (result.error?.message ?? "Active-task cleanup failed."),
+      );
+    },
+  );
 
 task
   .command("move <id> <status>")
@@ -1160,18 +1700,26 @@ task
     "append a dated Log entry (required for closing or reopening closed work)",
   )
   .option("--json", "machine-readable output")
+  .option("--compact", "versioned compact receipt without authored content")
   .action(
     async (
       id: string,
       status: string,
-      opts: { note?: string; json?: boolean },
+      opts: { note?: string; json?: boolean; compact?: boolean },
     ) => {
       const { store, config } = await ctx();
       try {
         const result = await setStatus(store, config, id, status, {
           note: opts.note,
         });
-        if (opts.json) await print(JSON.stringify(result, null, 2));
+        if (opts.json || opts.compact)
+          await print(
+            JSON.stringify(
+              opts.compact ? compactWriteReceipt("set_status", result) : result,
+              null,
+              2,
+            ),
+          );
         else await print(`${result.id}: ${result.from} → ${result.to}`);
       } catch (error) {
         fail(error);
@@ -1187,6 +1735,10 @@ task
   .option("--clear-rank", "remove the rank (back to the unranked tail)")
   .option("--epic <link>", "bundle-absolute link to the new epic")
   .option("--clear-epic", "remove the epic link")
+  .option(
+    "--expected-version <version>",
+    "refuse if the complete source version changed",
+  )
   .option("--json", "machine-readable output")
   .action(
     async (
@@ -1197,59 +1749,78 @@ task
         clearRank?: boolean;
         epic?: string;
         clearEpic?: boolean;
+        expectedVersion?: string;
         json?: boolean;
       },
     ) => {
-      if (
-        !opts.priority &&
-        opts.rank === undefined &&
-        !opts.clearRank &&
-        !opts.epic &&
-        !opts.clearEpic
-      )
-        fail(
-          new Error(
-            "nothing to edit — pass --priority, --rank, --clear-rank, --epic, or --clear-epic",
-          ),
-        );
-      if (opts.rank !== undefined && Number.isNaN(Number(opts.rank)))
-        fail(new Error(`rank must be a number, got "${opts.rank}"`));
-      const { store, config } = await ctx();
       try {
-        const results: string[] = [];
-        const json: Record<string, unknown> = { id };
-        if (opts.priority) {
-          const r = await setPriority(store, config, id, opts.priority);
-          json.id = r.id;
-          json.priority = { from: r.from, to: r.to };
-          results.push(`priority ${r.from} → ${r.to}`);
-        }
-        if (opts.rank !== undefined || opts.clearRank) {
-          const r = await setRank(
+        if (
+          (opts.rank !== undefined && opts.clearRank) ||
+          (opts.epic !== undefined && opts.clearEpic)
+        )
+          throw new TaskEditError(
+            "invalid-request",
+            "A field cannot be set and cleared in the same request.",
+          );
+        if (opts.rank !== undefined && !opts.rank.trim())
+          throw new TaskEditError(
+            "invalid-request",
+            "Rank must be a finite number.",
+          );
+        const { root, store, config, metadata } = await ctx();
+        const b = await metadata(true);
+        const item = b.byId(id);
+        const advisory =
+          item?.kind === "work" && item.fm.type === "Task"
+            ? {
+                drift: taskDriftReceipt(
+                  item.fm.id,
+                  await readTaskProgress(b, root, config),
+                ),
+                instructions: await readWorkflowFreshness(store),
+              }
+            : {};
+        if (advisory.drift)
+          recordOperationOutcome(taskDriftOutcome(advisory.drift));
+        const result = {
+          ...(await editWorkItem(
             store,
             config,
             id,
-            opts.clearRank ? null : Number(opts.rank),
+            {
+              ...(opts.priority !== undefined
+                ? { priority: opts.priority }
+                : {}),
+              ...(opts.rank !== undefined || opts.clearRank
+                ? { rank: opts.clearRank ? null : Number(opts.rank) }
+                : {}),
+              ...(opts.epic !== undefined || opts.clearEpic
+                ? { epic: opts.clearEpic ? null : opts.epic }
+                : {}),
+            },
+            opts.expectedVersion,
+          )),
+          ...advisory,
+        };
+        if (opts.json) await print(JSON.stringify(result, null, 2));
+        else
+          await print(
+            `${result.id}: ${result.changed ? "fields updated" : "unchanged"}`,
           );
-          json.id = r.id;
-          json.rank = { from: r.from, to: r.to };
-          results.push(`rank ${r.from ?? "none"} → ${r.to ?? "none"}`);
-        }
-        if (opts.epic || opts.clearEpic) {
-          const r = await setEpic(
-            store,
-            config,
-            id,
-            opts.clearEpic ? null : (opts.epic as string),
-          );
-          json.id = r.id;
-          json.epic = { from: r.from, to: r.to };
-          results.push(`epic ${r.from ?? "none"} → ${r.to ?? "none"}`);
-        }
-        if (opts.json) await print(JSON.stringify(json, null, 2));
-        else await print(`${json.id}: ${results.join(", ")}`);
       } catch (error) {
-        fail(error);
+        if (opts.json) {
+          const failure =
+            error instanceof TaskEditError
+              ? error
+              : new TaskEditError(
+                  "unavailable",
+                  error instanceof Error
+                    ? error.message
+                    : "Task edit unavailable.",
+                );
+          await print(JSON.stringify(failure.receipt(), null, 2));
+          process.exitCode = 1;
+        } else fail(error);
       }
     },
   );
@@ -1257,7 +1828,7 @@ task
 task
   .command("close <id>")
   .description(
-    "complete work by default, or close it without completion with an explicit disposition",
+    "record terminal state after preparing Outcome/Disposition and docs; retain active state until validation and commit",
   )
   .option("--note <text>", "closing Log entry")
   .option(
@@ -1265,6 +1836,7 @@ task
     "move to closed instead of done (requires --note)",
   )
   .option("--json", "machine-readable output")
+  .option("--compact", "versioned compact closure receipt")
   .action(
     async (
       id: string,
@@ -1272,25 +1844,45 @@ task
         note?: string;
         withoutCompletion?: boolean;
         json?: boolean;
+        compact?: boolean;
       },
     ) => {
-      const { store, config } = await ctx();
+      const { root, store, config } = await ctx();
       try {
         if (opts.withoutCompletion && !opts.note?.trim())
-          throw new Error("--without-completion requires --note <reason>");
+          throw new TaskEditError(
+            "invalid-request",
+            "--without-completion requires --note <reason>",
+          );
         const to = opts.withoutCompletion ? "closed" : "done";
         const result = await setStatus(store, config, id, to, {
           note: opts.note,
         });
-        if (opts.json) await print(JSON.stringify(result, null, 2));
-        else if (to === "closed")
+        const closure = await closureFeedback(root, result.id);
+        if (opts.json || opts.compact)
           await print(
-            `${result.id}: ${result.from} → closed — disposition recorded; acceptance criteria remain incomplete`,
+            JSON.stringify(
+              opts.compact
+                ? compactWriteReceipt("task_close", {
+                    ...result,
+                    closure,
+                  })
+                : { ...result, closure },
+              null,
+              2,
+            ),
           );
-        else
+        else {
           await print(
-            `${result.id}: ${result.from} → done — now write the Outcome and reconcile docs`,
+            `${result.id}: ${result.from} → ${to} — refresh discovery, validate and commit prepared narrative/docs/state/log. Lifecycle state unchanged.`,
           );
+          const cleanup = closure.cleanup as { args?: string[]; state: string };
+          await print(
+            cleanup.args
+              ? `After commit: docket ${cleanup.args.join(" ")}`
+              : `Cleanup: ${cleanup.state}; leave unrelated lifecycle state untouched.`,
+          );
+        }
       } catch (error) {
         fail(error);
       }
@@ -1300,11 +1892,16 @@ task
 task
   .command("log <id> <entry>")
   .description("append a dated entry under # Log (newest first)")
-  .action(async (id: string, entry: string) => {
+  .option("--json", "machine-readable append receipt")
+  .action(async (id: string, entry: string, opts: { json?: boolean }) => {
     const { store, config } = await ctx();
     try {
-      const { path } = await appendLog(store, config, id, entry);
-      await print(`logged to ${path}`);
+      const result = await appendLog(store, config, id, entry);
+      await print(
+        opts.json
+          ? JSON.stringify(compactWriteReceipt("append_log", result), null, 2)
+          : `logged to ${result.path}`,
+      );
     } catch (error) {
       fail(error);
     }
@@ -1322,33 +1919,58 @@ if (usageOperation && !args.includes("--help") && !args.includes("-h")) {
     /* Context errors are handled by the operation, not observation. */
   }
 }
-program.exitOverride();
+let usageError: unknown;
+const runCli = async () => {
+  try {
+    await program.parseAsync();
+  } catch (error) {
+    usageError = error;
+    if (error instanceof CommanderError && error.exitCode === 0) {
+      process.exitCode = 0;
+      return;
+    }
+    process.exitCode = error instanceof CommanderError ? error.exitCode : 1;
+    if (args.includes("--json") || args.includes("--compact"))
+      await print(
+        JSON.stringify(
+          errorReceipt(
+            usageOperation ?? "unknown",
+            error,
+            error instanceof CommanderError,
+          ),
+          null,
+          2,
+        ),
+      );
+    else if (!(error instanceof CommanderError))
+      console.error(error instanceof Error ? error.message : String(error));
+  }
+};
 try {
   if (usageOperation)
-    await observeOperation(
-      telemetry,
-      usageOperation,
-      async () => {
-        await program.parseAsync();
+    await observeOperation(telemetry, usageOperation, runCli, {
+      dimensions: () => usageDimensions,
+      attribution: () => {
+        const launch = environmentAttribution();
+        return resolveAttribution({
+          launch: {
+            ...launch,
+            trigger: "explicit",
+            workflow:
+              launch.workflow ??
+              (usageRoot ? checkoutWorkflowToken(usageRoot) : undefined),
+          },
+        });
       },
-      {
-        dimensions: () => usageDimensions,
-        attribution: () => {
-          const launch = environmentAttribution();
-          return resolveAttribution({
-            launch: {
-              ...launch,
-              trigger: "explicit",
-              workflow:
-                launch.workflow ??
-                (usageRoot ? checkoutWorkflowToken(usageRoot) : undefined),
-            },
-          });
-        },
-        resultError: () => (process.exitCode ? "validation" : "none"),
-      },
-    );
-  else await program.parseAsync();
+      resultError: () =>
+        process.exitCode
+          ? usageError
+            ? errorCategory(usageError)
+            : "validation"
+          : "none",
+      resultOutcome: () => ({ responseBytes: usageResponseBytes }),
+    });
+  else await runCli();
 } catch (error) {
   if (error instanceof CommanderError) process.exitCode = error.exitCode;
   else {

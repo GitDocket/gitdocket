@@ -34,6 +34,10 @@ export const OPERATIONS = [
   "document_move_plan",
   "document_move_apply",
   "document_move_recover",
+  "reconcile_plan",
+  "reconcile_source",
+  "reconcile_apply",
+  "reconcile_recover",
   "document_read",
   "document_edit",
   "task_start",
@@ -134,6 +138,11 @@ export const eventSchema = z.discriminatedUnion("kind", [
     resultCount: count.nullable().default(null),
     resultTotal: count.nullable().default(null),
     responseBytes: count.nullable().default(null),
+    driftState: z
+      .enum(["none", "advisory", "conflict", "incomplete"])
+      .nullable()
+      .default(null),
+    driftWarnings: count.nullable().default(null),
     truncated: z.enum(["none", "results", "response"]).nullable().default(null),
     failureReason: z
       .enum([
@@ -523,6 +532,8 @@ export interface Observation {
   resultCount?: OperationEvent["resultCount"];
   resultTotal?: OperationEvent["resultTotal"];
   responseBytes?: OperationEvent["responseBytes"];
+  driftState?: OperationEvent["driftState"];
+  driftWarnings?: OperationEvent["driftWarnings"];
   truncated?: OperationEvent["truncated"];
   failureReason?: OperationEvent["failureReason"];
   saveState?: OperationEvent["saveState"];
@@ -533,6 +544,8 @@ export type OperationOutcome = Pick<
   | "resultCount"
   | "resultTotal"
   | "responseBytes"
+  | "driftState"
+  | "driftWarnings"
   | "truncated"
   | "failureReason"
   | "saveState"
@@ -664,6 +677,8 @@ export function errorCategory(error: unknown): OperationEvent["error"] {
         : "";
   if (name === "AbortError" || code === "ABORT_ERR") return "interrupted";
   if (code === "EACCES" || code === "EPERM") return "permission";
+  if (code === "source-conflict") return "conflict";
+  if (code === "invalid-request" || code === "unsupported") return "validation";
   if (
     code === "ENOENT" ||
     /^(not found:|no item with id|unknown (task|id))/i.test(message)

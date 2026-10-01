@@ -7,6 +7,10 @@ import type { Bundle } from "./bundle";
 import type { FileStore } from "./filestore";
 import { readProjectGuidance } from "./guidance";
 import { resolveLink } from "./links";
+import {
+  classifyLintDiagnostic,
+  type LintDiagnostic,
+} from "./lint-diagnostics";
 import { lintMarkdownProse } from "./markdown-prose";
 
 export { resolveLink } from "./links";
@@ -69,7 +73,7 @@ export async function lintBundle(
   store: FileStore,
   bundle: Bundle,
   opts: LintOptions = {},
-): Promise<Diagnostic[]> {
+): Promise<LintDiagnostic[]> {
   const now = opts.now ?? new Date();
   const maxAgeDays = opts.maxAgeDays ?? 14;
   const out: Diagnostic[] = [...bundle.diagnostics];
@@ -242,5 +246,5 @@ export async function lintBundle(
     }
   }
 
-  return out;
+  return out.map(classifyLintDiagnostic);
 }

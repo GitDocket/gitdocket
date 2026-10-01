@@ -5,7 +5,7 @@ import { isDeepStrictEqual } from "node:util";
 import { isMap, isScalar, parseDocument, stringify } from "yaml";
 import type { DocketConfig } from "./config";
 import { type FileStore, LocalFileStore } from "./filestore";
-import { mutate } from "./ops";
+import { mutate, TaskEditError } from "./ops";
 import { isReserved, parseMetadataConcept } from "./parse";
 import { buildSchemas } from "./schema";
 
@@ -300,7 +300,28 @@ export async function editDocument(
         "Source changed during save. Your draft has not been written.",
       );
     const changed = updated !== source;
-    if (changed) await store.write(path, updated);
+    if (changed) {
+      try {
+        await store.write(path, updated);
+      } catch {
+        let observed: string | undefined;
+        try {
+          observed = await store.read(path);
+        } catch {
+          /* Unreadable source cannot establish disposition. */
+        }
+        throw new TaskEditError(
+          "write-failed",
+          "Source save failed. Inspect the current source before retrying.",
+          observed === source
+            ? "unchanged"
+            : observed === updated
+              ? "applied"
+              : "unknown",
+          observed === undefined ? undefined : hash(observed),
+        );
+      }
+    }
     const concept = inspect(path, updated, config).concept;
     return {
       document: projection(path, updated, config),

@@ -23,7 +23,7 @@
       <aside class="docs-sidebar"><p class="eyebrow">Reference</p><nav aria-label="Documentation"><a href="/docs/">Get started</a><a href="/docs/install/">Installation</a><a href="/docs/example/">One-task example</a><a href="/docs/everyday/">Everyday use</a><a href="/docs/epics/">Epics</a><a href="/docs/extensions/">Extensions</a><a href="/docs/cli/" aria-current="page">CLI commands</a><a href="/docs/mcp/">MCP & workflows</a><a href="/docs/api/">Local HTTP reference</a></nav></aside>
       <main class="docs-content" id="main" tabindex="-1"><p class="eyebrow">GitDocket docs</p><h1>CLI commands.</h1><p class="doc-lede">A short reference for working from the terminal. Run commands inside your initialized repository.</p>
         <section aria-labelledby="read"><h2 id="read">Find the context</h2><div class="table-wrap"><table><thead><tr><th>Command</th><th>Purpose</th></tr></thead><tbody>
-<tr><td><code>docket overview --json</code></td><td>Read the project briefing, active work, and what is ready next.</td></tr>
+<tr><td><code>docket overview --json</code></td><td>Read the bounded live agent briefing and what is ready next.</td></tr>
 <tr><td><code>docket guidance --json</code></td><td>Read optional project standards and scoped source links.</td></tr>
 <tr><td><code>docket ready --json</code></td><td>Find todo tasks whose dependencies are done.</td></tr>
 <tr><td><code>docket task list --all</code></td><td>List tracked work, including done and closed items.</td></tr>
@@ -77,7 +77,7 @@
 <pre><code class="language-sh">docket telemetry disable</code></pre>
 <p>Only if you intend to remove this checkout’s enrollment and retained observations:</p>
 <pre><code class="language-sh">docket telemetry delete</code></pre><p><code>report</code> summarizes observed operation counts, latency, errors, and sampled runtime memory. <code>disable</code> stops collection; <code>delete</code> removes this checkout’s enrollment and retained observations. Reports you export yourself remain yours to manage.</p></section>
-</main>
+<section><h2>Agent overview: 0.6.1 development</h2><p>The next release returns a bounded live briefing from <code>docket overview --json</code>, with omitted counts and source paths. Use <code>docket overview --json --full</code> for the previous JSON model and to refresh the written project briefing. Scripts that depend on the old response must add <code>--full</code>.</p></section></main>
     </div>
     <footer class="shell footer"><a class="brand" href="/">GitDocket</a><p>Project knowledge and work, together in Git.</p><a href="https://github.com/GitDocket/gitdocket">Source on GitHub ↗</a></footer>
       <script src="/copy-install.js?v=b002106b2d67" defer></script>

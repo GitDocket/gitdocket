@@ -379,7 +379,7 @@ describe("docket init", () => {
     await writeFile(join(skills, "docket-groom", "SKILL.md"), `${stub}\nx\n`);
     const second = init("--claude");
     expect(action(second, "skills", "docket-groom/SKILL.md")).toBe("update");
-    expect(action(second, "skills", "docket-close/SKILL.md")).toBe("skip");
+    expect(action(second, "skills", "docket-close/SKILL.md")).toBeUndefined();
     expect(
       await readFile(join(skills, "docket-task", "SKILL.md"), "utf8"),
     ).toContain("My own version.");
@@ -450,13 +450,15 @@ describe("docket init", () => {
     expect(epic).toContain("`Epic <ID> — <title>`");
     expect(epic).toContain("codex_app__set_thread_title");
     expect(epic).toContain("omit `threadId`");
-    expect(epic).toContain("after every successful child pickup");
-    expect(epic).toContain("before the completion or blocker receipt");
+    expect(epic).toContain("preserve it without another rename call");
+    expect(epic).toContain(
+      "completion and blocker receipts do not require one either",
+    );
     expect(epic).toContain("retained identity");
     expect(epic).toContain("Keep the identity after completion");
     expect(epic).toContain("later task pickup alone may not");
     expect(epic).toContain(
-      "never apply the manager title to an isolated child",
+      "Never apply the manager title to an isolated child",
     );
     expect(epic).toContain("one app task in an isolated Git worktree");
     expect(epic).toContain("wait cursor");
@@ -768,6 +770,25 @@ describe("docket init", () => {
         s.path.startsWith(".cursor/skills/docket-task/"),
       ),
     ).toBe(true);
+    // docket:verifies DKT-272 — all adapters discover shared closure without
+    // copying the procedure into generated host bindings.
+    for (const root of [".claude", ".agents", ".cursor"]) {
+      expect(
+        await Bun.file(
+          join(repo, root, "skills", "docket-close", "SKILL.md"),
+        ).exists(),
+      ).toBe(false);
+      for (const slug of ["docket-epic"]) {
+        const stub = await readFile(
+          join(repo, root, "skills", slug, "SKILL.md"),
+          "utf8",
+        );
+        expect(stub).toContain("owner-accepted");
+        expect(stub).toContain(`docket/workflows/${slug}.md`);
+        expect(stub).not.toContain("Record acceptance once");
+        expect(stub).not.toContain("docket task close <ID>");
+      }
+    }
     const claudePickup = await readFile(
       join(repo, ".claude", "skills", "docket-pickup", "SKILL.md"),
       "utf8",

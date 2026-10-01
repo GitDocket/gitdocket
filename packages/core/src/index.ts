@@ -2,6 +2,12 @@
 // client over this library; there is exactly one write path.
 
 export {
+  type ActiveTaskState,
+  stopActiveTask,
+  withActiveTaskLock,
+} from "./active-task";
+
+export {
   type Bundle,
   clearMetadata,
   findRepoRoot,
@@ -11,6 +17,11 @@ export {
   readyWorkItems,
 } from "./bundle";
 export { BundleIndex, type BundleSnapshot } from "./bundle-index";
+export {
+  compactContextPacket,
+  compactEpicRoute,
+  PICKUP_MAX_BYTES,
+} from "./compact-packet";
 export {
   CONFIG_FILENAME,
   DEFAULT_BUNDLE,
@@ -125,6 +136,23 @@ export {
   lintBundle,
   resolveLink,
 } from "./lint";
+export {
+  classifyLintDiagnostic,
+  type LintDiagnostic,
+} from "./lint-diagnostics";
+export {
+  compareLintReports,
+  LINT_REPORT_MAX_BYTES,
+  LINT_SUMMARY_MAX_BYTES,
+  type LintBaseline,
+  type LintReport,
+  lintSummary,
+  makeLintReport,
+  parseLintBaseline,
+  readLintBaseline,
+  validateLintSummaryOptions,
+  writeLintReport,
+} from "./lint-report";
 export { lintMarkdownProse, MARKDOWN_AUTHORING_RULE } from "./markdown-prose";
 export {
   appendLog,
@@ -132,6 +160,7 @@ export {
   type CreateInput,
   createDecision,
   createWorkItem,
+  editWorkItem,
   mutate,
   nextId,
   setEpic,
@@ -139,6 +168,8 @@ export {
   setRank,
   setStatus,
   slugify,
+  TaskEditError,
+  type TaskFieldPatch,
 } from "./ops";
 export {
   buildContextPacket,
@@ -170,6 +201,23 @@ export {
   validateIntentDiscoveryDescriptions,
   validatePromptRoutingFixtures,
 } from "./prompt-routing";
+export {
+  COMPACT_WRITE_OPERATIONS,
+  compactWriteReceipt,
+  errorReceipt,
+  RECEIPT_MAX_BYTES,
+  RECEIPT_SCHEMA,
+} from "./receipts";
+export {
+  applyReconciliation,
+  planReconciliation,
+  ReconcileError,
+  type ReconcileSelection,
+  readReconciliationSource,
+  reconcileApplySchema,
+  reconcileSelectionSchema,
+  recoverReconciliation,
+} from "./reconcile";
 export {
   buildSchemas,
   type DecisionFrontmatter,
@@ -228,6 +276,16 @@ export {
   type WorkItemType,
 } from "./states";
 export {
+  DRIFT_MESSAGES,
+  overviewDrift,
+  overviewDriftOutcome,
+  TASK_DRIFT_MAX_BYTES,
+  type TaskDriftCode,
+  taskDriftCodes,
+  taskDriftOutcome,
+  taskDriftReceipt,
+} from "./task-drift";
+export {
   resolveTaskProgress,
   type TaskObservation,
   type TaskProgress,
@@ -257,6 +315,10 @@ export {
   verifyStatus,
 } from "./verify";
 export { DOCKET_VERSION } from "./version";
+export {
+  readWorkflowFreshness,
+  type WorkflowFreshness,
+} from "./workflow-freshness";
 export {
   ADAPTER_MARKER,
   composeManagedSection,

@@ -385,13 +385,15 @@ describe("docket upgrade e2e", () => {
       expect(epic).toContain("`Epic <ID> — <title>`");
       expect(epic).toContain("codex_app__set_thread_title");
       expect(epic).toContain("omit `threadId`");
-      expect(epic).toContain("after every successful child pickup");
-      expect(epic).toContain("before the completion or blocker receipt");
+      expect(epic).toContain("preserve it without another rename call");
+      expect(epic).toContain(
+        "completion and blocker receipts do not require one either",
+      );
       expect(epic).toContain("retained identity");
       expect(epic).toContain("Keep the identity after completion");
       expect(epic).toContain("later task pickup alone may not");
       expect(epic).toContain(
-        "never apply the manager title to an isolated child",
+        "Never apply the manager title to an isolated child",
       );
       expect(epic).toContain("one app task in an isolated Git worktree");
       expect(epic).toContain("canonical serial fallback");
