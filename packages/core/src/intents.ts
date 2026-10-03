@@ -64,6 +64,15 @@ export const PICKUP_AUTHORITY_EVIDENCE = [
   "an explicit request for Docket or backlog selection",
 ] as const;
 
+export const WORK_INVENTORY_RULE =
+  'Explicit work inventories use filtered lists directly: for “what open epics do we have?”, run `docket task list --type Epic --json` (MCP: `task_list` with `type: "Epic", open: true`); use `--type Task` for tasks and `--status blocked` for blocked work. Do not run overview first or look up help for these documented queries. Omit limit for the complete matching inventory; if using limit/offset, continue until the final page before claiming completeness. Mentioning work in another chat does not authorize messaging, pickup or coordination.';
+
+export const OVERVIEW_SELECTION_RULE =
+  "Brief and full overview both select workstreams by activity and readiness; `--full` restores the compatibility evidence model, not a complete open-epic inventory. Workstream totals and omitted counts describe admitted candidates, not every open epic.";
+
+export const RESULT_REUSE_RULE =
+  "Reuse an already fetched result when selecting fields or formatting the answer. Repeat a read only for needed freshness, omitted evidence, failure recovery or changed scope; filtering JSON alone is not a reason to regenerate it.";
+
 export const DIRECT_WORK_INTENT = {
   id: DIRECT_WORK_INTENT_ID,
   title: "Carry out direct user work",
@@ -109,6 +118,7 @@ export const DOCKET_INTENTS = {
       "give me a status update",
     ],
     exclusions: [
+      "an explicit filtered inventory of tasks or epics",
       "an explicit request to groom or audit backlog hygiene",
       "an explicit request to start or continue implementation",
       "a named task mutation such as create, move, or close",
@@ -165,7 +175,7 @@ export const DOCKET_INTENTS = {
     id: "epic-supervision",
     title: "Supervise an epic",
     discovery:
-      "Run a named epic to completion — supervise ready child work through isolated workers or the mandatory serial fallback, verify integration, and return one completion or blocker receipt.",
+      "Run a named epic to completion — supervise ready child work through isolated workers or the mandatory serial fallback, verify integration, consolidate owner-accepted closure, and return one brief completion or blocker receipt.",
     defaultEntrypoint: { kind: "workflow", value: "docket-epic" },
     mode: "state-changing",
     authority:
@@ -196,13 +206,15 @@ export const DOCKET_INTENTS = {
     authority:
       "The named operation supplies authority only for its documented mutations; read operations remain read-only and close follows its reconciliation workflow.",
     inspectionScope:
-      "Inspect the named item and the linked concepts or derived surfaces required by that operation; do not broaden into backlog grooming.",
+      "Inspect the named item and the linked concepts or derived surfaces required by that operation; for an inventory, read only the matching filtered list and required continuation pages. Do not broaden into backlog grooming.",
     positiveExamples: [
       "create an epic with these tickets",
       "record our decision to use local Markdown, including alternatives and consequences",
       "move DKT-12 to blocked",
       "close DKT-12",
       "show me DKT-12",
+      "what open epics do we have?",
+      "list all blocked tasks",
     ],
     exclusions: [
       "general status or what-is-next questions",
@@ -296,6 +308,7 @@ export const AGENT_INTENT_DISAMBIGUATION = [
   "Direct work does not create, start, stop, adopt, clear, or otherwise mutate .docket/active-task or any tracked item. Existing active or ready work does not change the direct request's scope.",
   "Remember, show, revise or retire project instructions selects project-guidance. Inspection is read-only; explicitly requested guidance changes do not authorize task pickup, active-marker inspection or procedure execution. A repeated request reuses its existing authoritative source.",
   "Ordinary review, status, and what-is-next language defaults to read-only orientation.",
+  "An explicit task or epic inventory selects task management with the filtered list command, even when phrased as review or mentioning another chat. It is read-only and has no prerequisite overview, help, pickup or coordination call.",
   "Specific Docket action language beats a generic word such as review: groom or audit selects backlog hygiene; tracked start, pick up, resume, or continue selects pickup; run, start, or supervise a named epic selects epic supervision; a named tracker operation selects task management.",
   "A negative constraint such as do not start narrows permitted actions but never selects a broader workflow by itself.",
   "Combined operations retain separate authority: creating a task does not start it unless pickup is also explicit, while track this and start it authorizes both bounded operations in sequence.",

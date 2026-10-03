@@ -5,6 +5,7 @@
 
 import type { Database } from "bun:sqlite";
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
@@ -401,10 +402,22 @@ export function scanActivity(
   trailerKey: string,
   byId: Bundle["byId"],
 ): ActivityRow[] {
+  return scanActivityResult(cwd, trailerKey, byId).rows;
+}
+
+/** Explicit availability for refresh receipts; legacy callers keep empty-array compatibility. */
+export function scanActivityResult(
+  cwd: string,
+  trailerKey: string,
+  byId: Bundle["byId"],
+): { status: "available" | "unavailable"; rows: ActivityRow[] } {
   try {
-    return scanHeadActivity(cwd, trailerKey, byId);
+    return {
+      status: "available",
+      rows: scanHeadActivity(cwd, trailerKey, byId),
+    };
   } catch {
-    return [];
+    return { status: "unavailable", rows: [] };
   }
 }
 
@@ -506,6 +519,10 @@ CREATE VIEW epic_rollup AS
   WHERE e.type = 'Epic'
   GROUP BY e.path;
 `;
+
+export const CACHE_SCHEMA_VERSION = createHash("sha256")
+  .update(SCHEMA)
+  .digest("hex");
 
 /** Rebuild the cache from scratch — it is derived and disposable, never migrated. */
 export function buildCache(

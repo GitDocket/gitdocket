@@ -32,6 +32,7 @@ describe("decision creation", () => {
     expect(created).toEqual({
       id: "ADR-5",
       path: "decisions/ADR-5-use-files.md",
+      version: expect.stringMatching(/^[a-f0-9]{64}$/),
     });
     const source = await store.read(created.path);
     expect(source).toContain("# Context\n\nConsider files or SQL.");

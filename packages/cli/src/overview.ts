@@ -1,6 +1,8 @@
 import {
+  DRIFT_MESSAGES,
   REENTRY_CONTEXT_V1_FORMAT,
   type StateOfPlayView,
+  taskDriftCodes,
   taskProgressLabel,
 } from "@gitdocket/core";
 import type { GitEvidence } from "@gitdocket/core/cache";
@@ -71,6 +73,17 @@ export function renderOverview(
 
   if (git.taskProgress) {
     const progress = git.taskProgress;
+    const mismatches = progress.tasks.filter((task) =>
+      taskDriftCodes(task).includes("terminal-closeout-unmerged"),
+    );
+    if (mismatches.length)
+      briefing += `\n\nCloseout reconciliation needed\n${mismatches
+        .slice(0, 3)
+        .map(
+          (task) =>
+            `- ${task.id}: ${DRIFT_MESSAGES["terminal-closeout-unmerged"]}`,
+        )
+        .join("\n")}`;
     const rows = progress.tasks
       .slice(0, 5)
       .map((p) => `- ${p.id} ${taskProgressLabel(p)}`);

@@ -23,6 +23,58 @@ export class GitProcessPool {
     args: string[],
     deadline = Number.POSITIVE_INFINITY,
   ): Promise<string> {
+    return (await this.output(cwd, args, deadline)).toString("utf8");
+  }
+
+  /** Read a small set of exact blobs in one process, retaining byte framing. */
+  async blobs(
+    cwd: string,
+    hashes: readonly string[],
+    deadline = Number.POSITIVE_INFINITY,
+  ): Promise<Map<string, Buffer>> {
+    if (hashes.length === 0) return new Map();
+    if (
+      hashes.length > 16 ||
+      hashes.some((hash) => !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(hash))
+    )
+      throw new Error("Invalid Git blob batch");
+    const output = await this.output(
+      cwd,
+      ["cat-file", "--batch"],
+      deadline,
+      `${hashes.join("\n")}\n`,
+    );
+    const result = new Map<string, Buffer>();
+    let offset = 0;
+    for (const hash of hashes) {
+      const end = output.indexOf(10, offset);
+      const header = output.subarray(offset, end).toString("ascii");
+      const match = header.match(/^([a-f0-9]{40,64}) blob (\d+)$/);
+      if (end < offset || !match || match[1] !== hash)
+        throw new Error("Git blob batch returned invalid object evidence");
+      const size = Number(match[2]);
+      offset = end + 1;
+      if (
+        !Number.isSafeInteger(size) ||
+        size < 0 ||
+        offset + size >= output.length ||
+        output[offset + size] !== 10
+      )
+        throw new Error("Git blob batch returned invalid byte framing");
+      result.set(hash, output.subarray(offset, offset + size));
+      offset += size + 1;
+    }
+    if (offset !== output.length)
+      throw new Error("Git blob batch returned extra evidence");
+    return result;
+  }
+
+  private async output(
+    cwd: string,
+    args: string[],
+    deadline: number,
+    input?: string,
+  ): Promise<Buffer> {
     const signal = this.controller.signal;
     while (this.active >= (this.options.concurrency ?? 4)) {
       signal.throwIfAborted();
@@ -44,7 +96,7 @@ export class GitProcessPool {
           GIT_TERMINAL_PROMPT: "0",
           GIT_PAGER: "cat",
         },
-        stdin: "ignore",
+        stdin: input === undefined ? "ignore" : "pipe",
         stdout: "pipe",
         stderr: "pipe",
       });
@@ -67,8 +119,7 @@ export class GitProcessPool {
       let bytes = 0;
       const read = async (stream: ReadableStream<Uint8Array>) => {
         const reader = stream.getReader();
-        const decoder = new TextDecoder();
-        const chunks: string[] = [];
+        const chunks: Uint8Array[] = [];
         try {
           for (;;) {
             const result = await reader.read();
@@ -76,16 +127,23 @@ export class GitProcessPool {
             bytes += result.value.byteLength;
             if (bytes > (this.options.maxBytes ?? 64 * 1024 * 1024))
               stop("Git output exceeded its byte budget");
-            if (!failure)
-              chunks.push(decoder.decode(result.value, { stream: true }));
+            if (!failure) chunks.push(result.value);
           }
-          if (!failure) chunks.push(decoder.decode());
-          return chunks.join("");
+          return Buffer.concat(chunks);
         } finally {
           reader.releaseLock();
         }
       };
       try {
+        if (input !== undefined && proc.stdin) {
+          try {
+            proc.stdin.write(input);
+            proc.stdin.end();
+          } catch (error) {
+            stop("Git input failed");
+            throw error;
+          }
+        }
         const results = await Promise.allSettled([
           read(proc.stdout),
           read(proc.stderr),
@@ -103,7 +161,7 @@ export class GitProcessPool {
           throw new Error("Git read failed");
         if (exit.value !== 0)
           throw new Error(
-            `Git ${args[0]} failed: ${err.value.trim().slice(0, 1024)}`,
+            `Git ${args[0]} failed: ${err.value.toString("utf8").trim().slice(0, 1024)}`,
           );
         return out.value;
       } finally {

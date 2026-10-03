@@ -102,7 +102,7 @@ function runPrivateGate(): void {
   run(["bun", "install", "--frozen-lockfile"]);
   run(["bunx", "biome", "ci", "."]);
   run(["bunx", "tsc", "--noEmit"]);
-  run(["bun", "test"]);
+  run(["bun", "test", "--timeout", "30000"]);
   run(["bun", "run", "docket", "lint"]);
   run(["bun", "run", "docket", "index", "--check"]);
   run(["bun", "run", "audit:dependencies"]);

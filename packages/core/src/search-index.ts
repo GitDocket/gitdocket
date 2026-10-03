@@ -10,6 +10,20 @@ const tokens = (value: string): string[] =>
     .toLowerCase()
     .split(/[^a-z0-9]+/)
     .filter(Boolean);
+/** Visit exact ASCII search tokens without materializing every repeated word. */
+function eachToken(value: string, visit: (word: string) => void): void {
+  const lower = value.toLowerCase();
+  let start = -1;
+  for (let index = 0; index <= lower.length; index++) {
+    const code = lower.charCodeAt(index);
+    const word = (code >= 97 && code <= 122) || (code >= 48 && code <= 57);
+    if (word && start < 0) start = index;
+    else if (!word && start >= 0) {
+      visit(lower.slice(start, index));
+      start = -1;
+    }
+  }
+}
 const compact = (value: string) => value.toLowerCase().replace(/[-\s]/g, "");
 const matches = (values: readonly string[], term: string) =>
   values.some((value) => value.startsWith(term));
@@ -17,7 +31,8 @@ const matches = (values: readonly string[], term: string) =>
 interface Document {
   source: string;
   concept?: Concept;
-  words: ReadonlySet<string>;
+  key: number;
+  words: readonly string[];
   fields: string[];
   id?: string;
   title?: string;
@@ -27,7 +42,9 @@ interface Document {
 /** Snapshots share unchanged documents/postings; updates never mutate a reader. */
 export class SearchIndex {
   private readonly documents: ReadonlyMap<string, Document>;
-  private readonly postings: ReadonlyMap<string, ReadonlySet<string>>;
+  private readonly postings: ReadonlyMap<string, Uint32Array>;
+  private readonly paths = new Map<number, string>();
+  private nextKey = 0;
   private readonly vocabulary: string[];
   private readonly pathOrder: ReadonlyMap<string, number>;
   private readonly identities = new Map<string, string>();
@@ -38,21 +55,26 @@ export class SearchIndex {
     sources: ReadonlyMap<string, string>,
     previous?: SearchIndex,
   ) {
+    // Rebase a long-lived owner before its numeric keys could wrap. Rebuilding
+    // this generation leaves older readers and their postings untouched.
+    if (previous && previous.nextKey > 0x100000000 - sources.size)
+      previous = undefined;
     const byPath = new Map(
       bundle.concepts.map((concept) => [concept.path, concept]),
     );
     const documents = new Map<string, Document>();
+    this.nextKey = previous?.nextKey ?? 0;
     const postings = new Map(previous?.postings);
-    const vocabulary = new Map(
-      [...postings.keys()].map((word) => [word, word]),
-    );
+    const vocabulary = new Map<string, string>();
+    for (const word of postings.keys()) vocabulary.set(word, word);
     const intern = (word: string) => {
       const existing = vocabulary.get(word);
       if (existing !== undefined) return existing;
       vocabulary.set(word, word);
       return word;
     };
-    const changed = new Map<string, Set<string>>();
+    const changed = new Map<string, Set<number>>();
+    const initial = new Map<string, number[]>();
     const change = (word: string) => {
       let paths = changed.get(word);
       if (!paths) {
@@ -63,24 +85,33 @@ export class SearchIndex {
     };
     for (const [path, old] of previous?.documents ?? []) {
       if (sources.has(path)) continue;
-      for (const word of old.words) change(word).delete(path);
+      for (const word of old.words) change(word).delete(old.key);
     }
     for (const [path, source] of sources) {
       const concept = byPath.get(path);
       const old = previous?.documents.get(path);
       if (old?.source === source && old.concept === concept) {
         documents.set(path, old);
+        this.paths.set(old.key, path);
         continue;
       }
       const fm = concept?.fm;
       recordWork("searchDocument");
       const id = typeof fm?.id === "string" ? fm.id : undefined;
       const fields = tokens(`${id ?? ""} ${fm?.title ?? ""}`).map(intern);
-      const words = new Set([...tokens(source).map(intern), ...fields]);
+      const words = new Set(fields);
+      eachToken(source, (word) => words.add(intern(word)));
+      const key = old?.key ?? this.nextKey++;
+      if (key > 0xffffffff)
+        throw new Error(
+          "Search document capacity exceeded; restart the index.",
+        );
+      this.paths.set(key, path);
       documents.set(path, {
         source,
         concept,
-        words,
+        key,
+        words: [...words],
         fields,
         id,
         title: fm?.title,
@@ -89,13 +120,23 @@ export class SearchIndex {
             ? id?.match(/-(\d+)$/)?.[1]
             : undefined,
       });
-      for (const word of words)
-        if (!old?.words.has(word)) change(word).add(path);
-      for (const word of old?.words ?? [])
-        if (!words.has(word)) change(word).delete(path);
+      const oldWords = old ? new Set(old.words) : undefined;
+      for (const word of words) {
+        if (oldWords?.has(word)) continue;
+        if (previous) change(word).add(key);
+        else {
+          const keys = initial.get(word);
+          if (keys) keys.push(key);
+          else initial.set(word, [key]);
+        }
+      }
+      for (const word of oldWords ?? [])
+        if (!words.has(word)) change(word).delete(key);
     }
+    for (const [word, keys] of initial)
+      postings.set(word, Uint32Array.from(keys));
     for (const [word, paths] of changed) {
-      if (paths.size) postings.set(word, paths);
+      if (paths.size) postings.set(word, Uint32Array.from(paths));
       else postings.delete(word);
     }
     this.documents = documents;
@@ -131,7 +172,10 @@ export class SearchIndex {
     for (let index = low; index < this.vocabulary.length; index++) {
       const word = this.vocabulary[index];
       if (!word?.startsWith(term)) break;
-      for (const path of this.postings.get(word) ?? []) paths.add(path);
+      for (const key of this.postings.get(word) ?? []) {
+        const path = this.paths.get(key);
+        if (path !== undefined) paths.add(path);
+      }
     }
     return paths;
   }

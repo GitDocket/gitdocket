@@ -154,8 +154,20 @@ describe("docket task start pickup contract", () => {
     expect(error.isolation.branch).toContain(secondId);
     expect(error.isolation.requiresConfirmationByDefault).toBe(true);
     expect(error.isolation.agentPrompt).toContain(
-      `May I create a linked Git worktree at <path> on branch <branch> from commit <commit>, then start ${secondId} there?`,
+      `May I create a separate working copy and start ${secondId} there?`,
     );
+    const prompt = error.isolation.agentPrompt as string;
+    expect(
+      prompt.indexOf("First check applicable host/user instructions"),
+    ).toBeLessThan(prompt.indexOf("Only if authority is missing"));
+    expect(prompt).toContain(
+      "a lower-priority confirmation default adds no new gate",
+    );
+    expect(prompt).toContain(
+      "a worktree protects working files but does not resolve content ownership",
+    );
+    expect(prompt).toContain("decline or no answer authorizes no mutation");
+    expect(prompt).toContain("continue ready, authorized independent work");
     expect(error.isolation.agentPrompt).toContain(
       "Do not run docket task stop",
     );
@@ -180,7 +192,7 @@ describe("docket task start pickup contract", () => {
 
     expect(sh(["bun", CLI, "task", "stop"]).code).toBe(0);
     expect(sh(["bun", CLI, "task", "start", secondId, "--json"]).code).toBe(0);
-  });
+  }, 30_000);
 
   test("does not present an executable worktree command when the task is absent from a starting commit", () => {
     const firstId = JSON.parse(

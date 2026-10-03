@@ -127,7 +127,7 @@ test("real CLI update/validate/reconcile preserves ownership and refreshes disco
   const before = await snapshot(f.project);
   const missingFlag = f.cli("reconcile", "tiny", "--json");
   expect(missingFlag.code).toBe(1);
-  expect(missingFlag.stderr).toContain("--acknowledge-local");
+  expect(missingFlag.json().error.message).toContain("--acknowledge-local");
   const unreviewed = f.cli("validate", "tiny", "--json");
   expect(unreviewed.code).toBe(0);
   expect([

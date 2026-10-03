@@ -47,7 +47,11 @@ test("CLI controls and observations preserve stdout, errors and exit codes", asy
     const bad = await run(["ready", "--limit", "bad"]);
     expect(store.events()).toEqual([]);
     expect((await run(["telemetry", "enable", "--json"])).exit).toBe(0);
-    expect(await run(["ready", "--json"])).toEqual(disabled);
+    const enabled = await run(["ready", "--json"]);
+    expect(enabled).toEqual(disabled);
+    expect(operations(store).at(-1)?.responseBytes).toBe(
+      Buffer.byteLength(enabled.stdout),
+    );
     expect(await run(["ready", "--limit", "bad"])).toEqual(bad);
     expect((await run(["search", "PRIVATE_BODY", "--json"])).exit).toBe(0);
     expect(operations(store)).toHaveLength(3);
@@ -72,6 +76,94 @@ test("CLI controls and observations preserve stdout, errors and exit codes", asy
     );
     expect(
       (await run(["telemetry", "report", "--since", "invalid"])).exit,
+    ).toBe(1);
+    expect(operations(store)).toHaveLength(3);
+    const traceFile = join(dir, "private-trace.json");
+    await writeFile(
+      traceFile,
+      JSON.stringify({
+        schemaVersion: 1,
+        turns: [
+          {
+            startedAt: 1,
+            items: [
+              {
+                type: "commandExecution",
+                command: "cat docket/workflows/docket-close.md",
+                cwd: root,
+                exitCode: 0,
+              },
+              {
+                type: "commandExecution",
+                command: "docket lint --json",
+                cwd: root,
+                exitCode: 0,
+              },
+              {
+                type: "commandExecution",
+                command: "docket lint --json",
+                cwd: root,
+                exitCode: 0,
+              },
+              {
+                type: "commandExecution",
+                command: "docket search PRIVATE_QUERY --json",
+                cwd: root,
+                exitCode: 0,
+              },
+              {
+                type: "commandExecution",
+                command: "cat docket/workflows/docket-close.md",
+                cwd: root,
+                exitCode: 0,
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    const traced = await run([
+      "telemetry",
+      "report",
+      "--trace",
+      traceFile,
+      "--json",
+    ]);
+    expect(traced.exit).toBe(0);
+    const tracedReport = JSON.parse(traced.stdout);
+    expect(tracedReport.trace.candidates[0].kind).toBe(
+      "possible_repeated_read",
+    );
+    expect(tracedReport.traceCoverage).toBe("supplied_export_only");
+    expect(tracedReport.trace.lintReview.calls).toBe(2);
+    expect(tracedReport.trace.lintReview.inputEquality).toBe("unknown");
+    const context = await run([
+      "telemetry",
+      "report",
+      "--trace",
+      traceFile,
+      "--context",
+      "--json",
+    ]);
+    expect(context.exit).toBe(0);
+    expect(context.stdout.length).toBeLessThan(8193);
+    expect(JSON.parse(context.stdout)).toMatchObject({
+      schema: "docket-context-volume/v1",
+      hostContext: { status: "unavailable" },
+      coverage: { matchedCalls: 5 },
+    });
+    expect(operations(store)).toHaveLength(3);
+    expect(traced.stdout).not.toMatch(
+      /PRIVATE_QUERY|docket-close|private-trace/,
+    );
+    const traceText = (await run(["telemetry", "report", "--trace", traceFile]))
+      .stdout;
+    expect(traceText).toContain("possible_repeated_read");
+    expect(traceText).toContain("Lint review: 2 calls; 1 same-turn repetition");
+    expect((await run(["telemetry", "report", "--trace", dir])).exit).toBe(1);
+    await writeFile(traceFile, "{}");
+    expect(
+      (await run(["telemetry", "report", "--trace", traceFile])).exit,
     ).toBe(1);
     expect(operations(store)).toHaveLength(3);
     await run(["telemetry", "disable"]);
@@ -237,7 +329,7 @@ test("CLI checkout workflow tokens correlate later commands and rotate after sto
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
-});
+}, 30_000);
 
 test("CLI extension discovery and lifecycle commands are observed without package names", async () => {
   const dir = await mkdtemp(join(tmpdir(), "docket-cli-ext-tel-"));
@@ -303,6 +395,7 @@ test("CLI commands are inventoried so new commands cannot skip coverage review",
     extension: helpCommands(await help(["extension"])),
     telemetry: helpCommands(await help(["telemetry"])),
     verify: helpCommands(await help(["verify"])),
+    reconcile: helpCommands(await help(["reconcile"])),
   };
   const discovered = [
     ...top,
@@ -312,6 +405,7 @@ test("CLI commands are inventoried so new commands cannot skip coverage review",
     ...nested.extension.map((name) => `extension ${name}`),
     ...nested.telemetry.map((name) => `telemetry ${name}`),
     ...nested.verify.map((name) => `verify ${name}`),
+    ...nested.reconcile.map((name) => `reconcile ${name}`),
   ].sort();
   const inventoried = TELEMETRY_COVERAGE.filter(
     (entry) =>

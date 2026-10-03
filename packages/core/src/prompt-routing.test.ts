@@ -15,6 +15,27 @@ import {
 } from "./prompt-routing";
 
 describe("prompt-routing fixture contract", () => {
+  test("explicit inventories have one filtered read even when mixed with review or another chat", () => {
+    const inventories = PROMPT_ROUTING_FIXTURES.filter((fixture) =>
+      fixture.id.startsWith("inventory-"),
+    );
+    expect(inventories).toHaveLength(4);
+    for (const fixture of inventories) {
+      expect(fixture.expectedIntent).toBe("task-management");
+      expect(fixture.writesPermitted).toBe(false);
+      expect(fixture.allowedCommands).toEqual([
+        fixture.expectedEntrypoint.value,
+      ]);
+      expect(fixture.forbiddenActions).toEqual(
+        expect.arrayContaining([
+          "docket overview",
+          "docket task list --help",
+          "docket task start",
+          "message another chat",
+        ]),
+      );
+    }
+  });
   test("guidance inspection, reuse and explicit tracking retain distinct authority", () => {
     const guidance = PROMPT_ROUTING_FIXTURES.filter(
       (fixture) => fixture.expectedIntent === "project-guidance",

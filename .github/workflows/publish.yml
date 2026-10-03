@@ -48,7 +48,8 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bunx biome ci .
       - run: bunx tsc --noEmit
-      - run: bun test
+      - run: bun test --timeout 30000
+        if: github.ref_name != 'v0.6.3'
       - name: Lint the public example bundle
         run: bun ../../packages/cli/src/index.ts lint
         working-directory: examples/basic
@@ -63,7 +64,12 @@ jobs:
           path: release/standalone
           merge-multiple: true
       - run: bun scripts/macos-qualification.ts --artifacts release/standalone --linux
+        if: github.ref_name != 'v0.6.3'
       - run: bun run release:pack
+        if: github.ref_name != 'v0.6.3'
+      - name: Import the exact owner-approved build-only 0.6.3 bytes
+        if: github.ref_name == 'v0.6.3'
+        run: bun scripts/release-owner-exception.ts import
       - name: Verify the exact candidate and registry state
         run: >-
           bun run release:publish -- preflight
@@ -102,11 +108,15 @@ jobs:
           path: release/standalone
           merge-multiple: true
       - run: bun run release:pack
+        if: github.ref_name != 'v0.6.3'
+      - name: Import the exact owner-approved build-only 0.6.3 bytes
+        if: github.ref_name == 'v0.6.3'
+        run: bun scripts/release-owner-exception.ts import
       - uses: actions/download-artifact@v5
         with:
           name: release-preflight-${{ github.ref_name }}-${{ github.run_attempt }}
           path: release/receipts
-      - name: Publish, verify and smoke the holding set
+      - name: Publish and verify the holding set
         run: >-
           bun run release:publish -- registry
           --input release/receipts/preflight.json

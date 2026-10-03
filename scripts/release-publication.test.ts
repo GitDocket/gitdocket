@@ -321,7 +321,7 @@ describe("resumable registry publication", () => {
     expect(
       registry.actions.some((action) => action.endsWith(":latest")),
     ).toBeFalse();
-    expect(result.smoke.serveStatus).toBe(200);
+    expect(result.smoke?.serveStatus).toBe(200);
   });
   test("a missing platform cannot promote launchers, and retry never republishes existing binaries", async () => {
     const candidate = candidateFixture();
@@ -503,9 +503,7 @@ describe("resumable registry publication", () => {
         item.startsWith("waiting for coordinated package set"),
       ),
     ).toBeTrue();
-    expect(messages).toContain(
-      "registry installation smoke passed; promoting public tags",
-    );
+    expect(messages).toContain("holding set ready; promoting public tags");
   });
 
   test("reports accepted publication on timeout and resumes without republishing it", async () => {

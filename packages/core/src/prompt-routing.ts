@@ -61,6 +61,52 @@ const DIRECT_WORK_FORBIDDEN_ACTIONS = [
 
 export const PROMPT_ROUTING_FIXTURES: readonly PromptRoutingFixture[] = [
   ...[
+    [
+      "inventory-open-epics",
+      "What open epics do we have?",
+      "docket task list --type Epic --json",
+    ],
+    [
+      "inventory-open-epics-other-chat",
+      "what open epics do we have? going through some minor work in another thread, but let's take a look",
+      "docket task list --type Epic --json",
+    ],
+    [
+      "inventory-open-tasks-review",
+      "Let's review all open tasks. Don't start anything.",
+      "docket task list --type Task --json",
+    ],
+    [
+      "inventory-blocked-tasks",
+      "List all blocked tasks.",
+      "docket task list --type Task --status blocked --json",
+    ],
+  ].map(
+    ([id, prompt, command]): PromptRoutingFixture => ({
+      id: id as string,
+      prompt: prompt as string,
+      expectedIntent: "task-management",
+      expectedEntrypoint: { kind: "command", value: command as string },
+      allowedCommands: [command as string],
+      maximumInspectionScope: scope("task-management"),
+      writesPermitted: false,
+      forbiddenActions: [
+        "docket overview",
+        "docket task list --help",
+        "docket task start",
+        "docket index",
+        "backlog audit",
+        "message another chat",
+        "read unrelated .docket/active-task",
+      ],
+      surfaceEvidence: [
+        "**Work inventories**",
+        "Do not run overview first",
+        "Reuse an already fetched result",
+      ],
+    }),
+  ),
+  ...[
     "Create a wiki page about our cache architecture.",
     "Revise this reference page to explain cache invalidation.",
     "Capture our cache architecture in the wiki if it is not already there.",

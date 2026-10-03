@@ -2,7 +2,7 @@
 // expose the same prompt-routing contract. Native pickup bindings may differ.
 
 import { describe, expect, test } from "bun:test";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { access, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -64,7 +64,9 @@ function expectFixturePath(surface: string, fixtureId: string): void {
 
     const operation = entrypoint.value.match(/^docket task (\w+)/)?.[1];
     expect(operation).toBeDefined();
-    expect(surface).toContain(`|${operation}`);
+    expect(surface).toContain(
+      operation === "list" ? "task list|create" : `|${operation}`,
+    );
   };
 
   expectEntrypoint(fixture.expectedEntrypoint);
@@ -173,13 +175,15 @@ describe("cross-harness prompt routing", () => {
         expect(codex).toContain("`Epic <ID> — <title>`");
         expect(codex).toContain("codex_app__set_thread_title");
         expect(codex).toContain("omit `threadId`");
-        expect(codex).toContain("after every successful child pickup");
-        expect(codex).toContain("before the completion or blocker receipt");
+        expect(codex).toContain("preserve it without another rename call");
+        expect(codex).toContain(
+          "completion and blocker receipts do not require one",
+        );
         expect(codex).toContain("retained identity");
         expect(codex).toContain("Keep the identity after completion");
         expect(codex).toContain("later task pickup alone may not");
         expect(codex).toContain(
-          "never apply the manager title to an isolated child",
+          "Never apply the manager title to an isolated child",
         );
         expect(codex).toContain("one app task in an isolated Git worktree");
         expect(codex).toContain("wait cursor");
@@ -187,10 +191,12 @@ describe("cross-harness prompt routing", () => {
         expect(cursor).toContain("`Epic <ID> — <title>`");
         expect(cursor).toContain("rename_chat");
         expect(cursor).toContain("{ title: managerTitle }");
-        expect(cursor).toContain("after every successful child pickup");
-        expect(cursor).toContain("before the completion or blocker receipt");
+        expect(cursor).toContain("preserve it without another rename call");
         expect(cursor).toContain(
-          "never apply the manager title to an isolated child",
+          "completion and blocker receipts do not require one",
+        );
+        expect(cursor).toContain(
+          "Never apply the manager title to an isolated child",
         );
         expect(cursor).toContain("no verified native worker lifecycle binding");
         expect(cursor).toContain("serially in the calling session");
@@ -241,6 +247,12 @@ describe("cross-harness prompt routing", () => {
       for (const workflow of DOCKET_WORKFLOWS) {
         for (const target of ["claude", "codex", "cursor"] as const) {
           const adapter = AGENT_ADAPTERS[target];
+          if (workflow.slug === "docket-close") {
+            await expect(
+              access(join(root, adapter.skillsRoot, workflow.slug, "SKILL.md")),
+            ).rejects.toThrow();
+            continue;
+          }
           expect(
             await readFile(
               join(root, adapter.skillsRoot, workflow.slug, "SKILL.md"),

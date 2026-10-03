@@ -6,7 +6,7 @@
 
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, stat, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import {
@@ -31,7 +31,12 @@ import {
   upgradeWorkflowFile,
   WORKFLOWS_DIR,
 } from "@gitdocket/core";
-import { AGENT_ADAPTERS, renderTargetSkillStub } from "./agent-adapters";
+import {
+  AGENT_ADAPTERS,
+  canRetireCloseSkill,
+  hasNativeSkill,
+  renderTargetSkillStub,
+} from "./agent-adapters";
 import {
   type ExtensionDiscoveryReport,
   refreshExtensionDiscovery,
@@ -272,6 +277,25 @@ export async function runUpgrade(
       const rel = join(skillsRoot, w.slug, "SKILL.md");
       const path = join(root, rel);
       const existing = await readIfPresent(path);
+      if (!hasNativeSkill(w)) {
+        if (existing === undefined) continue;
+        const removable = canRetireCloseSkill(existing, config.bundle);
+        await apply(
+          {
+            kind: "skill",
+            path: rel,
+            action: removable ? "removed" : "skipped",
+            reason: removable
+              ? "retired generated close adapter; use the canonical workflow from repository instructions"
+              : "retired close adapter has custom or unrecognized content; preserved for manual review",
+            ...(!removable ? { reviewRequired: true as const } : {}),
+          },
+          existing,
+          async () => {},
+        );
+        if (removable && !dryRun) await unlink(path);
+        continue;
+      }
       const generated = renderTargetSkillStub(adapter, w, config.bundle);
       if (existing === undefined) {
         const additive = additiveWorkflows.find(

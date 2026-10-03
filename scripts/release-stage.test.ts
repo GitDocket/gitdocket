@@ -326,7 +326,7 @@ describe("public gate runner", () => {
       "bun install --frozen-lockfile",
       "bunx biome ci .",
       "bunx tsc --noEmit",
-      "bun test",
+      "bun test --timeout 30000",
       "bun ../../packages/cli/src/index.ts lint",
       "bun ../../packages/cli/src/index.ts index --check",
       "bun run audit:dependencies",

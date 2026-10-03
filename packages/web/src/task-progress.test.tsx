@@ -32,6 +32,49 @@ function write(root: string, id: string, status: string) {
   );
 }
 
+test("the browser API observes configured RS task progress without changing local readiness", async () => {
+  const parent = mkdtempSync(join(tmpdir(), "docket-rs-progress-api-"));
+  const root = join(parent, "main");
+  mkdirSync(join(root, "docket"), { recursive: true });
+  writeFileSync(join(root, "docket.yaml"), "project: RS\nbundle: docket\n");
+  write(root, "RS-292", "todo");
+  git(root, "init", "-q");
+  git(root, "add", ".");
+  git(root, "commit", "-qm", "base");
+  const worker = join(parent, "worker");
+  git(root, "worktree", "add", "-qb", "worker", worker);
+  write(worker, "RS-292", "in-progress");
+  const ctx = createRepoContext(
+    root,
+    parseConfig("project: RS\nbundle: docket\n"),
+  );
+  try {
+    const app = createApp(ctx);
+    const progress = await (await app.request("/api/task-progress")).json();
+    expect(progress.complete).toBe(true);
+    expect(progress.tasks[0]).toMatchObject({
+      id: "RS-292",
+      localStatus: "todo",
+      observations: [
+        {
+          task: { status: "in-progress" },
+          configuration: {
+            source: { project: "RS" },
+            baseline: { project: "RS" },
+          },
+        },
+      ],
+    });
+    expect(
+      (await (await app.request("/api/tasks")).json()).items[0],
+    ).toMatchObject({ id: "RS-292", status: "todo", ready: true });
+    expect(git(root, "status", "--porcelain")).toBe("");
+  } finally {
+    await ctx.close();
+    rmSync(parent, { recursive: true, force: true });
+  }
+});
+
 test("browser, CLI and MCP expose pre-commit progress while edits and readiness stay local", async () => {
   const parent = mkdtempSync(join(tmpdir(), "docket-progress-surfaces-"));
   const root = join(parent, "main");

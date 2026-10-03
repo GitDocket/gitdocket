@@ -17,12 +17,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   ADAPTER_MARKER,
+  DOCKET_VERSION,
   DOCKET_WORKFLOWS,
   defaultConfigYaml,
   mergeCodexConfig,
   renderAgentSkillStub,
   renderDocketSection,
   type ShippedHistory,
+  shippedHistory,
 } from "@gitdocket/core";
 import { AGENT_ADAPTERS, renderTargetSkillStub } from "./agent-adapters";
 import { runUpgrade } from "./upgrade";
@@ -173,6 +175,70 @@ const byPath = (report: Awaited<ReturnType<typeof runUpgrade>>) =>
   new Map(report.items.map((i) => [i.path, i]));
 
 describe("docket upgrade e2e", () => {
+  test.each(["0.3.1", "0.6.0", DOCKET_VERSION])(
+    "inventory guidance arrives from %s, including a falsely current marker, while preserving custom sources",
+    async (version) => {
+      const fixture = await mkdtemp(
+        join(tmpdir(), "docket-inventory-upgrade-"),
+      );
+      try {
+        await writeFile(
+          join(fixture, "docket.yaml"),
+          defaultConfigYaml("INV", "docs/"),
+        );
+        await mkdir(join(fixture, "docs/workflows"), { recursive: true });
+        const history = shippedHistory();
+        const entry = history.find((item) => item.version === version);
+        if (!entry) throw new Error(`missing historical origin ${version}`);
+        const guidance =
+          "---\ntype: Reference\ntitle: Project guidance\n---\n\nKeep the owner's testing standard.\n";
+        await mkdir(join(fixture, "docs/reference"), { recursive: true });
+        await writeFile(
+          join(fixture, "docs/reference/project-guidance.md"),
+          guidance,
+        );
+        const wiki = DOCKET_WORKFLOWS.find(
+          (item) => item.slug === "docket-wiki",
+        );
+        if (!wiki) throw new Error("missing wiki workflow");
+        const customized = `${entry.bodies[wiki.slug]}\n\nLOCAL: keep this owner procedure.\n`;
+        await writeFile(
+          join(fixture, "docs/workflows/docket-wiki.md"),
+          workflowFile(wiki.slug, `${wiki.slug}@${version}`, customized),
+        );
+        const instructions = `# Owner rules\n\nKeep this custom preface.\n\n<!-- >>> docket@${version} >>> -->\n## Docket\n\nFor all status questions run overview.\n<!-- <<< docket <<< -->\n\nKeep this custom suffix.\n`;
+        await writeFile(join(fixture, "AGENTS.md"), instructions);
+        await writeFile(join(fixture, "CLAUDE.md"), instructions);
+        await runUpgrade(fixture, {});
+        for (const name of ["AGENTS.md", "CLAUDE.md"]) {
+          const updated = await readFile(join(fixture, name), "utf8");
+          expect(updated).toContain("Keep this custom preface.");
+          expect(updated).toContain("Keep this custom suffix.");
+          expect(updated).toContain("**Work inventories**");
+          expect(updated).toContain("docket task list --type Epic --json");
+          expect(updated).toContain("Do not run overview first");
+          expect(updated).toContain("Reuse an already fetched result");
+          expect(updated).not.toContain(
+            "For all status questions run overview.",
+          );
+        }
+        expect(
+          await readFile(
+            join(fixture, "docs/reference/project-guidance.md"),
+            "utf8",
+          ),
+        ).toBe(guidance);
+        expect(
+          await readFile(
+            join(fixture, "docs/workflows/docket-wiki.md"),
+            "utf8",
+          ),
+        ).toContain("LOCAL: keep this owner procedure.");
+      } finally {
+        await rm(fixture, { recursive: true, force: true });
+      }
+    },
+  );
   test("dry run: full report, conflicts detected, nothing written", async () => {
     const report = await runUpgrade(
       root,
@@ -385,13 +451,15 @@ describe("docket upgrade e2e", () => {
       expect(epic).toContain("`Epic <ID> — <title>`");
       expect(epic).toContain("codex_app__set_thread_title");
       expect(epic).toContain("omit `threadId`");
-      expect(epic).toContain("after every successful child pickup");
-      expect(epic).toContain("before the completion or blocker receipt");
+      expect(epic).toContain("preserve it without another rename call");
+      expect(epic).toContain(
+        "completion and blocker receipts do not require one either",
+      );
       expect(epic).toContain("retained identity");
       expect(epic).toContain("Keep the identity after completion");
       expect(epic).toContain("later task pickup alone may not");
       expect(epic).toContain(
-        "never apply the manager title to an isolated child",
+        "Never apply the manager title to an isolated child",
       );
       expect(epic).toContain("one app task in an isolated Git worktree");
       expect(epic).toContain("canonical serial fallback");

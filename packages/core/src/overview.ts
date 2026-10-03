@@ -32,6 +32,8 @@ export interface OverviewTask {
   status: Status;
   priority: Priority;
   rank: number | null;
+  currentState?: string;
+  sourceVersion?: string;
 }
 
 export interface OverviewEpic {
@@ -40,6 +42,8 @@ export interface OverviewEpic {
   title: string | null;
   status: Status;
   priority: Priority;
+  currentState?: string;
+  sourceVersion?: string;
 }
 
 export interface OverviewProgress {
@@ -161,6 +165,8 @@ export interface OverviewExecutionSummary {
 }
 
 export interface OverviewOptions {
+  /** Internal candidates for the bounded agent projection; full-view defaults stay compatible. */
+  agentCandidates?: boolean;
   /** Injectable wall clock for deterministic activity-window tests. */
   now?: Date;
   /** Current repository checkpoint supplied by the Git-aware caller. */
@@ -184,6 +190,9 @@ const taskRef = (task: WorkItem): OverviewTask => ({
   status: task.fm.status,
   priority: task.fm.priority,
   rank: task.fm.rank ?? null,
+  ...(task.currentState
+    ? { currentState: task.currentState, sourceVersion: task.sourceVersion }
+    : {}),
 });
 
 const epicRef = (epic: WorkItem): OverviewEpic => ({
@@ -192,6 +201,9 @@ const epicRef = (epic: WorkItem): OverviewEpic => ({
   title: epic.fm.title ?? null,
   status: epic.fm.status,
   priority: epic.fm.priority,
+  ...(epic.currentState
+    ? { currentState: epic.currentState, sourceVersion: epic.sourceVersion }
+    : {}),
 });
 
 const newest = (dates: Iterable<string | undefined>): string | null => {
@@ -321,7 +333,11 @@ export function deriveOverview(
 
   const groupFor = (members: WorkItem[]): OverviewGroup => {
     const nowTasks = members
-      .filter((task) => task.fm.status === "in-progress")
+      .filter(
+        (task) =>
+          task.fm.status === "in-progress" ||
+          (options.agentCandidates && task.fm.status === "in-review"),
+      )
       .sort((a, z) => byManualOrder(a.fm, z.fm));
     const readyMembers = ready.filter((task) => members.includes(task));
     const nextTasks = readyMembers.slice(0, OVERVIEW_NEXT_LIMIT);
@@ -432,6 +448,7 @@ export function deriveOverview(
         : undefined;
     const summary =
       authored ??
+      plainSummary(item.currentState) ??
       plainSummary(
         typeof item.fm.description === "string"
           ? item.fm.description
@@ -459,7 +476,9 @@ export function deriveOverview(
         a.id.localeCompare(z.id, undefined, { numeric: true }),
     );
   const bounded = <T>(items: T[]): T[] =>
-    items.slice(0, OVERVIEW_EXECUTION_GROUP_LIMIT);
+    options.agentCandidates
+      ? items
+      : items.slice(0, OVERVIEW_EXECUTION_GROUP_LIMIT);
   const movedInScope = (item: WorkItem): boolean =>
     Number.isFinite(scopeAfter) &&
     inScope(

@@ -1,11 +1,39 @@
+import { constants } from "node:fs";
+import { open } from "node:fs/promises";
 import { findRepoRoot } from "@gitdocket/core";
 import type { Operation } from "@gitdocket/core/telemetry";
 import { TelemetryStore } from "@gitdocket/core/telemetry";
 import {
+  analyzeDocketTrace,
+  renderDocketTrace,
   renderUsageWindows,
   usageWindows,
 } from "@gitdocket/core/telemetry-report";
 import type { Command } from "commander";
+
+async function readTraceFile(path: string) {
+  const file = await open(path, constants.O_RDONLY | constants.O_NONBLOCK);
+  try {
+    const info = await file.stat();
+    if (!info.isFile() || info.size > 8 * 1024 * 1024)
+      throw new Error("trace must be a regular file of at most 8 MiB");
+    const buffer = Buffer.alloc(8 * 1024 * 1024 + 1);
+    let length = 0;
+    while (length < buffer.length) {
+      const { bytesRead } = await file.read(
+        buffer,
+        length,
+        buffer.length - length,
+        null,
+      );
+      if (!bytesRead) break;
+      length += bytesRead;
+    }
+    return analyzeDocketTrace(buffer.subarray(0, length).toString("utf8"));
+  } finally {
+    await file.close();
+  }
+}
 
 export function registerTelemetry(
   program: Command,
@@ -70,6 +98,14 @@ export function registerTelemetry(
   command
     .command("report")
     .description("summarize bounded observed usage and possible friction")
+    .option(
+      "--trace <file>",
+      "locally inspect a supplied Codex read_thread JSON export (8 MiB max; not stored)",
+    )
+    .option(
+      "--context",
+      "bounded context-volume review of --trace; no telemetry-store read or host query",
+    )
     .option("--since <date>", "inclusive ISO date/time")
     .option("--until <date>", "inclusive ISO date/time")
     .option("--project <id>", "one opaque project ID; default is this checkout")
@@ -85,6 +121,17 @@ export function registerTelemetry(
     )
     .option("--json", "structured report with evidence IDs")
     .action(async (options) => {
+      if (options.context) {
+        if (!options.trace)
+          throw new Error("--context requires --trace <supplied-file>");
+        const review = (await readTraceFile(options.trace)).contextVolume;
+        await write(
+          options.json
+            ? JSON.stringify(review, null, 2)
+            : `Docket context review: ${review.coverage.matchedCalls} matched calls; export output ${review.suppliedExportOutput.bytes ?? "unavailable"} bytes; emitted response measurements ${review.emittedDocketResponses.bytes ?? "unavailable"} bytes.\nHost context: ${review.hostContext.currentOccupancyStatus}. No occupancy estimate from bytes.\nRepeated source groups: ${review.repeatedReads.length} shown (${review.omittedRepeatedGroups} omitted); ${review.compactions} recorded compactions.\n${review.repeatedReads.map((r) => `${r.calls} reads: ${r.sourceEquality}; ${r.contextAvailability}; ${r.evidence.join(", ")}`).join("\n")}\nUse --context --json for bounded contributions and observation provenance; omit --context for full trace detail.\n${review.limits.join("\n")}`,
+        );
+        return;
+      }
       const observations = await store();
       const status = observations.status();
       if (options.all && options.project)
@@ -102,11 +149,19 @@ export function registerTelemetry(
           friction: options.friction,
         },
       );
+      let trace: ReturnType<typeof analyzeDocketTrace> | undefined;
+      if (options.trace) {
+        trace = await readTraceFile(options.trace);
+      }
       await write(
         options.json
           ? JSON.stringify(
               {
                 ...windows.selected,
+                ...(trace ? { trace } : {}),
+                traceCoverage: trace
+                  ? "supplied_export_only"
+                  : "not_supplied; direct agent shell reads are outside stored telemetry",
                 asOf: windows.asOf,
                 windows: {
                   hours24: windows.hours24,
@@ -118,7 +173,7 @@ export function registerTelemetry(
               null,
               2,
             )
-          : renderUsageWindows(windows),
+          : `${trace ? `${renderDocketTrace(trace)}\n\n` : "Agent trace: not supplied; direct shell reads are outside stored telemetry. Use --trace FILE for a local command review.\n\n"}${renderUsageWindows(windows)}`,
       );
     });
 }

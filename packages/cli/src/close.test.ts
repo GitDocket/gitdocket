@@ -111,6 +111,129 @@ describe("docket task close dispositions", () => {
     expect(ready.map((item) => item.id)).not.toContain(dependentId);
   }, 15000);
 
+  // docket:verifies DKT-272 — existing commands suffice; readiness observes
+  // live files between moves, with a single final index and multi-item commit.
+  test("closes accepted children and their epic in one commit while preserving outcomes", async () => {
+    const cli = (...args: string[]) => {
+      const result = sh(["bun", CLI, ...args]);
+      expect(result.code).toBe(0);
+      return result.stdout;
+    };
+    const git = (...args: string[]) => {
+      const result = sh(["git", ...args]);
+      expect(result.code).toBe(0);
+      return result.stdout;
+    };
+    git("init", "-q");
+    git("config", "user.email", "fixture@example.test");
+    git("config", "user.name", "Closure fixture");
+    const create = (title: string, ...args: string[]) =>
+      JSON.parse(
+        cli("task", "create", "--title", title, ...args, "--json"),
+      ) as { id: string; path: string };
+    const epic = create("Accepted epic", "--type", "Epic");
+    const first = create("First result", "--epic", `/${epic.path}`);
+    const second = create(
+      "Second result",
+      "--epic",
+      `/${epic.path}`,
+      "--deps",
+      first.id,
+    );
+    const record = `/${epic.path}#outcome`;
+    const editBody = async (item: typeof epic, body: string) => {
+      const doc = JSON.parse(cli("document", "read", item.path, "--json"));
+      const input = join(repo, ".docket", "closure-patch.json");
+      await writeFile(
+        input,
+        JSON.stringify({ expectedVersion: doc.version, patch: { body } }),
+      );
+      cli("document", "edit", item.path, "--input", input, "--json");
+    };
+    await editBody(
+      epic,
+      `# Acceptance Criteria\n\n- [x] Integrated results accepted.\n\n# Outcome\n\nOwner accepted this fixture's integrated results. First and second checks passed in the implementation evidence. Optional visual check for ${second.id} was explicitly waived by the owner because no UI changed; it remains unobserved.\n`,
+    );
+    await editBody(
+      first,
+      `# Acceptance Criteria\n\n- [x] First result implemented.\n\n# Outcome\n\nFirst result shipped; [acceptance and evidence](${record}).\n`,
+    );
+    await editBody(
+      second,
+      `# Acceptance Criteria\n\n- [x] Second result implemented.\n- [ ] Optional visual check: explicitly waived; see shared record.\n\n# Outcome\n\nSecond result shipped; [acceptance, evidence and visual waiver](${record}).\n`,
+    );
+    git("add", ".");
+    git("commit", "-qm", "Implementation evidence baseline");
+    const baseline = git("rev-parse", "HEAD").trim();
+    const indexBefore = await readFile(join(repo, "docket/index.md"), "utf8");
+    const ready = () =>
+      (JSON.parse(cli("ready", "--json")) as { id: string }[]).map(
+        (item) => item.id,
+      );
+    expect(ready()).not.toContain(second.id);
+    const close = (item: typeof epic) =>
+      JSON.parse(
+        cli(
+          "task",
+          "close",
+          item.id,
+          "--note",
+          `Outcome and acceptance: ${record}`,
+          "--json",
+        ),
+      );
+    expect(close(first).to).toBe("done");
+    expect(ready()).toContain(second.id);
+    // A mid-pass invalid transition fails without rolling back the first move.
+    cli("task", "move", second.id, "blocked", "--json");
+    expect(sh(["bun", CLI, "task", "close", second.id, "--json"]).code).toBe(1);
+    const states = () =>
+      JSON.parse(cli("task", "list", "--epic", epic.id, "--all", "--json")) as {
+        id: string;
+        status: string;
+      }[];
+    expect(states()).toContainEqual(
+      expect.objectContaining({ id: first.id, status: "done" }),
+    );
+    expect(states()).toContainEqual(
+      expect.objectContaining({ id: second.id, status: "blocked" }),
+    );
+    cli("task", "move", second.id, "in-progress", "--json");
+    expect(close(second).to).toBe("done");
+    expect(states().every((item) => item.status === "done")).toBe(true);
+    expect(close(epic).to).toBe("done");
+    expect(git("rev-parse", "HEAD").trim()).toBe(baseline);
+    expect(await readFile(join(repo, "docket/index.md"), "utf8")).toBe(
+      indexBefore,
+    );
+    cli("index");
+    const diagnostics = JSON.parse(cli("lint", "--json")) as {
+      severity: string;
+    }[];
+    expect(diagnostics.filter((d) => d.severity === "error")).toEqual([]);
+    git("add", "docket");
+    const trailers = [epic, first, second]
+      .map((item) => `Task: ${item.id}`)
+      .join("\n");
+    git("commit", "-qm", `Consolidated closure\n\n${trailers}`);
+    expect(git("rev-list", "--count", `${baseline}..HEAD`).trim()).toBe("1");
+    for (const item of [epic, first, second]) {
+      expect(git("log", "--format=%B", "-1")).toContain(`Task: ${item.id}`);
+      expect(await readFile(join(repo, "docket", item.path), "utf8")).toContain(
+        "status: done",
+      );
+    }
+    const secondSource = await readFile(
+      join(repo, "docket", second.path),
+      "utf8",
+    );
+    expect(secondSource).toContain("- [ ] Optional visual check");
+    expect(secondSource).toContain(record);
+    expect(await readFile(join(repo, "docket", epic.path), "utf8")).toContain(
+      "it remains unobserved",
+    );
+  }, 30_000);
+
   test("project policy reopens closed tasks and epics through task move with a reason", async () => {
     const configPath = join(repo, "docket.yaml");
     const config = await readFile(configPath, "utf8");

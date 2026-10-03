@@ -3,6 +3,45 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { MARKDOWN_AUTHORING_RULE } from "@gitdocket/core";
+import { runInit } from "./init";
+import { runUpgrade } from "./upgrade";
+
+test("upgrade replaces obsolete managed validation instructions and preserves authored host requirements", async () => {
+  const root = await mkdtemp(join(tmpdir(), "docket-validation-upgrade-"));
+  const authored =
+    "Owner requirement: run docket lint --strict after final edits.\n";
+  const old =
+    "Do not hard-wrap Markdown prose. After authoring bundle content, run `docket lint --json`.";
+  try {
+    await runInit(root, {
+      project: "VAL",
+      agents: ["claude", "codex", "cursor"],
+    });
+    for (const name of ["AGENTS.md", "CLAUDE.md"]) {
+      const path = join(root, name);
+      const source = await readFile(path, "utf8");
+      await writeFile(
+        path,
+        authored + source.replace(MARKDOWN_AUTHORING_RULE, old),
+      );
+    }
+    const before = await readFile(join(root, "AGENTS.md"), "utf8");
+    await runUpgrade(root, { dryRun: true });
+    expect(await readFile(join(root, "AGENTS.md"), "utf8")).toBe(before);
+    await runUpgrade(root, {});
+    for (const name of ["AGENTS.md", "CLAUDE.md"]) {
+      const source = await readFile(join(root, name), "utf8");
+      expect(source).toStartWith(authored);
+      expect(source).toContain(MARKDOWN_AUTHORING_RULE);
+      expect(source).not.toContain(old);
+    }
+    const upgraded = await readFile(join(root, "AGENTS.md"), "utf8");
+    await runUpgrade(root, {});
+    expect(await readFile(join(root, "AGENTS.md"), "utf8")).toBe(upgraded);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
 
 test("fresh CLI adoption delivers writing guidance; strict lint catches wrapping without rewriting source", async () => {
   const root = await mkdtemp(join(tmpdir(), "docket-prose-"));

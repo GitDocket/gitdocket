@@ -9,6 +9,7 @@ import { InMemoryFileStore, LocalFileStore } from "./filestore";
 import { renderIndex } from "./indexmd";
 import { lintBundle } from "./lint";
 import { searchBundle } from "./search";
+import { SearchIndex } from "./search-index";
 import { observeWork } from "./work-metrics";
 
 const config = parseConfig();
@@ -19,6 +20,71 @@ const source = (
   dep = "",
 ) =>
   `---\ntype: Task\nid: DKT-${id}\ntitle: Task ${id}\nstatus: ${status}\naliases: [OLD-${id}]\ndepends_on: [${dep}]\n---\n${body}\n`;
+
+test("compact postings preserve repeated Unicode tokens, hubs and old readers through path churn", async () => {
+  const files = new Map([
+    [
+      "hub.md",
+      source(1, "todo", "İ K Café 😀 storage storage [leaf](/leaf.md)"),
+    ],
+    ["leaf.md", source(2, "todo", "[hub](/hub.md) storage")],
+    ...Array.from(
+      { length: 80 },
+      (_, i) =>
+        [
+          `inbound-${i}.md`,
+          source(i + 3, "todo", "storage [hub](/hub.md)"),
+        ] as [string, string],
+    ),
+    ["log.md", "storage ".repeat(10000)],
+  ]);
+  const store = new InMemoryFileStore(files);
+  const index = new BundleIndex(store);
+  const queries = ["i", "k", "caf", "storage", "dkt1", "OLD-1", "#1", "—", ""];
+  const first = await index.refresh(config);
+  const original = first.search.search("storage", { limit: 100 });
+  expect(first.search.search("DKT1")[0]?.backlinks).toHaveLength(81);
+  for (let round = 0; round < 4; round++) {
+    files.delete(`inbound-${round}.md`);
+    files.set(
+      `new-${round}.md`,
+      source(round + 200, "todo", "freshword [hub](/hub.md)"),
+    );
+    files.set(
+      "leaf.md",
+      source(2, "todo", round % 2 ? "freshword" : "storage [hub](/hub.md)"),
+    );
+    const next = await index.refresh(
+      round === 3 ? parseConfig("project: APP") : config,
+    );
+    const fresh = await loadBundle(store, next.bundle.config);
+    for (const query of queries)
+      expect(next.search.search(query, { limit: 100 })).toEqual(
+        await searchBundle(store, fresh, query, { limit: 100 }),
+      );
+    expect(first.search.search("storage", { limit: 100 })).toEqual(original);
+    expect(first.search.search("freshword")).toEqual([]);
+  }
+  index.close();
+});
+
+test("numeric search keys rebase without changing existing readers near capacity", async () => {
+  const files = new Map([["a.md", source(1, "todo", "storage")]]);
+  const store = new InMemoryFileStore(files);
+  const index = new BundleIndex(store);
+  const first = await index.refresh(config);
+  const old = first.search.search("storage");
+  (first.search as unknown as { nextKey: number }).nextKey = 0xffffffff;
+  files.set("b.md", source(2, "todo", "storage"));
+  files.set("c.md", source(3, "todo", "storage"));
+  const fresh = await loadBundle(store, config);
+  const rebuilt = new SearchIndex(fresh, files, first.search);
+  expect(rebuilt.search("storage")).toEqual(
+    await searchBundle(store, fresh, "storage"),
+  );
+  expect(first.search.search("storage")).toEqual(old);
+  index.close();
+});
 
 test("reserved structural files cause no concept reads or parses", async () => {
   const files = new InMemoryFileStore(

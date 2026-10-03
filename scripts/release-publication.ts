@@ -2,6 +2,10 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { DOCKET_VERSION } from "../packages/core/src/version";
+import {
+  type OwnerTestException,
+  verifyOwnerException,
+} from "./release-owner-exception";
 import { runInstalledSmoke, type SmokeResult } from "./release-stage";
 import { waitUntil } from "./release-wait";
 import {
@@ -53,6 +57,7 @@ export interface PublicationCandidate {
   publicTag: string;
   packages: PackageCandidate[];
   standalone?: StandaloneAsset[];
+  testException?: OwnerTestException;
 }
 
 export interface RegistryVersion {
@@ -109,7 +114,7 @@ export interface RegistryReceipt {
   candidate: PublicationCandidate;
   initial: RegistrySnapshot;
   actions: string[];
-  smoke: SmokeResult;
+  smoke: SmokeResult | null;
   final: RegistrySnapshot;
   completedAt: string;
 }
@@ -406,9 +411,13 @@ export async function buildPublicationCandidate(
     PACKAGE_IDS.map((id) => packageCandidate(root, id)),
   );
   assertPackageGraph(packages);
-  const standalone = await (
-    dependencies.verifyStandalone ?? verifyStandaloneSet
-  )(root, join(root, "release/standalone"));
+  const exception = await verifyOwnerException(root);
+  const standalone =
+    exception?.standalone ??
+    (await (dependencies.verifyStandalone ?? verifyStandaloneSet)(
+      root,
+      join(root, "release/standalone"),
+    ));
   return {
     version: DOCKET_VERSION,
     sourceTag: context.tag,
@@ -422,6 +431,7 @@ export async function buildPublicationCandidate(
     publicTag,
     packages,
     ...(standalone ? { standalone } : {}),
+    ...(exception ? { testException: exception.exception } : {}),
   };
 }
 
@@ -714,11 +724,17 @@ export async function runRegistryPublication(
   }
 
   onProgress(
-    "all packages verified under the holding tag; running registry installation smoke",
+    candidate.testException
+      ? "all package integrity and provenance verified; installation smoke skipped by owner request"
+      : "all packages verified under the holding tag; running registry installation smoke",
   );
-  const smoke = await options.smoke(candidate);
+  const smoke = candidate.testException ? null : await options.smoke(candidate);
+  if (candidate.testException)
+    recordAction(
+      "installed smoke SKIPPED_BY_OWNER_REQUEST; no product tests executed",
+    );
   if (options.holdOnly) {
-    onProgress("registry installation smoke passed; owner promotion required");
+    onProgress("holding set ready; owner promotion required");
     return {
       schema: PUBLICATION_SCHEMA,
       candidate,
@@ -729,7 +745,7 @@ export async function runRegistryPublication(
       completedAt: (options.now ?? (() => new Date().toISOString()))(),
     };
   }
-  onProgress("registry installation smoke passed; promoting public tags");
+  onProgress("holding set ready; promoting public tags");
 
   for (const item of candidate.packages) {
     const view = await registry.inspect(item.name, item.version);
@@ -824,7 +840,10 @@ export async function completeGitHubRelease(
       return `- [${item.name}@${receipt.candidate.version}](${url})`;
     })
     .join("\n");
-  const releaseBody = `${notes.trimEnd()}\n\n## Verification\n\n- Publication receipt: attached \`${assetName}\` (SHA-256 \`${receiptSha256}\`)\n- npm trusted-publisher provenance:\n${provenance}\n`;
+  const exceptionNote = receipt.candidate.testException
+    ? "- Tests, native execution, installed smoke and release qualification were skipped at the owner's explicit request. Artifact checksums, package metadata and trusted-publisher provenance were verified.\n"
+    : "";
+  const releaseBody = `${notes.trimEnd()}\n\n## Verification\n\n${exceptionNote}- Publication receipt: attached \`${assetName}\` (SHA-256 \`${receiptSha256}\`)\n- npm trusted-publisher provenance:\n${provenance}\n`;
   const desired = {
     tag: receipt.candidate.sourceTag,
     title: `GitDocket v${receipt.candidate.version}`,

@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { parseConfig } from "./config";
 import { ENGINE_SEMANTICS } from "./engine-semantics";
 import { defaultConfigYaml } from "./init";
+import { BUNDLE_VALIDATION_RULE } from "./markdown-prose";
 import { parseConcept } from "./parse";
 import { buildSchemas } from "./schema";
 import { DOCKET_VERSION } from "./version";
@@ -21,6 +22,46 @@ import {
 const schemas = buildSchemas(parseConfig(defaultConfigYaml("ACME", "docs/")));
 
 describe("renderWorkflow", () => {
+  test("validation follows final authored edits and survives a handoff without claiming input equality", () => {
+    for (const w of DOCKET_WORKFLOWS)
+      expect(w.body).toContain(BUNDLE_VALIDATION_RULE);
+    expect(renderDocketSection("ACME", "docs/")).toContain(
+      BUNDLE_VALIDATION_RULE,
+    );
+    const close = DOCKET_WORKFLOWS.find((w) => w.slug === "docket-close");
+    const task = DOCKET_WORKFLOWS.find((w) => w.slug === "docket-task");
+    if (!close || !task) throw new Error("required workflow missing");
+    const standalone = close.body
+      .split("## Standalone closure")[1]
+      ?.split("## Consolidated epic closure")[0];
+    const consolidated = close.body.split("5. **Finalize once**")[1];
+    if (!standalone || !consolidated) throw new Error("closure path missing");
+    for (const body of [standalone, consolidated]) {
+      const log = body.indexOf("`log.md` entry");
+      const index = body.indexOf("`docket index`");
+      const lint = body.indexOf("`docket lint --json`");
+      expect(log).toBeGreaterThan(-1);
+      expect(index).toBeGreaterThan(log);
+      expect(lint).toBeGreaterThan(index);
+      expect(body).toContain("subsequent bundle edit requires another");
+    }
+    const finalBatch = task.body
+      .split("4. **Refresh discovery and validate the batch**")[1]
+      ?.split("5. **Pickup is separate**")[0];
+    if (!finalBatch) throw new Error("creation batch missing");
+    expect(finalBatch.indexOf("log entry first")).toBeLessThan(
+      finalBatch.indexOf("`docket index`"),
+    );
+    expect(finalBatch).toContain("do not refresh the derived index");
+    expect(BUNDLE_VALIDATION_RULE).toContain("missing evidence");
+    expect(BUNDLE_VALIDATION_RULE).toContain("validated input identity");
+    expect(BUNDLE_VALIDATION_RULE).toContain("subsequent relevant changes");
+    expect(BUNDLE_VALIDATION_RULE).toContain("verify its applicability");
+    expect(BUNDLE_VALIDATION_RULE).toContain(
+      "Preserve explicit project validation requirements",
+    );
+  });
+
   test("every workflow parses as a generic Workflow concept", () => {
     for (const w of DOCKET_WORKFLOWS) {
       const { concept, diagnostics } = parseConcept(
@@ -64,7 +105,9 @@ describe("renderWorkflow", () => {
     expect(rename).toBeGreaterThan(preserve);
     expect(handoff).toBeGreaterThan(rename);
     expect(pickup.description).toContain("explicitly tracked Docket work only");
-    expect(pickup.body).toContain("docket task start <ID> --json");
+    expect(pickup.body).toContain("docket task start <ID> --compact --json");
+    expect(pickup.body).toContain("requiredReads");
+    expect(pickup.body).toContain("docket-pickup/v1");
     expect(pickup.body).toContain('outcome: "route"');
     expect(pickup.body).toContain('route.workflow: "docket-epic"');
     expect(pickup.body).toContain("stop another active task");
@@ -90,7 +133,7 @@ describe("renderWorkflow", () => {
     expect(pickup.body).toContain("continue silently");
     expect(pickup.body).toContain("active-task-conflict");
     expect(pickup.body).toContain(
-      "May I create a linked Git worktree at <path>",
+      "May I create a separate working copy and start <requested-ID> there?",
     );
     expect(pickup.body).toContain(
       "An applicable explicit request or session instruction",
@@ -102,17 +145,62 @@ describe("renderWorkflow", () => {
       "scoped automatic-isolation preference saved in existing project guidance at the user's request",
     );
     expect(pickup.body).toContain(
-      "Missing, ambiguous or revoked authority requires the same direct question",
+      "Missing, ambiguous or revoked authority, or a plan materially beyond its scope",
     );
     expect(pickup.body).toContain(
       "One-time approval does not save a preference",
     );
     expect(pickup.body).toContain(
-      "Changing shell directory alone does not retarget an existing MCP server",
+      "Changing shell directory alone does not provide MCP target intent",
     );
+    // These assertions qualify shipped instructions, not model compliance.
+    const authorityCheck = pickup.body.indexOf("**Check authority first**");
+    const overlapCheck = pickup.body.indexOf(
+      "**Prepare a usable plan and inspect overlap**",
+    );
+    const approval = pickup.body.indexOf(
+      "**Communicate the next action; ask only for missing authority**",
+    );
+    const isolation = pickup.body.indexOf(
+      "**Isolate and target the new checkout**",
+    );
+    expect(authorityCheck).toBeGreaterThan(-1);
+    expect(overlapCheck).toBeGreaterThan(authorityCheck);
+    expect(approval).toBeGreaterThan(overlapCheck);
+    expect(isolation).toBeGreaterThan(approval);
+    expect(pickup.body).toContain(
+      "Applicable host instructions may authorize routine reversible isolation",
+    );
+    expect(pickup.body).toContain(
+      "a lower-priority confirmation default adds no new gate",
+    );
+    expect(pickup.body).toContain(
+      "a worktree protects working files but does not resolve content ownership",
+    );
+    expect(pickup.body).toContain(
+      "explicit ownership or reconciliation plan before the affected writes proceed",
+    );
+    expect(pickup.body).toContain(
+      "defer those writes and continue authorized independent work",
+    );
+    expect(pickup.body).toContain("link the exact source once");
     expect(renderAgentSkillStub(pickup, "docket/")).toContain(
       "docket/workflows/docket-pickup.md",
     );
+  });
+
+  test("complete task creation supplies authored body once and reuses the returned version", () => {
+    const task = DOCKET_WORKFLOWS.find((w) => w.slug === "docket-task");
+    if (!task) throw new Error("Missing creation workflow");
+    expect(task.body).toContain("task create --input <file> --compact --json");
+    expect(task.body).toContain(
+      "exclusively writes the final authored source once",
+    );
+    expect(task.body).toContain("needs no placeholder read/edit round trip");
+    expect(task.body).toContain(
+      "Skeleton routes still need real Context and Acceptance Criteria",
+    );
+    expect(task.body).toContain("creation never picks up work");
   });
 
   test("epic supervision fixes the preflight, serial fallback, integration, and receipt contract", () => {
@@ -139,14 +227,12 @@ describe("renderWorkflow", () => {
     expect(managerTitle).toBeGreaterThan(graph);
     expect(managerTitle).toBeLessThan(preflight);
     expect(epic.body).toContain(
-      "immediately after every successful child pickup reapply the retained",
+      "child pickup preserves the retained manager identity and makes no rename call",
     );
     expect(epic.body).toContain(
       "An isolated child session follows pickup normally and keeps its own",
     );
-    expect(epic.body).toContain(
-      "Before returning, ask the native adapter to reapply the retained manager title",
-    );
+    expect(epic.body).toContain("returning does not require a rename call");
     expect(epic.body).toContain("lifetime of the session");
     expect(epic.body).toContain(
       "including after epic completion or a blocker receipt",
@@ -158,13 +244,25 @@ describe("renderWorkflow", () => {
       "Merely starting or resuming another task is not such a request",
     );
     expect(epic.body).toContain(
-      "do not release that retained identity when the workflow returns",
+      "Do not release that retained identity when the workflow returns",
     );
     expect(epic.body).toContain("docket ready --json");
     expect(epic.body).toContain(ENGINE_SEMANTICS.readiness);
     expect(epic.body).toContain(ENGINE_SEMANTICS.readyOrdering);
     expect(epic.body).toContain("mandatory serial fallback");
     expect(epic.body).toContain("Never run concurrent writers in one checkout");
+    expect(epic.body).toContain(
+      "A child waiting on isolation approval or unresolved overlapping edits does not by itself block the epic",
+    );
+    expect(epic.body).toContain(
+      "Continue one ready, authorized child whose write scope and reconciliation surfaces are independent",
+    );
+    expect(epic.body).toContain(
+      "do not bypass dependencies, infer approval from silence",
+    );
+    expect(epic.body).toContain(
+      "Return a blocker only when no ready, authorized child can progress safely",
+    );
     expect(epic.body).toContain("Integrate one accepted commit series");
     expect(epic.body).toContain(
       "All children being done is necessary evidence, not epic completion",
@@ -172,6 +270,68 @@ describe("renderWorkflow", () => {
     expect(epic.body).toContain("Docket and Git reveal completed children");
     expect(epic.body).toContain("Do not create an orchestration database");
     expect(epic.body).toContain("synthetic epic status");
+  });
+
+  // docket:verifies DKT-272
+  test("consolidated closure records acceptance before item judgment and finalizes once", () => {
+    const close = DOCKET_WORKFLOWS.find((w) => w.slug === "docket-close")?.body;
+    if (!close) throw new Error("close workflow missing");
+    const batch = close.slice(close.indexOf("## Consolidated epic closure"));
+    const steps = [
+      "Record acceptance once",
+      "Resolve each item's eligibility",
+      "Write concise per-item outcomes and reconcile once",
+      "Close through the CLI in dependency order",
+      "Finalize once",
+    ];
+    let previous = -1;
+    for (const step of steps) {
+      const at = batch.indexOf(step);
+      expect(at).toBeGreaterThan(previous);
+      previous = at;
+    }
+    for (const rule of [
+      "owner has accepted the results",
+      "each explicit waiver by item ID, criterion and reason",
+      "Each item references this shared record",
+      "waived unobserved check remains unobserved, never passed",
+      "Do not rerun passing tests without relevant changes or unresolved concerns",
+      "verify every dependency resolves to `done`",
+      "a waiver never changes dependency state",
+      "Complete the epic last only when all children are `done`",
+      "--without-completion",
+      "retain unchecked unmet criteria",
+      "the pass is not atomic",
+      "skip already terminal items",
+      "regenerate `docket index` once",
+      "one `log.md` entry",
+      "docket lint --json",
+      "each item concluded in this pass",
+      "leave an unrelated marker untouched",
+    ])
+      expect(batch).toContain(rule);
+    expect(close).toContain("## Standalone closure");
+    expect(batch).not.toContain("repeat the standalone");
+  });
+
+  test("epic preparation permits deferred closure without bypassing readiness or evidence", () => {
+    const epic = DOCKET_WORKFLOWS.find((w) => w.slug === "docket-epic")?.body;
+    if (!epic) throw new Error("epic workflow missing");
+    expect(epic).toContain(
+      "only acceptance or terminal moves remain, proceed to section 5",
+    );
+    expect(epic).toContain("leave the child nonterminal");
+    expect(epic).toContain("pending-acceptance record");
+    expect(epic).toContain("Deferred closure never makes a dependency ready");
+    expect(epic).toContain("never bypass readiness to save a commit");
+    expect(epic).toContain(
+      "Implementation authorization alone is not owner acceptance",
+    );
+    expect(epic).toContain("Consolidated epic closure");
+    expect(epic).toContain("do not reopen done children");
+    expect(epic).toContain("Keep the user-facing receipt brief");
+    expect(epic).not.toContain("Run final repository verification.");
+    expect(epic).not.toContain("regenerate derived state with `docket index`");
   });
 
   test("grooming is discoverable only as an explicit hygiene audit", () => {

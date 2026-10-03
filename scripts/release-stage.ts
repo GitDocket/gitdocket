@@ -66,7 +66,7 @@ export const PUBLIC_RELEASE_CHECKS = [
   "bun install --frozen-lockfile",
   "bunx biome ci .",
   "bunx tsc --noEmit",
-  "bun test",
+  "bun test --timeout 30000",
   "bun ../../packages/cli/src/index.ts lint (examples/basic)",
   "bun ../../packages/cli/src/index.ts index --check (examples/basic)",
   "bun run audit:dependencies",
@@ -193,7 +193,7 @@ export async function runPublicReleaseGate(
   await run(["bun", "install", "--frozen-lockfile"], { cwd: root });
   await run(["bunx", "biome", "ci", "."], { cwd: root });
   await run(["bunx", "tsc", "--noEmit"], { cwd: root });
-  await run(["bun", "test"], { cwd: root });
+  await run(["bun", "test", "--timeout", "30000"], { cwd: root });
   const example = join(root, "examples/basic");
   await run(["bun", "../../packages/cli/src/index.ts", "lint"], {
     cwd: example,

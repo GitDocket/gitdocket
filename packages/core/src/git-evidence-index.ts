@@ -610,6 +610,7 @@ export class GitEvidenceIndex {
         byId,
         run,
         this.deadline,
+        (cwd, hashes) => this.pool.blobs(cwd, hashes, this.deadline),
       );
       if (
         r.status === "rejected" ||

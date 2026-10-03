@@ -1,5 +1,12 @@
 import { afterEach, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { loadBundle } from "./bundle";
@@ -42,12 +49,17 @@ function write(
     `---\ntype: Task\nid: ${id}\ntitle: Example\nstatus: ${status}\n---\n`,
   );
 }
-function setup(status = "todo", bundle = "docket") {
+function setup(status = "todo", bundle = "docket", project?: string) {
   const parent = mkdtempSync(join(tmpdir(), "docket-observation-"));
   roots.push(parent);
   const root = join(parent, "main");
   mkdirSync(root);
-  write(root, status, "DKT-1", taskPath, bundle);
+  write(root, status, `${project ?? "DKT"}-1`, taskPath, bundle);
+  if (project)
+    writeFileSync(
+      join(root, "docket.yaml"),
+      `project: ${project}\nbundle: ${bundle}\n`,
+    );
   git(root, "init", "-q");
   git(root, "add", ".");
   git(root, "commit", "-qm", "base");
@@ -61,12 +73,250 @@ function setup(status = "todo", bundle = "docket") {
   const scan = async () => {
     const b = await loadBundle(
       new LocalFileStore(join(root, bundle)),
-      parseConfig(`bundle: ${bundle}`),
+      parseConfig(
+        existsSync(join(root, "docket.yaml"))
+          ? readFileSync(join(root, "docket.yaml"), "utf8")
+          : `bundle: ${bundle}`,
+      ),
     );
     return (await owner.snapshot(b.byId)).git.taskProgress;
   };
   return { parent, root, worker, scan };
 }
+
+test("many committed task observations batch pinned blobs with bounded work and exact path handling", async () => {
+  const { root, worker } = setup();
+  const commands: string[][] = [];
+  for (let i = 2; i <= 33; i++) {
+    const path = `work/tasks/${i} [literal]\t😀.md`;
+    write(root, "todo", `DKT-${i}`, path);
+  }
+  git(root, "add", ".");
+  git(root, "commit", "-qm", "batch baseline");
+  git(worker, "reset", "--hard", git(root, "rev-parse", "HEAD"));
+  for (let i = 2; i <= 33; i++)
+    write(worker, "done", `DKT-${i}`, `work/tasks/${i} [literal]\t😀.md`);
+  git(worker, "add", ".");
+  git(worker, "commit", "-qm", "batch progress");
+  git(root, "worktree", "remove", worker);
+  const owner = new GitEvidenceIndex(root, "Task", {
+    ttlMs: 0,
+    onCommand: (args) => commands.push(args),
+  });
+  owners.push(owner);
+  const bundle = await loadBundle(
+    new LocalFileStore(join(root, "docket")),
+    parseConfig(),
+  );
+  const result = (await owner.snapshot(bundle.byId)).git.taskProgress;
+  expect(result?.complete).toBe(true);
+  expect(result?.tasks).toHaveLength(32);
+  expect(
+    result?.tasks.every(
+      (item) =>
+        item.observations[0]?.task.status === "done" &&
+        item.observations[0]?.base?.status === "todo",
+    ),
+  ).toBe(true);
+  expect(
+    commands.filter((args) => args[0] === "cat-file" && args[1] === "--batch"),
+  ).toHaveLength(4);
+  expect(
+    commands.filter((args) => args[0] === "ls-tree").length,
+  ).toBeLessThanOrEqual(6);
+  expect(
+    commands.some(
+      (args) => args[0] === "show" && args[1]?.includes(":work/tasks/"),
+    ),
+  ).toBe(false);
+});
+
+test("a transient blob batch failure remains incomplete and recovers on the next capture", async () => {
+  const { root, worker } = setup();
+  write(worker, "done");
+  git(worker, "add", ".");
+  git(worker, "commit", "-qm", "progress");
+  git(root, "worktree", "remove", worker);
+  let fail = true;
+  const owner = new GitEvidenceIndex(root, "Task", {
+    ttlMs: 0,
+    onCommand: (args) => {
+      if (fail && args[0] === "cat-file" && args[1] === "--batch") {
+        fail = false;
+        throw new Error("transient batch fixture");
+      }
+    },
+  });
+  owners.push(owner);
+  const bundle = await loadBundle(
+    new LocalFileStore(join(root, "docket")),
+    parseConfig(),
+  );
+  const first = (await owner.snapshot(bundle.byId)).git.taskProgress;
+  expect(first?.complete).toBe(false);
+  expect(first?.diagnostics.join(" ")).toContain("transient batch fixture");
+  const second = (await owner.snapshot(bundle.byId)).git.taskProgress;
+  expect(second?.complete).toBe(true);
+  expect(second?.tasks[0]?.observations[0]?.task.status).toBe("done");
+});
+
+for (const prefix of ["RS", "FLOW_APP"]) {
+  test(`${prefix} saved, untracked and committed task metadata uses source and baseline schemas`, async () => {
+    const { root, worker, scan } = setup("todo", "knowledge", prefix);
+    git(worker, "checkout", "--detach");
+    write(worker, "in-progress", `${prefix}-1`, taskPath, "knowledge");
+    write(worker, "todo", `${prefix}-2`, "work/tasks/new.md", "knowledge");
+    const before = git(root, "status", "--porcelain");
+    const saved = await scan();
+    expect(saved?.complete).toBe(true);
+    expect(saved?.tasks.map((t) => t.id)).toEqual([
+      `${prefix}-1`,
+      `${prefix}-2`,
+    ]);
+    expect(saved?.tasks[0]?.observations[0]).toMatchObject({
+      task: { id: `${prefix}-1`, status: "in-progress" },
+      base: { id: `${prefix}-1`, status: "todo" },
+      configuration: {
+        source: { project: prefix, origin: "saved" },
+        baseline: { project: prefix, origin: "committed" },
+        compatible: true,
+      },
+      uncommitted: true,
+      integrated: false,
+    });
+    expect(git(root, "status", "--porcelain")).toBe(before);
+    git(worker, "add", ".");
+    git(worker, "commit", "-qm", "custom prefix progress");
+    git(root, "branch", "custom-tip", git(worker, "rev-parse", "HEAD"));
+    git(root, "worktree", "remove", worker);
+    const committed = await scan();
+    expect(committed?.complete).toBe(true);
+    expect(committed?.tasks[0]?.observations[0]).toMatchObject({
+      worktree: null,
+      uncommitted: false,
+      configuration: { source: { origin: "committed", project: prefix } },
+    });
+    git(root, "merge", "--ff-only", "custom-tip");
+    expect((await scan())?.tasks).toHaveLength(0);
+  });
+}
+
+test("changed project configurations are interpreted independently and incompatible identities stay visible", async () => {
+  const { worker, scan } = setup("todo", "docket", "RS");
+  writeFileSync(join(worker, "docket.yaml"), "project: ALT\nbundle: docket\n");
+  write(worker, "in-progress", "ALT-1");
+  const result = await scan();
+  expect(result?.complete).toBe(true);
+  expect(result?.tasks[0]).toMatchObject({
+    id: "ALT-1",
+    state: "conflict",
+    observations: [
+      {
+        base: { id: "RS-1" },
+        configuration: {
+          source: { project: "ALT" },
+          baseline: { project: "RS" },
+          compatible: false,
+        },
+      },
+    ],
+  });
+});
+
+test("repeated reads refresh configuration instead of accepting cached incompatible metadata", async () => {
+  const { worker, scan } = setup("todo", "docket", "RS");
+  write(worker, "in-progress", "RS-1");
+  expect((await scan())?.complete).toBe(true);
+  writeFileSync(join(worker, "docket.yaml"), "project: ALT\nbundle: docket\n");
+  const invalid = await scan();
+  expect(invalid?.complete).toBe(false);
+  expect(invalid?.diagnostics.join(" ")).toContain("Invalid task metadata");
+  writeFileSync(join(worker, "docket.yaml"), "project: RS\nbundle: docket\n");
+  expect((await scan())?.tasks[0]?.id).toBe("RS-1");
+  write(worker, "in-progress", "DKT-1");
+  expect((await scan())?.complete).toBe(false);
+  writeFileSync(
+    join(worker, "docket", taskPath),
+    "---\ntype: 'Task'\nid: DKT-1\nstatus: in-progress\n---\n",
+  );
+  expect((await scan())?.complete).toBe(false);
+});
+
+test("missing configuration declares defaults and malformed configuration never substitutes defaults", async () => {
+  const { worker, scan } = setup();
+  write(worker, "in-progress");
+  expect(
+    (await scan())?.tasks[0]?.observations[0]?.configuration,
+  ).toMatchObject({
+    source: { project: "DKT", origin: "defaults-missing" },
+    baseline: { origin: "defaults-missing" },
+  });
+  for (const invalid of [
+    "project: [RS]",
+    "project: '",
+    "bundle: ../escape",
+    "[]",
+  ]) {
+    writeFileSync(join(worker, "docket.yaml"), invalid);
+    const result = await scan();
+    expect(result?.complete).toBe(false);
+    expect(result?.observations).toHaveLength(0);
+  }
+});
+
+test("a moved bundle uses its source path and the original configured baseline path", async () => {
+  const { worker, scan } = setup("todo", "docket", "RS");
+  rmSync(join(worker, "docket"), { recursive: true });
+  writeFileSync(
+    join(worker, "docket.yaml"),
+    "project: RS\nbundle: knowledge\n",
+  );
+  write(worker, "in-progress", "RS-1", taskPath, "knowledge");
+  const result = await scan();
+  expect(result?.complete).toBe(true);
+  expect(result?.tasks[0]?.observations[0]).toMatchObject({
+    base: { id: "RS-1", status: "todo" },
+    task: { id: "RS-1", status: "in-progress" },
+    configuration: {
+      source: { bundle: "knowledge" },
+      baseline: { bundle: "docket" },
+      compatible: false,
+    },
+  });
+});
+
+test("configuration changes during observation discard previously admitted rows", async () => {
+  const { root, worker } = setup("todo", "docket", "RS");
+  write(worker, "in-progress", "RS-1");
+  let changed = false;
+  const owner = new GitEvidenceIndex(root, "Task", {
+    ttlMs: 0,
+    onCommand: (args) => {
+      if (
+        !changed &&
+        ((args[0] === "show" &&
+          args[1]?.endsWith(":docket/work/tasks/item.md")) ||
+          (args[0] === "cat-file" && args[1] === "--batch"))
+      ) {
+        changed = true;
+        writeFileSync(
+          join(worker, "docket.yaml"),
+          "project: ALT\nbundle: docket\n",
+        );
+      }
+    },
+  });
+  owners.push(owner);
+  const bundle = await loadBundle(
+    new LocalFileStore(join(root, "docket")),
+    parseConfig("project: RS\nbundle: docket\n"),
+  );
+  const result = (await owner.snapshot(bundle.byId)).git.taskProgress;
+  expect(changed).toBe(true);
+  expect(result?.complete).toBe(false);
+  expect(result?.observations).toHaveLength(0);
+  expect(result?.diagnostics.join(" ")).toContain("configuration changed");
+});
 test("saved uncommitted worktree state is observed without modifying canonical state", async () => {
   const { root, worker, scan } = setup();
   write(worker, "in-progress");
@@ -230,4 +480,135 @@ test("moving a source HEAD during inventory does not misattribute saved state", 
   const result = (await owner.snapshot(bundle.byId)).git.taskProgress;
   expect(result?.complete).toBe(false);
   expect(result?.diagnostics.join(" ")).toContain("HEAD changed");
+});
+
+test("body-only same-task divergence conflicts, independent task work does not, and committed closeout stays separate from dirty saved reopening", async () => {
+  const { root, worker, scan } = setup("todo", "docket", "RS");
+  const source = readFileSync(join(root, "docket", taskPath), "utf8");
+  writeFileSync(
+    join(worker, "docket", taskPath),
+    `${source}\nBranch authored acceptance.\n`,
+  );
+  let progress = await scan();
+  expect(progress?.tasks[0]?.state).toBe("observed");
+  expect(progress?.tasks[0]?.observations[0]?.task.version).toMatch(
+    /^[a-f0-9]{64}$/,
+  );
+  writeFileSync(
+    join(root, "docket", taskPath),
+    `${source}\nLocal independent acceptance.\n`,
+  );
+  progress = await scan();
+  expect(progress?.tasks[0]?.state).toBe("conflict");
+  writeFileSync(join(root, "docket", taskPath), source);
+  write(worker, "in-progress", "RS-2", "work/tasks/another.md");
+  progress = await scan();
+  expect(progress?.tasks.find((t) => t.id === "RS-2")?.state).toBe("observed");
+  expect(progress?.tasks.find((t) => t.id === "RS-1")?.state).toBe("observed");
+  write(worker, "done", "RS-1");
+  git(worker, "add", ".");
+  git(worker, "commit", "-qm", "Committed closeout\n\nTask: RS-1");
+  writeFileSync(join(worker, "docket", taskPath), source);
+  progress = await scan();
+  expect(
+    progress?.tasks.find((t) => t.id === "RS-1")?.observations[0],
+  ).toMatchObject({
+    task: { status: "todo" },
+    committed: {
+      task: { status: "done" },
+      integrated: false,
+      compatible: true,
+    },
+    uncommitted: true,
+  });
+  const local = await loadBundle(
+    new LocalFileStore(join(root, "docket")),
+    parseConfig("project: RS"),
+  );
+  expect(local.byId("RS-1")?.fm.status).toBe("todo");
+});
+
+test("documentation-only closeout behind a later unrelated doc tip leaves local epic at eight of nine", async () => {
+  const { root, worker, scan } = setup("todo", "docket", "RS");
+  const { taskDriftReceipt } = await import("./task-drift");
+  const open = readFileSync(join(root, "docket", taskPath), "utf8").replace(
+    "status: todo",
+    "status: todo\nepic: /work/epics/epic.md",
+  );
+  writeFileSync(join(root, "docket", taskPath), open);
+  mkdirSync(join(root, "docket/work/epics"), { recursive: true });
+  writeFileSync(
+    join(root, "docket/work/epics/epic.md"),
+    "---\ntype: Epic\nid: RS-370\ntitle: Synthetic parent\nstatus: in-progress\n---\n",
+  );
+  for (let n = 2; n <= 9; n++) {
+    write(root, "done", `RS-${n}`, `work/tasks/child-${n}.md`);
+    const p = join(root, `docket/work/tasks/child-${n}.md`);
+    writeFileSync(
+      p,
+      readFileSync(p, "utf8").replace(
+        "status: done",
+        "status: done\nepic: /work/epics/epic.md",
+      ),
+    );
+  }
+  git(root, "add", ".");
+  git(
+    root,
+    "commit",
+    "-qm",
+    "Integrated child implementation and local records",
+  );
+  git(worker, "merge", "--ff-only", git(root, "rev-parse", "HEAD"));
+  writeFileSync(
+    join(worker, "docket", taskPath),
+    `${open.replace("status: todo", "status: done")}\n# Outcome\n\nAccepted synthetic count, backups, fidelity and duplicate-safe replay.\n`,
+  );
+  git(worker, "add", ".");
+  git(worker, "commit", "-qm", "Accepted closeout\n\nTask: RS-1");
+  mkdirSync(join(worker, "docket/reference"), { recursive: true });
+  for (let n = 1; n <= 2; n++) {
+    writeFileSync(
+      join(worker, `docket/reference/follow-up-${n}.md`),
+      "---\ntype: Reference\ntitle: Independent doc follow-up\n---\nSource qualification only.\n",
+    );
+    git(worker, "add", ".");
+    git(worker, "commit", "-qm", "Documentation follow-up\n\nTask: RS-1");
+  }
+  const progress = await scan();
+  expect(taskDriftReceipt("RS-1", progress).warnings[0]?.code).toBe(
+    "terminal-closeout-unmerged",
+  );
+  const local = await loadBundle(
+    new LocalFileStore(join(root, "docket")),
+    parseConfig("project: RS"),
+  );
+  const children = local.workItems.filter(
+    (t) => t.fm.epic === "/work/epics/epic.md",
+  );
+  expect(children).toHaveLength(9);
+  expect(children.filter((t) => t.fm.status === "done")).toHaveLength(8);
+  expect(local.byId("RS-370")?.fm.status).toBe("in-progress");
+});
+
+test("foreign source IDs and pickups resolving through a local alias remain visible on the canonical task", async () => {
+  const { root, worker, scan } = setup("todo", "docket", "RS");
+  writeFileSync(
+    join(root, "docket", taskPath),
+    readFileSync(join(root, "docket", taskPath), "utf8").replace(
+      "id: RS-1",
+      "id: RS-5\naliases: [RS-1]",
+    ),
+  );
+  write(worker, "in-progress", "RS-1");
+  mkdirSync(join(worker, ".docket"), { recursive: true });
+  writeFileSync(join(worker, ".docket/active-task"), "RS-1\n");
+  const progress = await scan();
+  expect(progress?.tasks.find((t) => t.id === "RS-5")).toMatchObject({
+    localStatus: "todo",
+    state: "conflict",
+    pickedUpElsewhere: true,
+    observations: [{ task: { id: "RS-1" } }],
+  });
+  expect(progress?.tasks.some((t) => t.id === "RS-1")).toBe(false);
 });
