@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "sourceCommit": "2cd22a4ca6dc7b63148ab42f4583dfc858e0efe6",
+  "sourceCommit": "fd8b7c71111c2eebe19e25deb49af8ecf8687f78",
   "manifestPath": "release/public-export.json",
   "files": {
     ".github/workflows/ci.yml": "f056aee7c670014b3b89197cedfba3d66474eb24b35368869e5b35bd982c5df2",
@@ -395,8 +395,8 @@
     "scripts/upgrade-compatibility.ts": "68bff815720bb4e9ea77126e31a270b5281c382522dada5c32534d79a0a16f56",
     "scripts/verification/markdown-prose-browser.json": "f015c2c8652abbf665311ad9a715d6e625baf0cdd9c74d1715f2d426c9916185",
     "scripts/verify-markdown-prose.ts": "8cb49a842e64ef1b841b8ff1c2f4bf1e485025c37e55314196a64af42c9e48df",
-    "site/README.md": "ccead856ec4f4b05ffcf65f6fc8d1e18f9ccf880c4caceec2a7e2bc957646ce8",
-    "site/_headers": "8b7397148a255896169c3ab79fd4acaaac54f3e41269bc5f1a0af9c6fc2aa85e",
+    "site/README.md": "c386decf18e06335bf332cb8444df3adeedc51fc5e52d22cea018d2f59f7c572",
+    "site/_headers": "a1c7d4855c79d1d08de50cb0685c200919998a7b0bc0c4e5c537eceabb2dda60",
     "site/assets/current-board.jpg": "7342497ae0413282893b296906c0d134e05f22191169ddb117c234fb67713f5e",
     "site/assets/current-home.jpg": "fe2fe3b542453b1c5ccb1138b8381959451508a647f0794586b0e526760fb3ac",
     "site/assets/epic-complete.jpg": "d516a9f5aaad99f23bb04966e32b7f9b7dbbb74c972fc76996db6888d20815e3",
