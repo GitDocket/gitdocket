@@ -4,7 +4,7 @@ Save your team’s steps for planning, building, and reviewing a change in your 
 
 In the [Beacon example](../examples/product-delivery/README.md), an agent adds bookmark export and records the file format it chose. A fresh session uses that decision to plan import. Follow the example, or use this reference to install and customize a workflow for your own project.
 
-Install GitDocket with [Homebrew](homebrew.md) or [npm](npm.md). To run the Beacon example, you will also need Bun for its app and verification scripts. GitDocket and its workflow extensions are in preview.
+Install GitDocket with [Homebrew](https://gitdocket.com/docs/install/) or [npm](https://gitdocket.com/docs/install/#npm-alternative). To run the Beacon example, you will also need Bun for its app and verification scripts. GitDocket and its workflow extensions are in preview.
 
 ## What belongs to your project
 
@@ -66,7 +66,7 @@ docket extension configure product-delivery --unbind issue-read --json
 
 A binding neither provides credentials nor grants authority. The agent checks the actual tool inventory/schema. A missing bound tool is unavailable; multiple plausible unbound tools require selection. Manually supplied issue text is useful when labeled with its actual provenance. Read identity/revision evidence, match checks to the exact code revision, and keep local handoffs reviewable. External writes need explicit authorization for a prepared body and destination. Reconcile an uncertain result by operation identity before retrying; retain actual returned references. The [Beacon example](../examples/product-delivery/README.md) includes a separately launched synthetic MCP fixture, never a live provider claim.
 
-An external list is another illustrative read workflow: with an existing authorized Notion connector or MCP tool, a project could bind a list-reading capability, ask the agent to retain links to each source item, and review a planning proposal before explicitly requesting Docket tasks. No Notion extension package or live Notion validation is included. Extensions do not install connectors, manage credentials or synchronize a provider in the background; the [Beacon verification](../site/docs/extensions/beacon/index.html#verified) demonstrates the local synthetic tool boundary and retained project records.
+An external list is another illustrative read workflow: with an existing authorized Notion connector or MCP tool, a project could bind a list-reading capability, ask the agent to retain links to each source item, and review a planning proposal before explicitly requesting Docket tasks. No Notion extension package or live Notion validation is included. Extensions do not install connectors, manage credentials or synchronize a provider in the background; the [Beacon verification](https://gitdocket.com/docs/extensions/beacon/#verified) demonstrates the local synthetic tool boundary and retained project records.
 
 ## Update and retire
 

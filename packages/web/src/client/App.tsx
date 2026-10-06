@@ -1,5 +1,6 @@
 import type { TaskProgress } from "@gitdocket/core";
 import { taskProgressLabel } from "@gitdocket/core/task-progress";
+import { markPath } from "../identity";
 // The whole SPA: hash routing, wiki pages, board with drag-to-move, epic
 // rollups. Read-mostly by design — the writes are the status drag and the
 // Inline field edits round-trip through the server's
@@ -3511,9 +3512,14 @@ export function App() {
           title={`Docket · ${project}`}
           aria-label={`Docket · ${project}`}
         >
-          <span className="brand-mark" aria-hidden="true">
-            d
-          </span>
+          <svg className="brand-mark" viewBox="0 0 64 64" aria-hidden="true">
+            <rect width="64" height="64" rx="14.08" fill="#286b4c" />
+            <path
+              d={markPath}
+              transform="translate(16 50) scale(1 -1)"
+              fill="#ffffff"
+            />
+          </svg>
           <span className="nav-label">
             <strong>Docket</strong>
             <small>{project}</small>

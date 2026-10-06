@@ -76,7 +76,9 @@ Telemetry is **local only and off by default**. Collection requires explicitly r
 
 ## Contributing and security
 
-This public repository is release-fed from a private canonical development repository. Issues and feedback are welcome; source pull requests are not accepted during the first preview because an inbound synchronization workflow does not yet exist. Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening an issue.
+Trying GitDocket? [Share what helped or where you got stuck](https://github.com/GitDocket/gitdocket/issues/new/choose)—rough impressions and quick notes are welcome. GitHub sign-in is required. You do not need a diagnosis or a reproducible example to share feedback. Keep private project content, credentials and personal details out of public issues. See [CONTRIBUTING.md](CONTRIBUTING.md) for optional bug-report details and the [release notes](https://github.com/GitDocket/gitdocket/releases) for changes.
+
+This public repository is release-fed from a private canonical development repository. Source pull requests are not accepted during the first preview because an inbound synchronization workflow does not yet exist.
 
 Please do not report vulnerabilities in a public issue. Use the repository’s private vulnerability-reporting form described in [SECURITY.md](SECURITY.md).
 

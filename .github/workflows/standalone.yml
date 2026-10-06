@@ -54,7 +54,7 @@ jobs:
           name: standalone-${{ github.sha }}-${{ matrix.target }}
           path: release/standalone/*
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 1
 
   qualified-assets:
     if: inputs.qualified_release_tag != ''

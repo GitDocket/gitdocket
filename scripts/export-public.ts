@@ -151,7 +151,18 @@ function scanPublicContent(path: string, bytes: Uint8Array): void {
       "packages/core/src/prompt-routing.ts",
       "packages/mcp/src/server.ts",
     ].includes(path);
-  if (!syntheticIdSurface && /\b(?:DKT|DEC)-\d+\b/.test(text)) {
+  // This exact published 0.6.4 tools/list capture contains illustrative IDs
+  // already shipped in server.ts. Keep its provenance-bound bytes intact;
+  // future captures need an explicit reviewed hash, not a path-wide exemption.
+  const capturedPublicMcpSchema =
+    path === "site/docs/mcp/tools.json" &&
+    sha256(bytes) ===
+      "f7df6cfe21de23074210e9af3a190f3716c39d93fcf46ee1ed272a569e764188";
+  if (
+    !syntheticIdSurface &&
+    !capturedPublicMcpSchema &&
+    /\b(?:DKT|DEC)-\d+\b/.test(text)
+  ) {
     throw new Error(`${path} contains private work-item provenance`);
   }
 }

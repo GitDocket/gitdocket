@@ -5,19 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>CLI commands. — GitDocket</title>
     <meta name="description" content="A short reference for working from the terminal. Run commands inside your initialized repository." />
+    <link rel="canonical" href="https://gitdocket.com/docs/cli/" />
+    <meta property="og:url" content="https://gitdocket.com/docs/cli/" />
     <meta property="og:type" content="website" />
     <meta property="og:title" content="CLI commands. — GitDocket" />
     <meta property="og:description" content="A short reference for working from the terminal. Run commands inside your initialized repository." />
     <meta property="og:image" content="https://gitdocket.com/assets/current-home.jpg" />
     <meta name="twitter:card" content="summary_large_image" />
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="/styles.css?v=a0d4f1c5fc15" />
+    <link rel="icon" href="/favicon.svg?v=39ed57e8efd7" type="image/svg+xml" />
+    <link rel="stylesheet" href="/styles.css?v=19056437b0e6" />
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
     <header class="shell nav">
-      <a class="brand" href="/" aria-label="GitDocket home"><span class="mark" aria-hidden="true">GD</span>GitDocket</a>
-      <nav aria-label="Primary navigation"><a href="/#product">Product</a><a href="/#workflow">Workflow</a><a href="/docs/">Docs</a><a href="https://github.com/GitDocket/gitdocket">GitHub</a></nav>
+      <a class="brand" href="/" aria-label="GitDocket home"><img class="mark" src="/assets/identity/mark-primary.svg?v=39ed57e8efd7" width="34" height="34" alt="" aria-hidden="true" />GitDocket</a>
+      <nav aria-label="Primary navigation"><a href="/#product">Product</a><a href="/#workflow">Workflow</a><a href="/docs/" aria-current="location">Docs</a><a href="https://github.com/GitDocket/gitdocket/releases">Releases</a><a href="https://github.com/GitDocket/gitdocket/issues/new/choose">Feedback</a></nav>
     </header>
     <div class="shell docs-layout">
       <aside class="docs-sidebar"><p class="eyebrow">Reference</p><nav aria-label="Documentation"><a href="/docs/">Get started</a><a href="/docs/install/">Installation</a><a href="/docs/example/">One-task example</a><a href="/docs/everyday/">Everyday use</a><a href="/docs/epics/">Epics</a><a href="/docs/extensions/">Extensions</a><a href="/docs/cli/" aria-current="page">CLI commands</a><a href="/docs/mcp/">MCP & workflows</a><a href="/docs/api/">Local HTTP reference</a></nav></aside>
@@ -33,15 +35,20 @@
         <section aria-labelledby="work"><h2 id="work">Manage tracked work</h2><p>Replace <code>&lt;ID&gt;</code> with a real ID from your task list. Ask your agent to start the task, make and check the change, and update the affected docs before closing it.</p>
 <div class="table-wrap"><table><thead><tr><th>Command</th><th>Purpose</th></tr></thead><tbody>
 <tr><td><code>docket task create --title "Write the guide"</code></td><td>Create a task with a generated ID.</td></tr>
-<tr><td><code>docket task start &lt;ID&gt; --json</code></td><td>Start or resume selected work and return its context packet; refuse a different ID when this checkout is occupied.</td></tr>
+<tr><td><code>docket task start &lt;ID&gt; --json</code></td><td>For a Task, start or resume it and return context; for an Epic, return a non-mutating supervision route.</td></tr>
 <tr><td><code>docket task log &lt;ID&gt; "Verified the guide links"</code></td><td>Record a dated work note.</td></tr>
-<tr><td><code>docket task move &lt;ID&gt; review</code></td><td>Move an item to review.</td></tr>
+<tr><td><code>docket task move &lt;ID&gt; in-review</code></td><td>Move an item to review.</td></tr>
 <tr><td><code>docket task edit &lt;ID&gt; --priority p1</code></td><td>Update a task’s fields.</td></tr>
-<tr><td><code>docket task stop</code></td><td>Clear the active task; its status stays unchanged.</td></tr>
+<tr><td><code>docket task stop &lt;ID&gt; --workflow-token &lt;pickup-token&gt; --json</code></td><td>Pause only the matching pickup; task status stays unchanged. Bare <code>docket task stop</code> remains available for authorized checkout-wide cleanup.</td></tr>
 <tr><td><code>docket task close &lt;ID&gt;</code></td><td>Complete the item after the close workflow’s checks.</td></tr>
 </tbody></table></div><p>To close without completion, use <code>docket task close &lt;ID&gt; --without-completion --note "Reason"</code>. Review the checks and changed files before completing a task.</p></section>
+        <section aria-labelledby="pickup-and-close"><h2 id="pickup-and-close">Pickup and closure</h2>
+<p>A named Task start moves that Task to <code>in-progress</code>, sets the checkout-local active marker and returns context. A named Epic start returns <code>outcome: "route"</code> with the <code>docket-epic</code> procedure. It changes no status or active marker and selects no child. The agent reads that procedure, checks the live graph and chooses eligible children. Add <code>--compact</code> for the bounded packet; follow its <code>requiredReads</code> before implementation.</p>
+<p>Prepare the Outcome or Disposition and reconcile docs before <code>task close</code>. Then refresh discovery, run the required checks and make the task-linked closure commit. Close retains active lifecycle state and returns <code>closure.cleanup.args</code>; run those arguments after substituting the actual commit SHA. Guarded cleanup has this form, with values from your pickup and closure receipts:</p>
+<pre><code class="language-sh">docket task stop &lt;ID&gt; --workflow-token &lt;pickup-token&gt; --after-commit &lt;closure-commit-sha&gt; --json</code></pre>
+<p>The guard checks the matching Task and pickup token, committed terminal source, task trailer and commit ancestry. It does not prove acceptance or integration. For a pause or handoff before completion, omit <code>--after-commit</code>.</p></section>
         <section aria-labelledby="parallel"><h2 id="parallel">Parallel tracked work</h2>
-<p><code>in-progress</code> is stored task status; it does not mean an agent is running. Each checkout has one <code>.docket/active-task</code> marker. Starting the same ID resumes it. An explicitly authorized hand-off runs <code>docket task stop</code> and then <code>docket task start &lt;ID&gt; --json</code> in the same checkout. Two concurrent tracked writers use separate linked Git worktrees and distinct branches. Untracked direct work does not make simultaneous editing in one checkout safe.</p>
+<p><code>in-progress</code> is stored task status; it does not mean an agent is running. Each checkout has one <code>.docket/active-task</code> marker. Starting the same ID resumes it. An explicitly authorized hand-off runs <code>docket task stop &lt;active-ID&gt; --workflow-token &lt;pickup-token&gt; --json</code> and then <code>docket task start &lt;ID&gt; --json</code> in the same checkout. Two concurrent tracked writers use separate linked Git worktrees and distinct branches. Untracked direct work does not make simultaneous editing in one checkout safe.</p>
 <p>When <code>docket task start &lt;ID&gt; --json</code> encounters another active ID, it exits nonzero with <code>error.code: "active-task-conflict"</code>. The response names <code>activeTaskId</code> and <code>requestedTaskId</code>, offers an explicitly authorized <code>handoff</code>, and includes an <code>isolation</code> path, branch, starting point, <code>git worktree add</code> recipe, issues and agent prompt. An unresolved task file or starting point makes <code>isolation.command</code> null; resolve it before creating a worktree. Adapt the branch to project naming guidance. The agent must also ensure the starting commit contains the requested task and relevant guidance, and plan for later integration.</p>
 <p>Paste this prompt into a second agent chat, replacing <code>&lt;ID&gt;</code> with the task you want it to start:</p>
 <blockquote><p>Start Docket task <code>&lt;ID&gt;</code> alongside the current work. Check existing authority before asking for approval, preserve the original checkout and task marker, and use a separate working copy when authorized. Check overlapping edits separately and continue independent ready work. Lead with the recommended next action; include the checkout, branch and starting commit as supporting details.</p></blockquote>
@@ -51,7 +58,15 @@
 <p><code>docket lint --json</code> reports source-line warnings for hard-wrapped prose. Keep paragraphs and simple list items on one source line and let the renderer wrap them. <code>docket lint --strict</code> exits nonzero on warnings as well as errors. Lint never rewrites source or rejects a browser save; use the reported path and line to review existing prose while preserving intentional Markdown breaks and structure.</p></section>
         <section aria-labelledby="wiki"><h2 id="wiki">Ordinary wiki documents</h2>
 <p><code>docket document create --input &lt;json-file&gt; --json</code> exclusively creates an ordinary Reference, Spec or Playbook. The JSON contains <code>path</code> (relative to the configured bundle), <code>type</code>, <code>title</code>, <code>body</code>, and optional <code>description</code> and <code>tags</code>. Paths must end in <code>.md</code>; reserved pages, guidance, tracked-work, workflow, decision and extension locations are excluded. The engine adds a timestamp and rejects existing paths without overwriting them.</p>
-<p><code>docket document read &lt;path&gt; --json</code> returns a complete editable body, title, description and source version. <code>docket document edit &lt;path&gt; --input &lt;json-file&gt; --json</code> accepts <code>{expectedVersion, patch}</code>; the patch can change only body/title/description. A stale source version conflicts. Run <code>docket index</code> and <code>docket lint --json</code> after authoring. See the <a href="/docs/everyday/#capture-wiki-knowledge">complete wiki example</a>.</p></section>
+<p><code>docket document read &lt;path&gt; --json</code> returns a complete editable body, title, description and source version. <code>docket document edit &lt;path&gt; --input &lt;json-file&gt; --json</code> accepts <code>{expectedVersion, patch}</code>; the patch accepts body, section, title and description. Do not combine a complete body replacement with a section edit. A stale source version conflicts. Run <code>docket index</code> and <code>docket lint --json</code> after authoring. See the <a href="/docs/everyday/#capture-wiki-knowledge">complete wiki example</a>.</p>
+<p>To update one level-one section, first read it with <code>docket document read &lt;path&gt; --section "Current state" --json</code>. Use the returned whole-source version in an edit input file:</p>
+<pre><code class="language-json">{
+  "expectedVersion": "&lt;version from document read&gt;",
+  "patch": {
+    "section": { "heading": "Current state", "body": "Replacement content." }
+  }
+}</code></pre>
+<p>The section body excludes its heading and cannot contain another level-one section. A missing section is inserted, duplicate headings are refused, and <code>body: null</code> removes the section. A section read is not a complete body draft.</p></section>
         <section aria-labelledby="decision"><h2 id="decision">Record a decision</h2>
 <p><code>docket decision create --title "…" --context "Context and alternatives" --decision "Accepted choice and rationale" --consequences "Tradeoffs" --json</code> writes a Decision under <code>decisions/</code> with a timestamp and <code>status: accepted</code>. Optional <code>--description</code> and <code>--tags</code> supply metadata. Omitted body sections receive placeholders; complete them before treating the record as finished. The result contains <code>id</code> and <code>path</code>. Run <code>docket index</code> and <code>docket lint --json</code> afterward.</p>
 <p>The ID prefix is <code>ids.decision_prefix</code> in <code>docket.yaml</code> (default <code>DEC</code>); its sequence is independent of project work IDs when the prefixes differ. Identical prefixes share occupied IDs and aliases. Linked Git worktrees coordinate both creation commands through one allocation lock, and occupied destinations are never overwritten. <code>task create --type</code> accepts only Task or Epic. Decision recording does not start or stop tracked work, change its active marker, or select project guidance. See the <a href="/docs/everyday/#record-an-accepted-choice">decision example</a>.</p></section>
@@ -79,9 +94,9 @@
 <pre><code class="language-sh">docket telemetry disable</code></pre>
 <p>Only if you intend to remove this checkout’s enrollment and retained observations:</p>
 <pre><code class="language-sh">docket telemetry delete</code></pre><p><code>report</code> summarizes observed operation counts, latency, errors, and sampled runtime memory. <code>disable</code> stops collection; <code>delete</code> removes this checkout’s enrollment and retained observations. Reports you export yourself remain yours to manage.</p></section>
-<section><h2>Agent overview: 0.6.1 development</h2><p>The next release returns a bounded live briefing from <code>docket overview --json</code>, with omitted counts and source paths. Use <code>docket overview --json --full</code> for the previous JSON model and to refresh the written project briefing. Scripts that depend on the old response must add <code>--full</code>.</p></section></main>
+<section><h2>Agent overview: GitDocket 0.6.4</h2><p>GitDocket 0.6.4 returns a bounded live briefing from <code>docket overview --json</code>, with omitted counts and source paths. Use <code>docket overview --json --full</code> for the previous JSON model and to refresh the written project briefing. Scripts that depend on the old response must add <code>--full</code>.</p></section></main>
     </div>
-    <footer class="shell footer"><a class="brand" href="/">GitDocket</a><p>Project knowledge and work, together in Git.</p><a href="https://github.com/GitDocket/gitdocket">Source on GitHub ↗</a></footer>
+    <footer class="shell footer"><a class="brand" href="/">GitDocket</a><p>Project knowledge and work, together in Git.</p><a href="https://github.com/GitDocket/gitdocket/releases">Release notes</a><a href="https://github.com/GitDocket/gitdocket/issues/new/choose">Feedback</a><a href="mailto:hello@gitdocket.com">Email Graham</a><a href="https://github.com/GitDocket/gitdocket">Source on GitHub ↗</a></footer>
       <script src="/copy-install.js?v=b002106b2d67" defer></script>
   </body>
 </html>

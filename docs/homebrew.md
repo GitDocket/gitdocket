@@ -1,5 +1,7 @@
 # Install with Homebrew
 
+GitDocket 0.6.4 is a public preview: expect rough edges and review agent changes. Public preview describes product maturity; the published packages use the latest channel and the GitHub release is not marked as a prerelease. See the [0.6.4 release notes](https://github.com/GitDocket/gitdocket/releases/tag/v0.6.4).
+
 Install GitDocket with Homebrew and verify both commands:
 
 ```sh
@@ -7,6 +9,8 @@ brew install gitdocket/tap/gitdocket &&
   docket --version &&
   docket-mcp --version
 ```
+
+If installation fails or your agent cannot find Docket, check the [supported platforms](#supported-platforms) and [command-path guidance](#moving-from-npm-or-bun), or [ask for help](#help-and-feedback).
 
 This installs `docket`, the command-line tool, and `docket-mcp`, which connects your coding agent to the project. Continue with [Getting started](getting-started.md). If you already use Node 22+, [npm](npm.md) is another installation option.
 
@@ -59,6 +63,14 @@ Inspect your previous installation with `npm ls -g --depth=0` or `bun pm ls -g`,
 If Homebrew reports a link collision, remove the old GitDocket packages with their original installer: `npm uninstall -g @gitdocket/cli @gitdocket/mcp` or `bun remove -g @gitdocket/cli @gitdocket/mcp`. Review the named paths before removing anything; avoid force-overwriting unknown executables. Run `brew link gitdocket/tap/gitdocket`, open a new terminal, and check `type -a docket docket-mcp` again.
 
 An agent may still point to the old executable through `.mcp.json`, `.cursor/mcp.json`, `.codex/config.toml` or its host-level MCP settings. Update any old absolute paths and restart the agent. Re-running `docket init` preserves custom entries, so check those yourself. For a new Cursor registration, enable Docket in Customize → MCPs.
+
+## Help and feedback
+
+Stuck during setup, or unsure what to do next? [Open a GitHub issue](https://github.com/GitDocket/gitdocket/issues/new/choose) or [email me at hello@gitdocket.com](mailto:hello@gitdocket.com) and tell me what you tried. GitHub sign-in is required. Rough impressions and quick notes are welcome; you do not need a diagnosis or a reproducible example to share feedback.
+
+For a bug, include whatever details you have: the GitDocket version (`docket --version`, if it runs), operating system, coding agent, what you expected, what happened, and steps to reproduce it. A small synthetic example helps. Missing details should not stop you from reporting a problem.
+
+Keep private project content, credentials and personal details out of public issues. Compare your installed version with the [release notes](https://github.com/GitDocket/gitdocket/releases) to see what changed.
 
 ## Maintaining the tap
 

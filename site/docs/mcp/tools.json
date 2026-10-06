@@ -1,5 +1,4 @@
 {
-  "description": "Captured by actual tools/list from the GitDocket 0.6.0 source server on 2026-09-24. Illustrative IDs are normalized to HBR/ADR. This is a reference snapshot of that version, not a promise that every installed release exposes the same tools. Connect to your installed server for its exact contract.",
   "tools": [
     {
       "name": "workflow_extensions",
@@ -27,15 +26,39 @@
           }
         },
         "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
       }
     },
     {
       "name": "overview",
       "title": "Orient and review",
-      "description": "Read-only orientation \u2014 answer what is happening or what comes next from the shared Docket overview.",
+      "description": "Read-only orientation — answer what is happening or what comes next from the shared Docket overview. The default brief view includes live selections, omitted counts and dated context. Request view: full for the compatibility evidence model, including state-of-play refresh. Brief and full overview both select workstreams by activity and readiness; `--full` restores the compatibility evidence model, not a complete open-epic inventory. Workstream totals and omitted counts describe admitted candidates, not every open epic. For open epics, call task_list with type: Epic, open: true directly.",
       "inputSchema": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "view": {
+            "default": "brief",
+            "type": "string",
+            "enum": [
+              "brief",
+              "full"
+            ]
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
       }
     },
     {
@@ -52,12 +75,19 @@
           }
         },
         "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
       }
     },
     {
       "name": "task_list",
       "title": "List work items",
-      "description": "Local work items with observed worktree progress, optionally filtered by recorded status or type. Use task_progress to discover tasks existing only on other branches.",
+      "description": "Complete local work inventory with observed worktree progress, optionally filtered by recorded status or type. For open epics, call directly with type: Epic, open: true; no prerequisite overview. History remains included by default for compatibility. Omit limit for all matches; with limit/offset, continue until the final page. Use task_progress to discover tasks existing only on other branches.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -76,7 +106,15 @@
           "type": {
             "description": "Task or Epic",
             "type": "string",
-            "enum": ["Epic", "Task"]
+            "enum": [
+              "Epic",
+              "Task"
+            ]
+          },
+          "open": {
+            "default": false,
+            "description": "exclude done and closed when status is omitted; history is included by default",
+            "type": "boolean"
           },
           "limit": {
             "type": "integer",
@@ -91,6 +129,13 @@
           }
         },
         "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
       }
     },
     {
@@ -103,11 +148,20 @@
           "id": {
             "type": "string",
             "minLength": 1,
-            "description": "e.g. HBR-14 or ADR-2"
+            "description": "e.g. DKT-14 or DEC-2"
           }
         },
-        "required": ["id"],
+        "required": [
+          "id"
+        ],
         "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
       }
     },
     {
@@ -122,21 +176,68 @@
           }
         },
         "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
       }
     },
     {
       "name": "lint",
       "title": "Lint the bundle",
-      "description": "Conformance errors (parse failures, schema violations, duplicate ids, unresolvable depends_on) plus practice warnings (missing epic specs, broken links, stale statuses, freshness nag). Empty array means clean.",
+      "description": "Run complete global conformance and practice validation. Default full view retains the diagnostic array. Summary is bounded to 8 KiB with global severity/category/code counts, prioritized source references and explicit omissions; changed_paths filters warnings only, never global errors. Optional baseline_path reads a complete saved CLI report inside this checkout; missing/incompatible evidence remains unknown. This read does not save reports or run CLI strict policy.",
       "inputSchema": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "view": {
+            "type": "string",
+            "enum": [
+              "full",
+              "summary"
+            ]
+          },
+          "changed_paths": {
+            "maxItems": 32,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2048
+            }
+          },
+          "baseline_path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 32
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
       }
     },
     {
       "name": "search",
       "title": "Search the bundle",
-      "description": "Ranked text search across every file in the bundle \u2014 tokenized multi-term queries, title/id matches boosted, best hits first; hits carry the owning concept's id plus its link neighborhood (outbound links and backlinks).",
+      "description": "Ranked text search across every file in the bundle — tokenized multi-term queries, title/id matches boosted, best hits first; hits carry the owning concept's id plus its link neighborhood (outbound links and backlinks).",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -151,8 +252,17 @@
             "maximum": 100
           }
         },
-        "required": ["query"],
+        "required": [
+          "query"
+        ],
         "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
       }
     },
     {
@@ -186,11 +296,24 @@
                 "maximum": 9007199254740991
               }
             },
-            "required": ["path", "sourceHash", "offset"]
+            "required": [
+              "path",
+              "sourceHash",
+              "offset"
+            ]
           }
         },
-        "required": ["path"],
+        "required": [
+          "path"
+        ],
         "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
       }
     },
     {
@@ -200,6 +323,13 @@
       "inputSchema": {
         "type": "object",
         "properties": {}
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
       }
     },
     {
@@ -208,7 +338,24 @@
       "description": "Refresh the generated bundle index after authorized source changes, preserving authored index regions. Does not select or change tracked work.",
       "inputSchema": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "response": {
+            "type": "string",
+            "enum": [
+              "compact",
+              "full"
+            ]
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
       }
     },
     {
@@ -225,8 +372,294 @@
             "type": "string"
           }
         },
-        "required": ["from", "to"],
+        "required": [
+          "from",
+          "to"
+        ],
         "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "reconcile_plan",
+      "title": "Review Docket reconciliation",
+      "description": "Plan explicitly selected Docket paths from a local ref or saved linked worktree. Bounded pages identify versions, semantic conflicts, drafts and derived index content; no writes, fetch, Git merge, task completion or application integration claim. Review exact sources before applying.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "selection": {
+            "type": "object",
+            "properties": {
+              "sourceRef": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "sourceRoot": {
+                "type": "string",
+                "maxLength": 2048
+              },
+              "saved": {
+                "default": false,
+                "type": "boolean"
+              },
+              "baseRef": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "paths": {
+                "minItems": 1,
+                "maxItems": 32,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 256
+                }
+              }
+            },
+            "required": [
+              "sourceRef",
+              "paths"
+            ],
+            "additionalProperties": false
+          },
+          "offset": {
+            "default": 0,
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "selection"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "reconcile_source",
+      "title": "Read a reconciliation source",
+      "description": "Read exact bounded base/local/incoming/proposed source pages for a selected path, guarded by the reviewed plan version. Follow nextOffset for the remaining source before accepting semantic changes.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "selection": {
+            "type": "object",
+            "properties": {
+              "sourceRef": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "sourceRoot": {
+                "type": "string",
+                "maxLength": 2048
+              },
+              "saved": {
+                "default": false,
+                "type": "boolean"
+              },
+              "baseRef": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "paths": {
+                "minItems": 1,
+                "maxItems": 32,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 256
+                }
+              }
+            },
+            "required": [
+              "sourceRef",
+              "paths"
+            ],
+            "additionalProperties": false
+          },
+          "expectedVersion": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "side": {
+            "type": "string",
+            "enum": [
+              "base",
+              "local",
+              "incoming",
+              "proposed"
+            ]
+          },
+          "offset": {
+            "default": 0,
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "selection",
+          "expectedVersion",
+          "path",
+          "side"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "reconcile_apply",
+      "title": "Apply reviewed Docket reconciliation",
+      "description": "Apply one explicit disposition per selected path using a source-bound plan version. Semantic choices require reasons; terminal imports require acceptCompletion and local transition/dependency policy. Preserve original and planned bytes in a local recovery journal, keep unrelated code/drafts, and regenerate derived index content. No Git history or remote actions.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "selection": {
+            "type": "object",
+            "properties": {
+              "sourceRef": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "sourceRoot": {
+                "type": "string",
+                "maxLength": 2048
+              },
+              "saved": {
+                "default": false,
+                "type": "boolean"
+              },
+              "baseRef": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "paths": {
+                "minItems": 1,
+                "maxItems": 32,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 256
+                }
+              }
+            },
+            "required": [
+              "sourceRef",
+              "paths"
+            ],
+            "additionalProperties": false
+          },
+          "expectedVersion": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "choices": {
+            "minItems": 1,
+            "maxItems": 32,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "maxLength": 256
+                },
+                "disposition": {
+                  "type": "string",
+                  "enum": [
+                    "keep-local",
+                    "merge-compatible",
+                    "take-incoming",
+                    "resolve"
+                  ]
+                },
+                "reason": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 512
+                },
+                "source": {
+                  "type": "string",
+                  "maxLength": 65536
+                },
+                "acceptCompletion": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "path",
+                "disposition"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "selection",
+          "expectedVersion",
+          "choices"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "reconcile_recover",
+      "title": "Recover reviewed reconciliation",
+      "description": "Resume using the retained recovery token; accept only original or already-applied source bytes. Preserve unrelated changes and fail for explicit review when they differ. Repeated successful recovery is a no-op; no rollback or implementation integration is implied.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
       }
     },
     {
@@ -246,8 +679,20 @@
             "type": "string"
           }
         },
-        "required": ["from", "to", "expectedVersion"],
+        "required": [
+          "from",
+          "to",
+          "expectedVersion"
+        ],
         "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
       }
     },
     {
@@ -261,8 +706,18 @@
             "type": "string"
           }
         },
-        "required": ["token"],
+        "required": [
+          "token"
+        ],
         "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
       }
     },
     {
@@ -277,7 +732,11 @@
           },
           "type": {
             "type": "string",
-            "enum": ["Reference", "Spec", "Playbook"]
+            "enum": [
+              "Reference",
+              "Spec",
+              "Playbook"
+            ]
           },
           "title": {
             "type": "string"
@@ -293,31 +752,63 @@
             "items": {
               "type": "string"
             }
+          },
+          "response": {
+            "type": "string",
+            "enum": [
+              "compact",
+              "full"
+            ]
           }
         },
-        "required": ["path", "type", "title", "body"],
+        "required": [
+          "path",
+          "type",
+          "title",
+          "body"
+        ],
         "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
       }
     },
     {
       "name": "document_read",
-      "title": "Read a complete editable document",
-      "description": "Read the complete body, title, description and version for a versioned save. Never use paged source excerpts as replacement drafts.",
+      "title": "Read an editable document or section",
+      "description": "Read the complete body, title, description and version, or supply section to read one level-one section with the whole-source version. Section reads are not complete body drafts. Never use excerpts as replacement bodies.",
       "inputSchema": {
         "type": "object",
         "properties": {
           "path": {
             "type": "string"
+          },
+          "section": {
+            "type": "string"
           }
         },
-        "required": ["path"],
+        "required": [
+          "path"
+        ],
         "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
       }
     },
     {
       "name": "document_edit",
       "title": "Save a versioned document edit",
-      "description": "Replace only the supplied body/title/description at expectedVersion. A newer source conflicts without writing. No tracker transitions or guidance selection occur. Run index after changes.",
+      "description": "Replace the supplied body or one named level-one section, plus optional title/description, at expectedVersion. A newer source conflicts without writing. No tracker transitions or content judgment occur. Refresh discovery after the source batch.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -327,24 +818,68 @@
           "expectedVersion": {
             "type": "string"
           },
+          "response": {
+            "type": "string",
+            "enum": [
+              "compact",
+              "full"
+            ]
+          },
           "patch": {
             "type": "object",
             "properties": {
               "body": {
                 "type": "string"
               },
+              "section": {
+                "type": "object",
+                "properties": {
+                  "heading": {
+                    "type": "string"
+                  },
+                  "body": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "heading",
+                  "body"
+                ],
+                "additionalProperties": false
+              },
               "title": {
-                "type": ["string", "null"]
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "description": {
-                "type": ["string", "null"]
+                "type": [
+                  "string",
+                  "null"
+                ]
               }
             },
             "additionalProperties": false
           }
         },
-        "required": ["path", "expectedVersion", "patch"],
+        "required": [
+          "path",
+          "expectedVersion",
+          "patch"
+        ],
         "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
       }
     },
     {
@@ -378,16 +913,33 @@
           "consequences": {
             "description": "tradeoffs and follow-up effects",
             "type": "string"
+          },
+          "response": {
+            "type": "string",
+            "enum": [
+              "compact",
+              "full"
+            ]
           }
         },
-        "required": ["title"],
+        "required": [
+          "title"
+        ],
         "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
       }
     },
     {
       "name": "task_create",
       "title": "Create a work item",
-      "description": "Create a Task or Epic with the next numbered id; the file lands under work/ as a conformant concept.",
+      "description": "Create a Task or Epic with the next coordinated id. Supply body for complete authored Markdown in one exclusive source write (64 KiB); omit it for the legacy Context/Acceptance Criteria skeleton. Returns a usable source version; creation never picks up work. Refresh discovery and lint once after the final source batch.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -398,14 +950,17 @@
           "type": {
             "default": "Task",
             "type": "string",
-            "enum": ["Epic", "Task"]
+            "enum": [
+              "Epic",
+              "Task"
+            ]
           },
           "description": {
             "description": "one-sentence description",
             "type": "string"
           },
           "epic": {
-            "description": "bundle-absolute link, e.g. /work/epics/HBR-2-\u2026.md",
+            "description": "bundle-absolute link, e.g. /work/epics/DKT-2-….md",
             "type": "string"
           },
           "depends_on": {
@@ -418,7 +973,12 @@
           "priority": {
             "default": "p2",
             "type": "string",
-            "enum": ["p0", "p1", "p2", "p3"]
+            "enum": [
+              "p0",
+              "p1",
+              "p2",
+              "p3"
+            ]
           },
           "assignee": {
             "type": "string"
@@ -428,10 +988,31 @@
             "items": {
               "type": "string"
             }
+          },
+          "body": {
+            "description": "Complete authored Markdown body, preserving intentional source line breaks",
+            "type": "string"
+          },
+          "response": {
+            "type": "string",
+            "enum": [
+              "compact",
+              "full"
+            ]
           }
         },
-        "required": ["title"],
+        "required": [
+          "title"
+        ],
         "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
       }
     },
     {
@@ -456,13 +1037,31 @@
               "closed"
             ]
           },
+          "response": {
+            "type": "string",
+            "enum": [
+              "compact",
+              "full"
+            ]
+          },
           "note": {
             "description": "dated Log entry; required when moving to closed or reopening closed work",
             "type": "string"
           }
         },
-        "required": ["id", "to"],
+        "required": [
+          "id",
+          "to"
+        ],
         "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
       }
     },
     {
@@ -479,10 +1078,28 @@
           "entry": {
             "type": "string",
             "minLength": 1
+          },
+          "response": {
+            "type": "string",
+            "enum": [
+              "compact",
+              "full"
+            ]
           }
         },
-        "required": ["id", "entry"],
+        "required": [
+          "id",
+          "entry"
+        ],
         "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
       }
     }
   ]

@@ -1,3 +1,4 @@
+import { identityIcon } from "./identity";
 // The Hono app: a thin JSON API over core plus the SPA shell. Every write
 // goes through core ops (setStatus, setPriority, setEpic) — the same single
 // write path as the CLI and MCP server — so the Phase 4 team UI is a client
@@ -416,6 +417,7 @@ const page = (assets: Assets): string => `<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>docket</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,${encodeURIComponent(identityIcon)}">
 <style>${assets.css}</style>
 </head>
 <body><div id="root"></div><script type="module" src="/assets/app.js"></script></body>
