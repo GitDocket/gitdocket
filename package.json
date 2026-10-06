@@ -38,7 +38,8 @@
     "test": "bun test",
     "lint": "biome check .",
     "format": "biome format --write .",
-    "release:homebrew": "bun scripts/homebrew-tap.ts"
+    "release:homebrew": "bun scripts/homebrew-tap.ts",
+    "site:preflight": "python3 scripts/site-preflight.py"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.11",

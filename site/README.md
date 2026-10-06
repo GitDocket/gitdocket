@@ -44,3 +44,26 @@ Each indexable page declares its own absolute HTTPS apex canonical and Open Grap
 The social sharing card uses the approved fixed logo/wordmark outlines and large project-memory copy instead of tiny product UI. Generate its SVG with `bun scripts/site-social.ts`, rasterize it to a 1200×630 PNG with a trusted SVG renderer (for example Sharp), then run `bun scripts/site-social.ts --metadata` to validate dimensions and refresh hashed absolute Open Graph/Twitter URLs and image descriptions. Keep both assets in the public export. Inspect the PNG at 300px and 600px wide, including a centered 2:1 crop on light and dark backgrounds; retain those documented renders and verify the public image response. Actual platform crawlers and their caches are separate observations. Per-page titles and descriptions remain specific to each guide.
 
 The shared header offers a direct “Star on GitHub” repository link. Desktop uses one row; below 900px it sits at the top right above the primary navigation and Feedback. Keep the same link and keyboard-visible focus across every public page; never display an invented star count or imply the link automatically stars the repository.
+
+## Repeatable site preflight
+
+Python 3.10+ supplies the read-only preflight with no additional packages. Select the published baseline explicitly; do not infer it from an unpublished development version. From the reviewed source or exact public export:
+
+```sh
+python3 scripts/site-preflight-test.py
+bun run site:preflight -- --version 0.6.4 --report /tmp/site-source-preflight.json
+```
+
+The source pass checks current release copy/links, canonical and current-page navigation, internal files/fragments, public-export coverage, content hashes, accessible sharing metadata, crawler files, raw MCP capture provenance and every archived example file against its canonical source. Historical release notes/demo records, the separate old MCP snapshot, and explicit compatibility minimums remain historical. It fails changed captured bytes, inconsistent declared versions/source identity and stale generated examples. Refresh artifacts through their existing generation/capture procedures; never repair a stale-artifact failure by editing the hash alone. CI runs the source pass and regression checks on Linux; its baseline comes from the reviewed published-capture declaration.
+
+After previewing the exact public commit, run the full launch pass against that checkout. Substitute the absolute path of an installed executable matching the selected published baseline and a retained browser receipt:
+
+```sh
+python3 scripts/site-preflight.py --root /absolute/clean-public-export --version 0.6.4 --base-url https://gitdocket.com --www --docket /absolute/published/docket --browser-receipt /absolute/browser-receipt.json --launch --report /tmp/site-launch-preflight.json
+```
+
+For a Pages preview, use its exact deployment URL and omit `--www`/`--launch` unless also checking the real production redirect and all manual evidence. Live checks compare status, MIME and intended bytes for authored same-origin routes/downloads, crawler files and three missing-page/asset probes. The www check requires HTTP/HTTPS 301 redirects preserving paths and queries with normal certificate validation. Only the already verified Cloudflare beacon URL/integrity, insertion whitespace and exact decoded-email transformation are normalized; unexplained hosting transformations fail. Browser/network inspection still verifies actual beacon reporting and keyboard/copy behavior.
+
+`--docket` verifies version and runs representative init, task creation/pickup/review/stop, overview, index and lint commands in a temporary synthetic Git repository; it never reads or changes this checkout's active task. Reports must be owned JSON files outside the checked source tree. The command does not deploy, purge caches, publish packages or submit feedback. Inspect failures, fix their source/configuration under the relevant authorization, then rerun the affected pass.
+
+The browser receipt uses `gitdocket-site-browser/v1`, exact `sourceCommit`/`publicCommit`, an `inputs` map of site paths to SHA-256 hashes, and `checks` entries named `responsive`, `keyboard`, `copy`, `console` and `social` with observed `status: passed`, evidence and limits. Cover every HTML page, shared CSS/script and sharing image; include other changed visual inputs. Retain responsive screenshots, keyboard/copy observations, console/network results and sharing crops on light/dark backgrounds. Unobserved checks stay unobserved. The launch pass rejects missing checks or changed relevant inputs; reuse unchanged browser evidence rather than repeating it for operator-only edits. Exact checkout/source/public revision and all results/limits remain in one bounded launch receipt.

@@ -389,6 +389,8 @@
     "scripts/release-wait.ts",
     "scripts/release.ts",
     "scripts/site-identity.ts",
+    "scripts/site-preflight-test.py",
+    "scripts/site-preflight.py",
     "scripts/site-social.ts",
     "scripts/standalone-build.ts",
     "scripts/standalone-release.test.ts",
