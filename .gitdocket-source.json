@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "sourceCommit": "824b391a4bd22d41565dba70f973fc76b9512490",
+  "sourceCommit": "55b0a689571bc82408b566bf9e654fa92a23de37",
   "manifestPath": "release/public-export.json",
   "files": {
     ".github/ISSUE_TEMPLATE/bug_report.md": "6ef8fc48de80045a50107f10b7c8b645094d84f35ba11294fa8b1ffa216ff900",
@@ -16,7 +16,7 @@
     "README.md": "aaab01b88f250d07c1905fd8eeec6fe114490a99b451e1d8d5d2cdd750dd99d7",
     "SECURITY.md": "0992c3af2e2734a50e7625d25b70607e7e2b0b014b31e96128730a5b65d00c4c",
     "biome.json": "2aa2586b450d3548d62fe3cb9735bc9afd86607fe2c2f894ea478a3360024a94",
-    "bun.lock": "d9ae2ec30697a91ee295b5f4af6be689732e89df3da6db0be0802a29ff74d3f4",
+    "bun.lock": "c77c19ffe4d24c3b11efa74c4f3508baa0853f2f60a9e9e1e1a603fe2217d674",
     "docs/agents.md": "e9e4c157d3b955492c62ef813ec003cfc9858251a293ab4c069ff6a6e9f18cff",
     "docs/cli.md": "a0102db9ca6a186a14f3e82a232f3fcf2fb9e89add1e8792fa509cbf3d6a517c",
     "docs/concepts.md": "361c07e9ebfe1149ba891ebee45327888d156cbeb6ca916cbfaef7cd82f1f299",
@@ -97,7 +97,7 @@
     "examples/product-delivery/server.ts": "100bfcab9cb57e56a922106edd1d090ac08cf087be7e64e3403fef73c1c0b37e",
     "examples/product-delivery/tests/baseline.check.ts": "0388b9e9ffc2b5645c9f431d5bd646526ad2d26ae68c82e30f8000ebe69c2e58",
     "examples/product-delivery/tests/export.acceptance.ts": "463d7c6eb0d929d1196c43fd7e6cccf3f5fdc44a30bb364ba21fa6d83961b1bf",
-    "package.json": "684847432d3c6ce3efafc88541bef22cff0c69f195591ccf657f95f5274ca7c3",
+    "package.json": "f6c0d6f26a43f9e54411ef6c9d645d0f6eaa1fde0ff1dbc42a744343bb8b5780",
     "packages/bin-darwin-arm64/package.json": "d947215a1fee043a3a26c7c96c7b7007e5b6695e2b81a00cd75fffccd3380ff2",
     "packages/bin-darwin-x64/package.json": "80bd2fcaa1cd0b0d791a26b1a9fb5515cf051a2eaaa22a08d700ab900394edc1",
     "packages/bin-linux-arm64/package.json": "d84ff5a506650b88e7a98b76eea2f685443ea8b351c4184fa20d314fbedf8cda",
