@@ -1,0 +1,92 @@
+{
+  "schema": "gitdocket-published-mcp-capture/v1",
+  "capturedAt": "2026-10-05T22:57:45.967Z",
+  "captureMethod": "Actual MCP initialize followed by tools/list over stdio using the published npm-installed 0.6.4 executable and the repository-local MCP SDK client. No schema or description normalization.",
+  "executableVersion": "0.6.4",
+  "serverInfo": {
+    "name": "docket",
+    "version": "0.6.4"
+  },
+  "platform": "darwin",
+  "architecture": "arm64",
+  "toolsCount": 25,
+  "toolsNames": [
+    "workflow_extensions",
+    "overview",
+    "ready",
+    "task_list",
+    "task_get",
+    "task_progress",
+    "lint",
+    "search",
+    "source_page",
+    "project_guidance",
+    "index",
+    "document_move_plan",
+    "reconcile_plan",
+    "reconcile_source",
+    "reconcile_apply",
+    "reconcile_recover",
+    "document_move_apply",
+    "document_move_recover",
+    "document_create",
+    "document_read",
+    "document_edit",
+    "decision_create",
+    "task_create",
+    "set_status",
+    "append_log"
+  ],
+  "outputSha256": "f7df6cfe21de23074210e9af3a190f3716c39d93fcf46ee1ed272a569e764188",
+  "packages": [
+    {
+      "name": "@gitdocket/mcp",
+      "version": "0.6.4",
+      "gitdocketSource": {
+        "kind": "public-export",
+        "commit": "2cd22a4ca6dc7b63148ab42f4583dfc858e0efe6",
+        "exportSha256": "e300e4603387bbbc870d433e975cb53a5b111494a30968e2927940457f374b0c"
+      },
+      "resolved": "https://registry.npmjs.org/@gitdocket/mcp/-/mcp-0.6.4.tgz",
+      "integrity": "sha512-fsyUkYW82YJWOPnzJTpaff0kBYaIbWU+a9YgVEubNdkuQVv2cZV7hq7tU63/R0LZ9dwdHJ/mGf0MxJHDYKNi+g=="
+    },
+    {
+      "name": "@gitdocket/cli",
+      "version": "0.6.4",
+      "gitdocketSource": {
+        "kind": "public-export",
+        "commit": "2cd22a4ca6dc7b63148ab42f4583dfc858e0efe6",
+        "exportSha256": "e300e4603387bbbc870d433e975cb53a5b111494a30968e2927940457f374b0c"
+      },
+      "resolved": "https://registry.npmjs.org/@gitdocket/cli/-/cli-0.6.4.tgz",
+      "integrity": "sha512-Mhz4XT7+DVxWrf0E6NEPI/V4NvUgEgBLcD29Ky2tR8VSnGT3K5mAzDfwBIXX4E2YYQfAAy232OXEDMuh2Zs+SA=="
+    },
+    {
+      "name": "@gitdocket/bin-darwin-arm64",
+      "version": "0.6.4",
+      "gitdocketSource": {
+        "kind": "public-export",
+        "commit": "2cd22a4ca6dc7b63148ab42f4583dfc858e0efe6",
+        "exportSha256": "e300e4603387bbbc870d433e975cb53a5b111494a30968e2927940457f374b0c"
+      },
+      "resolved": "https://registry.npmjs.org/@gitdocket/bin-darwin-arm64/-/bin-darwin-arm64-0.6.4.tgz",
+      "integrity": "sha512-Xu9A8OztudhkWTcdZjg9aogiRANQK9kq5nPc82SR7cw3G6Ry7qF0qkO1Le+kLNbhfh+yEuZl5F0JsrkyuhyT2Q=="
+    }
+  ],
+  "download": "https://gitdocket.com/docs/mcp/tools.json",
+  "historical": "https://gitdocket.com/docs/mcp/tools-0.6.0.json",
+  "binary": {
+    "name": "docket-mcp",
+    "sha256": "1ece6976660993f160d44245ebee2631a45f8b95f92798dd4dea45ca54665003"
+  },
+  "build": {
+    "version": "0.6.4",
+    "target": "darwin-arm64",
+    "bunVersion": "1.4.2",
+    "source": {
+      "kind": "public-export",
+      "commit": "2cd22a4ca6dc7b63148ab42f4583dfc858e0efe6",
+      "exportSha256": "e300e4603387bbbc870d433e975cb53a5b111494a30968e2927940457f374b0c"
+    }
+  }
+}

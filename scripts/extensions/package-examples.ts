@@ -32,7 +32,7 @@ try {
   );
   await writeFile(
     join(stage, "README.md"),
-    "# GitDocket workflow examples\n\nRequires Bun 1.3.14+, Git and GitDocket 0.6.0 installed through Homebrew or npm. Bun is required by the example app and scripts, not by the installed GitDocket commands. Read docs/extensions.md and examples/product-delivery/README.md. Prepare a fresh adopter with `bun scripts/extensions/prepare-example.ts --dest=/absolute/new/beacon --cli=/absolute/installed/docket`. Both packages install through that executable. The app is intentionally before export; retain actual agent proposals and supply a review only after reading them. Optional MCP fixture runners require `bun install --ignore-scripts`; all their issue/check/write inputs are synthetic. Historical rehearsal helpers are retained for reproducibility, and are labeled separately from the installed example.\n",
+    "# GitDocket workflow examples\n\nRequires Bun 1.3.14+, Git and GitDocket 0.6.0 or later installed through Homebrew or npm; the recommended current release is 0.6.4. Bun is required by the example app and scripts, not by the installed GitDocket commands. Read docs/extensions.md and examples/product-delivery/README.md. Prepare a fresh adopter with `bun scripts/extensions/prepare-example.ts --dest=/absolute/new/beacon --cli=/absolute/installed/docket`. Both packages install through that executable. The app is intentionally before export; retain actual agent proposals and supply a review only after reading them. Optional MCP fixture runners require `bun install --ignore-scripts`; all their issue/check/write inputs are synthetic. Historical rehearsal helpers are retained for reproducibility, and are labeled separately from the installed example.\n",
   );
   const files: Record<string, string> = {};
   async function collect(dir: string, prefix = "") {
@@ -54,14 +54,17 @@ try {
     `${JSON.stringify({ kind: "canonical-source-archive", files }, null, 2)}\n`,
   );
   await mkdir(dirname(archive), { recursive: true });
-  const result = Bun.spawnSync(["tar", "-czf", archive, "-C", stage, "."]);
+  const result = Bun.spawnSync(["tar", "-czf", archive, "-C", stage, "."], {
+    // macOS tar otherwise adds unmanifested AppleDouble metadata files.
+    env: { ...process.env, COPYFILE_DISABLE: "1" },
+  });
   if (result.exitCode) throw new Error(result.stderr.toString());
   const sha256 = createHash("sha256")
     .update(await readFile(archive))
     .digest("hex");
   await writeFile(
     join(root, "site/examples/workflow-examples.json"),
-    `${JSON.stringify({ kind: "canonical-source-archive", sha256, files, limits: "Setup and canonical sources only; no fabricated review or implementation evidence. Requires GitDocket 0.6.0 installed through Homebrew or npm; Bun runs the example app and scripts." }, null, 2)}\n`,
+    `${JSON.stringify({ kind: "canonical-source-archive", sha256, files, limits: "Setup and canonical sources only; no fabricated review or implementation evidence. Requires GitDocket 0.6.0 or later installed through Homebrew or npm; recommended current release 0.6.4; Bun runs the example app and scripts." }, null, 2)}\n`,
   );
   console.log(
     JSON.stringify(

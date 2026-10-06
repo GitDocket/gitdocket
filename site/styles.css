@@ -105,15 +105,10 @@ h3 {
   text-decoration: none;
 }
 .mark {
-  display: grid;
-  place-items: center;
+  display: block;
+  flex: 0 0 34px;
   width: 34px;
   height: 34px;
-  background: var(--accent);
-  color: white;
-  border-radius: 8px;
-  font-size: 12px;
-  letter-spacing: -0.05em;
 }
 .nav nav {
   display: flex;
@@ -735,4 +730,9 @@ td code {
   .reference-note {
     padding: 20px;
   }
+}
+
+.docs-sidebar a[aria-current="location"] {
+  color: var(--ink);
+  font-weight: 600;
 }

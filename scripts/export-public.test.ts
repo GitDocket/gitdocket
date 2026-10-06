@@ -221,6 +221,51 @@ describe("public export", () => {
     }
   });
 
+  test("preserves the exact published MCP schema capture during export", async () => {
+    const source = await makeRepo();
+    const destination = await makeRepo();
+    const path = "site/docs/mcp/tools.json";
+    const capture = await readFile(join(import.meta.dir, "..", path), "utf8");
+    await put(source, path, capture);
+    await writeManifest(source, [path]);
+
+    await exportPublicSnapshot({
+      sourceRoot: source,
+      sourceCommit: await commit(source),
+      destination,
+    });
+
+    expect(await readFile(join(destination, path), "utf8")).toBe(capture);
+  });
+
+  test("the MCP capture exception rejects altered bytes and other paths", async () => {
+    const capturePath = "site/docs/mcp/tools.json";
+    const capture = await readFile(
+      join(import.meta.dir, "..", capturePath),
+      "utf8",
+    );
+    const changed = JSON.parse(capture);
+    changed.privateNote = "Unreviewed work-item DKT-9999";
+    for (const [path, content] of [
+      [capturePath, `${JSON.stringify(changed, null, 2)}\n`],
+      ["site/docs/mcp/unreviewed.json", capture],
+    ] as const) {
+      const source = await makeRepo();
+      const destination = await makeRepo();
+      await put(source, path, content);
+      await writeManifest(source, [path]);
+
+      await expect(
+        exportPublicSnapshot({
+          sourceRoot: source,
+          sourceCommit: await commit(source),
+          destination,
+        }),
+      ).rejects.toThrow("private work-item provenance");
+      expect(await git(destination, "status", "--porcelain")).toBe("");
+    }
+  });
+
   test("live allowlist includes every package source file", async () => {
     const root = join(import.meta.dir, "..");
     const manifest = JSON.parse(

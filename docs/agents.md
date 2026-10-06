@@ -31,7 +31,7 @@ Project-authored guidance and linked sources survive initialization and upgrades
 
 [Extension workflows](extensions.md) use qualified identities and thin native pointers. Reread current availability/configuration through `docket extension show` or MCP `workflow_extensions`, then the complete canonical source using `source_page`. Package guidance stays scoped; unavailable or ambiguous tools never authorize invented results. Generated adapters and actual host qualification are separate evidence.
 
-## Overview views (0.6.1 development)
+## Overview views (GitDocket 0.6.4)
 
 MCP `overview` defaults to the bounded `agent-overview/v1` live briefing, also available with `{ "view": "brief" }`. It matches `docket overview --json`. Read omitted counts before treating a selection as a complete inventory. The optional context excerpt includes its review date and status; current task files supply readiness and progress.
 

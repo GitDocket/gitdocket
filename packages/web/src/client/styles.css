@@ -1040,10 +1040,9 @@ textarea {
   overflow: hidden;
 }
 .brand-mark {
-  flex: 0 0 16px;
-  font-size: 24px;
-  font-weight: 750;
-  line-height: 1;
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
 }
 .workspace-brand small {
   display: block;

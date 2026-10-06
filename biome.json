@@ -14,6 +14,12 @@
   },
   "overrides": [
     {
+      "includes": ["site/docs/mcp/tools.json"],
+      "formatter": {
+        "enabled": false
+      }
+    },
+    {
       "includes": [
         "docket/assets/extensions/dkt199/setup.json",
         "docket/assets/website/dkt239/preview.json"

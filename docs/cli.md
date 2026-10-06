@@ -26,7 +26,7 @@ Run `docket <command> --help` for flags and exact argument forms.
 
 For a named Task, `docket task start <ID> --json` moves it to `in-progress`, sets the checkout-local active task and returns a context packet. For a named Epic, the same command succeeds with `outcome: "route"`, a `docket-epic` workflow target, authoritative Epic content and the exact `Epic <ID> — <title>` manager title. The route does not change status, write or clear the active-task marker, or select a child; epic supervision owns the subsequent graph, readiness and checkout-conflict judgment.
 
-In the 0.6.2 development candidate, add `--compact` for the opt-in `docket-pickup/v1` Task packet or `docket-epic-route/v1` route, limited to 32 KiB of two-space-indented UTF-8 JSON (plus the CLI newline). The legacy full packet remains the default. Compact pickup retains canonical identity, source version, lifecycle outcome/token, dependency totals and non-done/unresolved counts, drift and instruction authority. Body/title previews and selected links/commits disclose omissions. `contextComplete: false` and `requiredReads` identify omitted required source; follow `source`/`source_page` cursors before implementation. Guidance stays included when it fits; its required continuation starts at the next page. Reuse an exact retained source/version when applicable instead of repeating pickup. An omitted title intent skips the optional host rename. Pickup does not establish dependency readiness, acceptance or integration.
+In GitDocket 0.6.4, add `--compact` for the opt-in `docket-pickup/v1` Task packet or `docket-epic-route/v1` route, limited to 32 KiB of two-space-indented UTF-8 JSON (plus the CLI newline). The legacy full packet remains the default. Compact pickup retains canonical identity, source version, lifecycle outcome/token, dependency totals and non-done/unresolved counts, drift and instruction authority. Body/title previews and selected links/commits disclose omissions. `contextComplete: false` and `requiredReads` identify omitted required source; follow `source`/`source_page` cursors before implementation. Guidance stays included when it fits; its required continuation starts at the next page. Reuse an exact retained source/version when applicable instead of repeating pickup. An omitted title intent skips the optional host rename. Pickup does not establish dependency readiness, acceptance or integration.
 
 ## Parallel tracked work
 
@@ -53,7 +53,7 @@ with `docket telemetry enable`; `docket telemetry status` shows its state.
 `docket telemetry report` summarizes observed operations, latency, errors, and
 sampled runtime memory. Add `--json` for structured evidence.
 
-In the 0.6.2 development candidate, `docket telemetry report --trace <supplied-file> --context --json` returns a separate `docket-context-volume/v1` review limited to 8 KiB of two-space-indented UTF-8 JSON. It examines only the supplied bounded export, without querying a host or the event store. It separates exported output representations, explicitly caller-measured response bytes, advertised schemas/instructions, supplied host-loaded material and optional host observations; absent dimensions are unavailable. Largest contributions, repeated same-resource reads and recorded compaction windows carry ordinal evidence and omitted counts. Optional `docketContext` annotations on matched call items can supply exact-source or lint-input versions and supported observations. Bytes and repetition do not establish waste, token occupancy or degraded reasoning. Omit `--context` for the complete existing trace-review view; source pages remain exact paginated UTF-16-unit reads rather than an 8 KiB byte promise.
+In GitDocket 0.6.4, `docket telemetry report --trace <supplied-file> --context --json` returns a separate `docket-context-volume/v1` review limited to 8 KiB of two-space-indented UTF-8 JSON. It examines only the supplied bounded export, without querying a host or the event store. It separates exported output representations, explicitly caller-measured response bytes, advertised schemas/instructions, supplied host-loaded material and optional host observations; absent dimensions are unavailable. Largest contributions, repeated same-resource reads and recorded compaction windows carry ordinal evidence and omitted counts. Optional `docketContext` annotations on matched call items can supply exact-source or lint-input versions and supported observations. Bytes and repetition do not establish waste, token occupancy or degraded reasoning. Omit `--context` for the complete existing trace-review view; source pages remain exact paginated UTF-16-unit reads rather than an 8 KiB byte promise.
 
 Caller annotations use `schema: docket-context-observation/v1`. Optional `sourceVersion` and `lintInputVersion` are exact lowercase 64-character SHA-256 strings. Optional `responseBytes`, `advertisedSchemaBytes`, `advertisedInstructionBytes`, `advertisedToolCount` and `hostLoadedBytes` are nonnegative integer counts up to one billion. `host` accepts `provenance` (host-reported or caller-estimate), `kind` (current-context or cumulative-usage), `model` (gpt-6, gpt-5, claude, gemini, other or unknown), ISO `observedAt`, integer `tokens`, positive `windowTokens` or null, and boolean `partial`. Unknown fields invalidate the annotation. The review reports invalid counts without retaining their content.
 
@@ -71,7 +71,7 @@ Upgrade reports distinguish file operations from retained workflow differences. 
 
 Use `docket extension inspect|install|list|show|configure|enable|disable|remove|update|validate|reconcile|recover|refresh` for optional repository-owned workflow packages. [The extension guide](extensions.md) documents exact commands, authoring, tool recipes and evidence limits. Installation and validation never execute package content.
 
-## Agent overview (0.6.2 development)
+## Agent overview (GitDocket 0.6.4)
 
 `docket overview --json` returns `agent-overview/v1`: live next-ready work, selected workstreams and standalone tasks, recent completions, attention items, a dated context excerpt and Git highlights. Collections report total and omitted counts. The default JSON is limited to 16 KiB of two-space-indented UTF-8 JSON; `budget` records additional record omissions and context-excerpt reduction. Canonical next-work identity and coordination warnings remain intact. Exceptional authority material that cannot fit is refused with the explicit full-view route. Follow an item's source path when you need detail.
 
@@ -82,8 +82,21 @@ Use `docket overview --json --full` for the previous JSON model and for refreshi
 
 `docket document create --input <json-file> --json` exclusively creates an ordinary Reference, Spec or Playbook. The JSON contains `path` (relative to the configured bundle), `type`, `title`, `body`, and optional `description` and `tags`. Paths must end in `.md`; reserved pages, guidance, tracked-work, workflow, decision and extension locations are excluded. The engine adds a timestamp and rejects existing paths without overwriting them.
 
-`docket document read <path> --json` returns a complete editable body, title, description and source version. `docket document edit <path> --input <json-file> --json` accepts `{expectedVersion, patch}`; the patch can change only body/title/description. A stale source version conflicts. Run `docket index` and `docket lint --json` after the final authoring batch. See the [complete wiki example](everyday-use.md#capture-wiki-knowledge).
+`docket document read <path> --json` returns a complete editable body, title, description and source version. `docket document edit <path> --input <json-file> --json` accepts `{expectedVersion, patch}`; the patch accepts body, section, title and description. A stale source version conflicts. Run `docket index` and `docket lint --json` after the final authoring batch. See the [complete wiki example](everyday-use.md#capture-wiki-knowledge).
 
+
+For a single level-one section, read `docket document read <path> --section "Current state" --json`, then save an edit input using its whole-source version:
+
+```json
+{
+  "expectedVersion": "<version from document read>",
+  "patch": {
+    "section": { "heading": "Current state", "body": "Replacement content." }
+  }
+}
+```
+
+Apply it with `docket document edit <path> --input <json-file> --json`. Do not combine body and section patches. The section body excludes its heading and cannot contain another level-one heading; a missing section is inserted, duplicate headings are refused, and `body: null` removes it. Section reads are not complete body drafts.
 
 ## Record a decision
 
@@ -106,7 +119,7 @@ A partial failure returns `state: recovery_required` and exits nonzero. Keep its
 
 ## Closure cleanup
 
-In the 0.6.2 candidate, prepare the Outcome or Disposition and reconcile docs before `task close`. The result retains lifecycle state for the task-trailer hook and returns `closure.cleanup.args` when that task is active. Finish discovery, validation and the task-linked closure commit, then run those arguments with the actual commit hash substituted for `<closure-commit-sha>`. `task stop <ID> --workflow-token <token> --after-commit <sha> --json` refuses another Task, a different pickup token, a nonterminal or changed Task source, a missing task trailer, or a commit outside HEAD's ancestry. It does not test acceptance criteria or infer integration.
+In GitDocket 0.6.4, prepare the Outcome or Disposition and reconcile docs before `task close`. The result retains lifecycle state for the task-trailer hook and returns `closure.cleanup.args` when that task is active. Finish discovery, validation and the task-linked closure commit, then run those arguments with the actual commit hash substituted for `<closure-commit-sha>`. `task stop <ID> --workflow-token <token> --after-commit <sha> --json` refuses another Task, a different pickup token, a nonterminal or changed Task source, a missing task trailer, or a commit outside HEAD's ancestry. It does not test acceptance criteria or infer integration.
 
 Named stop without `--after-commit` also supports authorized pauses and serialized handoffs. Retain the pickup's `telemetryWorkflow` token to distinguish a newer pickup of the same Task. ID-only cleanup provides a weaker Task guard; bare stop remains compatible for explicitly authorized checkout-wide cleanup. Both share the current engine's pickup lock. External and older clients must cooperate; this is not an OS-level compare-and-swap guarantee.
 
@@ -114,7 +127,7 @@ JSON reports `cleanup.disposition`, actual cleared paths, mutation disposition a
 
 ## Focused lint evidence
 
-The 0.6.2 candidate keeps `docket lint --json` as the complete diagnostic array and adds stable `code`, `category` and evidence fingerprints. Use `docket lint --summary --json --report .docket/lint/<owned-file>.json` after the final batch for an 8 KiB summary and a complete saved report. The owned destination must be JSON; an existing destination must already be a complete Docket lint report. Add `--baseline <prior-report>` to compare warning history and repeat `--changed-path <exact-path>` for relevant warnings. Global errors and introduced findings remain selected. `--strict` still fails on every global warning, including hidden warnings; selection changes presentation only. `--limit` accepts 1–32 details and `--offset` follows the returned continuation. A complete saved report is limited to 8 MiB and 20,000 source/diagnostic rows; the full array remains available for larger inputs.
+GitDocket 0.6.4 keeps `docket lint --json` as the complete diagnostic array and adds stable `code`, `category` and evidence fingerprints. Use `docket lint --summary --json --report .docket/lint/<owned-file>.json` after the final batch for an 8 KiB summary and a complete saved report. The owned destination must be JSON; an existing destination must already be a complete Docket lint report. Add `--baseline <prior-report>` to compare warning history and repeat `--changed-path <exact-path>` for relevant warnings. Global errors and introduced findings remain selected. `--strict` still fails on every global warning, including hidden warnings; selection changes presentation only. `--limit` accepts 1–32 details and `--offset` follows the returned continuation. A complete saved report is limited to 8 MiB and 20,000 source/diagnostic rows; the full array remains available for larger inputs.
 
 Baseline comparison requires matching checkout, configuration and rules. Checks with different observation coverage remain unknown while compatible source findings still compare. Missing, incomplete, tampered or incompatible reports never imply a clean change. Comparison matches diagnostic-signature occurrences; identical occurrences have no individual historical identity. Prose identity survives source-line movement, unique identical-content relocation is explicit, and ambiguous relocation remains unknown. Counts distinguish pre-existing, introduced, resolved and unknown findings. Input hashes describe the captured inputs; verify applicability before reusing validation after later source, rule, configuration, Git or time changes.
 

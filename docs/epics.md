@@ -29,12 +29,14 @@ On a successful run, the two tasks and their epic are done. Open the README link
 
 In a later session, ask “Where did we leave off?” The agent can use the saved task state, docs, and Git history to answer. A written re-entry note may need refreshing; readiness is calculated from current task files.
 
-To start an existing item yourself, use its actual ID from `docket task list`:
+To request pickup or routing for an existing item, use its actual ID from `docket task list`:
 
 Replace YOUR_TASK_ID with the actual ID of the existing task or epic before running:
 
 ```sh
 docket task start YOUR_TASK_ID --json
 ```
+
+For a Task, start moves it to `in-progress` and sets the active-task marker. For an Epic, it returns a non-mutating `docket-epic` route: no status or marker changes and no child pickup. Ask your agent to continue through the returned epic procedure; it checks readiness, selects eligible children and later reviews the overall result.
 
 See the [Harbor demonstration](../site/demo/README.md) for a repeatable scripted CLI run with its task files and checks.

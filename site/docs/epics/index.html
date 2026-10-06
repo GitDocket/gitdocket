@@ -5,19 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Grow to an epic — GitDocket</title>
     <meta name="description" content="Use dependent tasks to complete a larger outcome with your coding agent." />
+    <link rel="canonical" href="https://gitdocket.com/docs/epics/" />
+    <meta property="og:url" content="https://gitdocket.com/docs/epics/" />
     <meta property="og:type" content="website" />
     <meta property="og:title" content="Grow to an epic — GitDocket" />
     <meta property="og:description" content="Use dependent tasks to complete a larger outcome with your coding agent." />
     <meta property="og:image" content="https://gitdocket.com/assets/current-home.jpg" />
     <meta name="twitter:card" content="summary_large_image" />
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="/styles.css?v=a0d4f1c5fc15" />
+    <link rel="icon" href="/favicon.svg?v=39ed57e8efd7" type="image/svg+xml" />
+    <link rel="stylesheet" href="/styles.css?v=19056437b0e6" />
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
     <header class="shell nav">
-      <a class="brand" href="/" aria-label="GitDocket home"><span class="mark" aria-hidden="true">GD</span>GitDocket</a>
-      <nav aria-label="Primary navigation"><a href="/#product">Product</a><a href="/#workflow">Workflow</a><a href="/docs/">Docs</a><a href="https://github.com/GitDocket/gitdocket">GitHub</a></nav>
+      <a class="brand" href="/" aria-label="GitDocket home"><img class="mark" src="/assets/identity/mark-primary.svg?v=39ed57e8efd7" width="34" height="34" alt="" aria-hidden="true" />GitDocket</a>
+      <nav aria-label="Primary navigation"><a href="/#product">Product</a><a href="/#workflow">Workflow</a><a href="/docs/" aria-current="location">Docs</a><a href="https://github.com/GitDocket/gitdocket/releases">Releases</a><a href="https://github.com/GitDocket/gitdocket/issues/new/choose">Feedback</a></nav>
     </header>
     <div class="shell docs-layout">
       <aside class="docs-sidebar"><p class="eyebrow">Reference</p><nav aria-label="Documentation"><a href="/docs/">Get started</a><a href="/docs/install/">Installation</a><a href="/docs/example/">One-task example</a><a href="/docs/everyday/">Everyday use</a><a href="/docs/epics/" aria-current="page">Epics</a><a href="/docs/extensions/">Extensions</a><a href="/docs/cli/">CLI commands</a><a href="/docs/mcp/">MCP & workflows</a><a href="/docs/api/">Local HTTP reference</a></nav></aside>
@@ -38,13 +40,14 @@
   docket ready</code></pre>
 <p>On a successful run, the two tasks and their epic are done. Open the README link, read the guide, and review the checks described in each Outcome and the linked Git commits. If the agent reports an issue it cannot resolve, address it and resume the same epic.</p>
 <p>In a later session, ask “Where did we leave off?” The agent can use the saved task state, docs, and Git history to answer. A written re-entry note may need refreshing; readiness is calculated from current task files.</p>
-<p>To start an existing item yourself, use its actual ID from <code>docket task list</code>:</p>
+<p>To request pickup or routing for an existing item, use its actual ID from <code>docket task list</code>:</p>
 <p>Replace YOUR_TASK_ID with the actual ID of the existing task or epic before running:</p>
 <pre><code class="language-sh">docket task start YOUR_TASK_ID --json</code></pre>
+<p>For a Task, start moves it to <code>in-progress</code> and sets the active-task marker. For an Epic, it returns a non-mutating <code>docket-epic</code> route: no status or marker changes and no child pickup. Ask your agent to continue through the returned epic procedure; it checks readiness, selects eligible children and later reviews the overall result.</p>
 <p>See the <a href="/demo/README.md">Harbor demonstration</a> for a repeatable scripted CLI run with its task files and checks.</p>
 </main>
     </div>
-    <footer class="shell footer"><a class="brand" href="/">GitDocket</a><p>Project knowledge and work, together in Git.</p><a href="https://github.com/GitDocket/gitdocket">Source on GitHub ↗</a></footer>
+    <footer class="shell footer"><a class="brand" href="/">GitDocket</a><p>Project knowledge and work, together in Git.</p><a href="https://github.com/GitDocket/gitdocket/releases">Release notes</a><a href="https://github.com/GitDocket/gitdocket/issues/new/choose">Feedback</a><a href="mailto:hello@gitdocket.com">Email Graham</a><a href="https://github.com/GitDocket/gitdocket">Source on GitHub ↗</a></footer>
       <script src="/copy-install.js?v=b002106b2d67" defer></script>
   </body>
 </html>

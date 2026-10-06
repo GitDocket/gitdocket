@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://gitdocket.com/docs/api/</loc></url>
+  <url><loc>https://gitdocket.com/docs/cli/</loc></url>
+  <url><loc>https://gitdocket.com/docs/epics/</loc></url>
+  <url><loc>https://gitdocket.com/docs/everyday/</loc></url>
+  <url><loc>https://gitdocket.com/docs/example/</loc></url>
+  <url><loc>https://gitdocket.com/docs/extensions/beacon/</loc></url>
+  <url><loc>https://gitdocket.com/docs/extensions/</loc></url>
+  <url><loc>https://gitdocket.com/docs/extensions/reference/</loc></url>
+  <url><loc>https://gitdocket.com/docs/</loc></url>
+  <url><loc>https://gitdocket.com/docs/install/</loc></url>
+  <url><loc>https://gitdocket.com/docs/mcp/</loc></url>
+  <url><loc>https://gitdocket.com/</loc></url>
+</urlset>

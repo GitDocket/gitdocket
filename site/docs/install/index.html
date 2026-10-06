@@ -5,28 +5,32 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Install GitDocket — GitDocket</title>
     <meta name="description" content="Install both GitDocket commands with Homebrew, or use npm with Node 22+. Supported platforms, updates and migration." />
+    <link rel="canonical" href="https://gitdocket.com/docs/install/" />
+    <meta property="og:url" content="https://gitdocket.com/docs/install/" />
     <meta property="og:type" content="website" />
     <meta property="og:title" content="Install GitDocket — GitDocket" />
     <meta property="og:description" content="Install both GitDocket commands with Homebrew, or use npm with Node 22+. Supported platforms, updates and migration." />
     <meta property="og:image" content="https://gitdocket.com/assets/current-home.jpg" />
     <meta name="twitter:card" content="summary_large_image" />
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="/styles.css?v=a0d4f1c5fc15" />
+    <link rel="icon" href="/favicon.svg?v=39ed57e8efd7" type="image/svg+xml" />
+    <link rel="stylesheet" href="/styles.css?v=19056437b0e6" />
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
     <header class="shell nav">
-      <a class="brand" href="/" aria-label="GitDocket home"><span class="mark" aria-hidden="true">GD</span>GitDocket</a>
-      <nav aria-label="Primary navigation"><a href="/#product">Product</a><a href="/#workflow">Workflow</a><a href="/docs/" aria-current="page">Docs</a><a href="https://github.com/GitDocket/gitdocket">GitHub</a></nav>
+      <a class="brand" href="/" aria-label="GitDocket home"><img class="mark" src="/assets/identity/mark-primary.svg?v=39ed57e8efd7" width="34" height="34" alt="" aria-hidden="true" />GitDocket</a>
+      <nav aria-label="Primary navigation"><a href="/#product">Product</a><a href="/#workflow">Workflow</a><a href="/docs/" aria-current="location">Docs</a><a href="https://github.com/GitDocket/gitdocket/releases">Releases</a><a href="https://github.com/GitDocket/gitdocket/issues/new/choose">Feedback</a></nav>
     </header>
     <div class="shell docs-layout">
-      <aside class="docs-sidebar"><p class="eyebrow">Reference</p><nav aria-label="Documentation"><a href="/docs/">Get started</a><a href="/docs/install/">Installation</a><a href="/docs/example/">One-task example</a><a href="/docs/everyday/">Everyday use</a><a href="/docs/epics/">Epics</a><a href="/docs/extensions/">Extensions</a><a href="/docs/cli/">CLI commands</a><a href="/docs/mcp/">MCP & workflows</a><a href="/docs/api/">Local HTTP reference</a></nav></aside>
+      <aside class="docs-sidebar"><p class="eyebrow">Reference</p><nav aria-label="Documentation"><a href="/docs/">Get started</a><a href="/docs/install/" aria-current="page">Installation</a><a href="/docs/example/">One-task example</a><a href="/docs/everyday/">Everyday use</a><a href="/docs/epics/">Epics</a><a href="/docs/extensions/">Extensions</a><a href="/docs/cli/">CLI commands</a><a href="/docs/mcp/">MCP & workflows</a><a href="/docs/api/">Local HTTP reference</a></nav></aside>
       <main class="docs-content" id="main" tabindex="-1">
 <h1 id="install-gitdocket">Install GitDocket</h1>
+<p>GitDocket 0.6.4 is a public preview: expect rough edges and review agent changes. Public preview describes product maturity; the published packages use the latest channel and the GitHub release is not marked as a prerelease. See the <a href="https://github.com/GitDocket/gitdocket/releases/tag/v0.6.4">0.6.4 release notes</a>.</p>
 <p>Install GitDocket with Homebrew and verify both commands:</p>
 <pre><code class="language-sh">brew install gitdocket/tap/gitdocket &amp;&amp;
   docket --version &amp;&amp;
   docket-mcp --version</code></pre>
+<p>If installation fails or your agent cannot find Docket, check the <a href="#supported-platforms">supported platforms</a> and <a href="#moving-from-npm-or-bun">command-path guidance</a>, or <a href="#help-and-feedback">ask for help</a>.</p>
 <p>This installs <code>docket</code>, the command-line tool, and <code>docket-mcp</code>, which connects your coding agent to the project. Continue with <a href="/docs/">Getting started</a>. If you already use Node 22+, <a href="/docs/install/#npm-alternative">npm</a> is another installation option.</p>
 <h2 id="supported-platforms">Supported platforms</h2>
 <p>You need Git and Homebrew. GitDocket supports:</p>
@@ -57,6 +61,7 @@
 <pre><code class="language-sh">npm install -g --include=optional @gitdocket/cli @gitdocket/mcp &amp;&amp;
   docket --version &amp;&amp;
   docket-mcp --version</code></pre>
+<p>If installation fails or your agent cannot find Docket, check the <a href="#supported-platforms">supported platforms</a> and <a href="#moving-from-npm-or-bun">command-path guidance</a>, or <a href="#help-and-feedback">ask for help</a>.</p>
 <p>This installs the command-line tool and the MCP server for your coding agent. Keep optional dependencies enabled: they supply the executable for your platform. The supported platforms are macOS 15+ and glibc Linux on ARM64 or x64; see <a href="/docs/install/#supported-platforms">platform details</a>.</p>
 <p>Continue with <a href="/docs/">Getting started</a>.</p>
 <h2 id="run-with-npx">Run with npx</h2>
@@ -70,9 +75,13 @@
 <p>Update with <code>npm update -g @gitdocket/cli @gitdocket/mcp</code>, or remove the packages with <code>npm uninstall -g @gitdocket/cli @gitdocket/mcp</code>. Your project files stay in place.</p>
 <p>After an application update, run <code>docket upgrade --dry-run --json</code> in each project, review the changes, then run <code>docket upgrade</code>. Resolve any conflicts with your customized instructions.</p>
 <p>A Bun global installation uses a separate package manager. Follow the <a href="/docs/install/#moving-from-npm-or-bun">migration guide</a> when switching installers or resolving command collisions.</p>
+<h2 id="help-and-feedback">Help and feedback</h2>
+<p>Stuck during setup, or unsure what to do next? <a href="https://github.com/GitDocket/gitdocket/issues/new/choose">Open a GitHub issue</a> or <a href="mailto:hello@gitdocket.com">email me at hello@gitdocket.com</a> and tell me what you tried. GitHub sign-in is required. Rough impressions and quick notes are welcome; you do not need a diagnosis or a reproducible example to share feedback.</p>
+<p>For a bug, include whatever details you have: the GitDocket version (<code>docket --version</code>, if it runs), operating system, coding agent, what you expected, what happened, and steps to reproduce it. A small synthetic example helps. Missing details should not stop you from reporting a problem.</p>
+<p>Keep private project content, credentials and personal details out of public issues. Compare your installed version with the <a href="https://github.com/GitDocket/gitdocket/releases">release notes</a> to see what changed.</p>
 </main>
     </div>
-    <footer class="shell footer"><a class="brand" href="/">GitDocket</a><p>Project knowledge and work, together in Git.</p><a href="https://github.com/GitDocket/gitdocket">Source on GitHub ↗</a></footer>
+    <footer class="shell footer"><a class="brand" href="/">GitDocket</a><p>Project knowledge and work, together in Git.</p><a href="https://github.com/GitDocket/gitdocket/releases">Release notes</a><a href="https://github.com/GitDocket/gitdocket/issues/new/choose">Feedback</a><a href="mailto:hello@gitdocket.com">Email Graham</a><a href="https://github.com/GitDocket/gitdocket">Source on GitHub ↗</a></footer>
     <script src="/copy-install.js?v=b002106b2d67" defer></script>
   </body>
 </html>
