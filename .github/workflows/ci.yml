@@ -29,6 +29,12 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bunx biome ci .
       - run: bunx tsc --noEmit
+      - name: Site preflight regression checks
+        run: python3 scripts/site-preflight-test.py
+      - name: Check site sources against declared published MCP baseline
+        run: |
+          version=$(python3 -c 'import json; print(json.load(open("site/docs/mcp/provenance.json"))["executableVersion"])')
+          python3 scripts/site-preflight.py --version "$version" --report /tmp/site-preflight.json
       - run: bun test --timeout 30000
       - name: Lint the public example bundle
         run: bun ../../packages/cli/src/index.ts lint
