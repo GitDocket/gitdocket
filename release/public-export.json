@@ -401,6 +401,7 @@
     "site/404.html",
     "site/README.md",
     "site/_headers",
+    "site/_redirects",
     "site/assets/current-board.jpg",
     "site/assets/current-home.jpg",
     "site/assets/epic-complete.jpg",
