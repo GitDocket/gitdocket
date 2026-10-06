@@ -8,7 +8,7 @@ const imagePath = join(root, "site/assets/social-preview.png");
 const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
 <title>GitDocket: docs, tasks and decisions together in Git</title>
 <rect width="1200" height="630" fill="#f5f3eb"/>
-<svg x="64" y="58" width="430" height="90" viewBox="0 0 306 64">${identitySvg("primary", true).replace(/^<svg[^>]*>|<\/svg>$/g, "")}</svg>
+<svg role="img" aria-label="GitDocket" x="64" y="58" width="430" height="90" viewBox="0 0 306 64">${identitySvg("primary", true).replace(/^<svg[^>]*>|<\/svg>$/g, "")}</svg>
 <g font-family="sans-serif" fill="#182019">
 <text x="64" y="218" font-size="22" letter-spacing="3" fill="#286b4c">PROJECT MEMORY, IN GIT</text>
 <text x="64" y="296" font-size="64" font-weight="700">Docs, tasks and decisions.</text>
