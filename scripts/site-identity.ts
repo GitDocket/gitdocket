@@ -22,6 +22,15 @@ const hash = (value: string) =>
 const faviconHash = hash(
   await readFile(join(root, "site/favicon.svg"), "utf8"),
 );
+const redirectsPath = join(root, "site/_redirects");
+const redirects = await readFile(redirectsPath, "utf8").catch(() => "");
+const otherRedirects = redirects
+  .split("\n")
+  .filter((line) => line.trim() && !line.startsWith("/favicon.ico "));
+await writeFile(
+  redirectsPath,
+  `${[...otherRedirects, `/favicon.ico /favicon.svg?v=${faviconHash} 301`].join("\n")}\n`,
+);
 const markHash = hash(
   await readFile(join(root, "site/assets/identity/mark-primary.svg"), "utf8"),
 );
